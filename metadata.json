@@ -1,5 +1,5 @@
 {
-  "name": "Alma Academic Life Suite",
+  "name": "Unisphere - University Life",
   "description": "Comprehensive academic degree workstation, curriculum tracker, GPA telemetry, and study audit logs.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
