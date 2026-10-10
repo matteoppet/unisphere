@@ -67,7 +67,6 @@ export type AssignmentType =
   | 'Exam'
   | 'Final'
   | 'Project'
-  | 'Demo'
   | 'Oral'
   | 'Lab Report';
 

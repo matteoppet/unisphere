@@ -103,8 +103,8 @@ export const INITIAL_COURSES: Course[] = [
     semester: 1,
     status: 'active',
     nextDeliverable: {
-      type: 'Demo',
-      title: 'Demo: Nov 20',
+      type: 'Project',
+      title: 'Project: Nov 20',
       date: '2024-11-20',
       badgeColor: 'amber',
     },
@@ -582,8 +582,8 @@ export const INITIAL_ASSIGNMENTS: AssignmentItem[] = [
   {
     id: 'asg-2',
     courseName: 'Human-Computer Interaction',
-    title: 'Interactive Prototype Live Demo & Evaluation',
-    type: 'Demo',
+    title: 'Interactive Prototype Presentation & Evaluation',
+    type: 'Project',
     dueDate: '2024-11-20',
     weightPercent: 30,
     status: 'in-progress',
