@@ -61,20 +61,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess, defaultEmail
   const [regStep, setRegStep] = useState<1 | 2>(1); // Step 1: Credentials, Step 2: Degree/Master setup
 
   // Form State
-  const [email, setEmail] = useState(defaultEmail || 'elena.rossi@studio.unibo.it');
-  const [password, setPassword] = useState('Passw0rd2024!');
-  const [confirmPassword, setConfirmPassword] = useState('Passw0rd2024!');
+  const [email, setEmail] = useState(defaultEmail || '');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [name, setName] = useState('Elena Rossi');
-  const [studentId, setStudentId] = useState('0001092834');
+  const [name, setName] = useState('');
+  const [studentId, setStudentId] = useState('');
 
   // Step 2: Degree Setup State
   const [selectedDegreeLevelId, setSelectedDegreeLevelId] = useState('master');
-  const [degreeName, setDegreeName] = useState('Computer Science and Engineering');
+  const [degreeName, setDegreeName] = useState('');
   const [totalTargetCFU, setTotalTargetCFU] = useState<number>(120);
   const [academicYear, setAcademicYear] = useState('Year 1');
   const [enrolledYear, setEnrolledYear] = useState('AY 2024/25');
-  const [institution, setInstitution] = useState('Alma Mater Studiorum - Università di Bologna');
+  const [institution, setInstitution] = useState('');
   const [currentSession, setCurrentSession] = useState('Fall Semester 2024');
 
   // Status & UI
