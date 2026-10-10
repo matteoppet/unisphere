@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Plus Jakarta Sans", "Geist", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Inter", "Plus Jakarta Sans", "Geist", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    color: #171717;
+    background-color: #f9fafb;
+    overscroll-behavior: none;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Modern SaaS Scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-left: 1px solid #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border: 2px solid #f8fafc;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Modern Controls & Buttons */
+.win-button {
+  background: #ffffff;
+  border: 1px solid #e5e7eb; /* soft border-gray-200 */
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.win-button:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.win-button:active {
+  background: #f3f4f6;
+  box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.win-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.win-toolbar-btn {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.win-toolbar-btn:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.win-toolbar-btn:active, .win-toolbar-btn.active {
+  background: #e2e8f0;
+  border-color: #cbd5e1;
+}
+
+.win-bevel-in {
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background-color: #ffffff;
+  box-shadow: inset 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+}
+
+.win-header-cell {
+  background: #f8fafc;
+  border-right: 1px solid #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  border-top: none;
+  user-select: none;
+}
+
+.win-header-cell:hover {
+  background: #f1f5f9;
+}
+
+.win-statusbar-panel {
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+}
+
+@keyframes slide-right {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-right {
+  animation: slide-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fade-in 0.15s ease-out forwards;
+}

@@ -1,0 +1,31 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile containing educational identity and degree setup",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "studentId": { "type": "string" },
+        "degreeLevel": { "type": "string" },
+        "degreeName": { "type": "string" },
+        "degreeType": { "type": "string" },
+        "totalTargetCFU": { "type": "number" },
+        "enrolledYear": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "institution": { "type": "string" },
+        "status": { "type": "string" },
+        "quickNotes": { "type": "string", "description": "Ephemeral quick notes and daily reminders" }
+      },
+      "required": ["uid", "email", "degreeName", "totalTargetCFU"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Personal student profile and academic degree configuration"
+    }
+  }
+}
