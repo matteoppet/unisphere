@@ -127,21 +127,15 @@ export default function App() {
   const [showExportModal, setShowExportModal] = useState(false);
 
   // --- Authentication Session State ---
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_auth_session`);
-      return saved === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   // Sync Firebase Auth state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setIsAuthenticated(true);
-        localStorage.setItem(`${STORAGE_KEY}_auth_session`, 'true');
+      } else {
+        setIsAuthenticated(false);
       }
     });
     return () => unsubscribe();
@@ -168,7 +162,6 @@ export default function App() {
     setIsAuthenticated(true);
     try {
       localStorage.setItem(`${STORAGE_KEY}_profile`, JSON.stringify(newProfile));
-      localStorage.setItem(`${STORAGE_KEY}_auth_session`, 'true');
     } catch (e) {
       console.warn('Storage sync error', e);
     }
@@ -182,11 +175,6 @@ export default function App() {
       console.warn('Sign out notice', e);
     }
     setIsAuthenticated(false);
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_auth_session`, 'false');
-    } catch (e) {
-      console.warn('Storage sync error', e);
-    }
     setStatusMessage('Session terminated');
   };
 
@@ -302,7 +290,7 @@ export default function App() {
       "• [ ] Return reserve monograph 'Database Internals' to Central Library\n" +
       "• [ ] Verify AY 2024/25 study plan submission deadline"
     );
-    setStatusMessage('Demo Data Restored');
+    setStatusMessage('Default Data Restored');
     setTimeout(() => setStatusMessage('Ready'), 2500);
   };
 

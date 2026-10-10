@@ -109,29 +109,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess, defaultEmail
     }
   };
 
-  // Quick Demo Login
-  const handleQuickDemo = () => {
-    const demoProfile: StudentProfile = {
-      name: 'Elena Rossi',
-      studentId: '0001092834',
-      email: 'elena.rossi@studio.unibo.it',
-      degreeLevel: "Bachelor's Degree (Laurea Triennale)",
-      degreeName: 'Computer Science and Engineering',
-      degreeType: 'Laurea Triennale',
-      status: 'Regular Enrolled',
-      currentSession: 'Fall Semester 2024',
-      academicYear: 'Year 2',
-      enrolledYear: 'AY 2024/25',
-      totalTargetCFU: 180,
-      weeklyGoalHours: 25,
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&q=80',
-      logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Alma_Mater_Studiorum_-_Universit%C3%A0_di_Bologna_-_Logo.svg/200px-Alma_Mater_Studiorum_-_Universit%C3%A0_di_Bologna_-_Logo.svg.png',
-      thesisPointsExpected: 5,
-      institution: 'Alma Mater Studiorum - Università di Bologna',
-    };
-    onLoginSuccess(demoProfile);
-  };
-
   // Sign In Handler
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,16 +121,14 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess, defaultEmail
 
     setLoading(true);
     try {
-      let uid = '';
       let remoteProfile: StudentProfile | null = null;
 
       try {
         const userCred = await signInWithEmailAndPassword(auth, email.trim(), password);
-        uid = userCred.user.uid;
 
         // Fetch user profile from Firestore if available
         try {
-          const docSnap = await getDoc(doc(db, 'users', uid));
+          const docSnap = await getDoc(doc(db, 'users', userCred.user.uid));
           if (docSnap.exists()) {
             const data = docSnap.data();
             remoteProfile = {
@@ -179,11 +154,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess, defaultEmail
           console.warn('Firestore profile fetch fallback', fetchErr);
         }
       } catch (authErr: any) {
-        // If Firebase Auth throws because of new project or network, allow local session fallback
         console.warn('Firebase Auth sign in notice', authErr?.message);
-        if (authErr?.code === 'auth/wrong-password' || authErr?.code === 'auth/invalid-credential') {
-          throw new Error('Invalid institutional email or password. Please verify your credentials.');
-        }
+        throw new Error(
+          authErr?.code === 'auth/wrong-password' || authErr?.code === 'auth/invalid-credential'
+            ? 'Invalid institutional email or password. Please verify your credentials.'
+            : 'Authentication error. Please check your institutional email and password.'
+        );
       }
 
       // If remote profile was found or fallback from local state
@@ -482,18 +458,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess, defaultEmail
               </div>
             </fieldset>
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleQuickDemo}
-                className="px-3 py-2 bg-white hover:bg-slate-50 active:bg-slate-100 border border-gray-200 text-slate-700 text-[11px] font-medium rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-colors"
-              >
-                <span className="material-symbols-outlined text-[15px] text-indigo-600">
-                  play_arrow
-                </span>
-                <span>Quick Demo Login (Elena Rossi - CS)</span>
-              </button>
-
+            <div className="flex items-stretch sm:items-center justify-end gap-2 pt-1">
               <button
                 type="submit"
                 disabled={loading}
