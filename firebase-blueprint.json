@@ -1,0 +1,141 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile containing educational identity, credentials, academic workstation state, and gamification telemetry",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string" },
+        "studentId": { "type": "string" },
+        "passwordHash": { "type": "string", "description": "SHA-256 password hash for multi-device institutional authentication" },
+        "degreeLevel": { "type": "string" },
+        "degreeName": { "type": "string" },
+        "degreeType": { "type": "string" },
+        "totalTargetCFU": { "type": "number" },
+        "enrolledYear": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "institution": { "type": "string" },
+        "status": { "type": "string" },
+        "quickNotes": { "type": "string", "description": "Ephemeral quick notes and daily reminders" },
+        "courses": { "type": "array", "description": "Curriculum course list" },
+        "studyLogs": { "type": "array", "description": "Logged study sessions" },
+        "assignments": { "type": "array", "description": "Upcoming deliverables and exams" },
+        "xp": { "type": "number", "description": "Gamified experience points" },
+        "currentStreak": { "type": "number", "description": "Consecutive active study days streak" },
+        "minutesStudiedThisWeek": { "type": "number", "description": "Weekly study minutes logged" },
+        "tasksCompletedThisWeek": { "type": "number", "description": "Weekly completed tasks" },
+        "lastActiveDate": { "type": "string", "description": "Last date active (YYYY-MM-DD)" },
+        "activeSquadId": { "type": "string", "description": "Current active squad ID" },
+        "squadIds": { "type": "array", "description": "List of squad IDs user is a member of" },
+        "updatedAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "degreeName", "totalTargetCFU"]
+    },
+    "Squad": {
+      "title": "Squad",
+      "description": "A collaborative peer study group identified by a 6-character invite code",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 50 },
+        "code": { "type": "string", "maxLength": 8 },
+        "createdBy": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "memberCount": { "type": "number" },
+        "memberUids": { "type": "array" }
+      },
+      "required": ["id", "name", "code", "createdBy"]
+    },
+    "SquadMember": {
+      "title": "SquadMember",
+      "description": "Member profile within a specific study squad",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "color": { "type": "string" },
+        "elo": { "type": "number" },
+        "minutesThisWeek": { "type": "number" },
+        "tasksThisWeek": { "type": "number" },
+        "joinedAt": { "type": "string" }
+      },
+      "required": ["uid", "displayName"]
+    },
+    "SquadPresence": {
+      "title": "SquadPresence",
+      "description": "Real-time lock-in study presence of a squad member",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "courseId": { "type": "string" },
+        "courseName": { "type": "string" },
+        "startedAt": { "type": "number" },
+        "status": { "type": "string", "enum": ["locked-in", "idle"] },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["uid", "status"]
+    },
+    "SquadActivity": {
+      "title": "SquadActivity",
+      "description": "Micro-update event broadcasted to the squad feed",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "type": { "type": "string", "enum": ["session_complete", "task_complete", "loot_drop"] },
+        "title": { "type": "string" },
+        "xpEarned": { "type": "number" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "uid", "type", "title", "timestamp"]
+    },
+    "GhostSession": {
+      "title": "GhostSession",
+      "description": "Archived study session available for asynchronous rivalry ghost racing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "uid": { "type": "string" },
+        "memberName": { "type": "string" },
+        "courseName": { "type": "string" },
+        "durationMinutes": { "type": "number" },
+        "milestones": { "type": "array" },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["id", "uid", "memberName", "courseName", "durationMinutes", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Personal student profile and academic degree configuration"
+    },
+    "/squads/{squadId}": {
+      "schema": "Squad",
+      "description": "Study squad room metadata"
+    },
+    "/squads/{squadId}/members/{userId}": {
+      "schema": "SquadMember",
+      "description": "Members enrolled in the squad"
+    },
+    "/squads/{squadId}/presence/{userId}": {
+      "schema": "SquadPresence",
+      "description": "Live lock-in status of squad members"
+    },
+    "/squads/{squadId}/activities/{activityId}": {
+      "schema": "SquadActivity",
+      "description": "Real-time activity feed events"
+    },
+    "/squads/{squadId}/sessions/{sessionId}": {
+      "schema": "GhostSession",
+      "description": "Historical study sessions for ghost racing"
+    }
+  }
+}
