@@ -37,7 +37,7 @@ All the features of squads live exclusively inside the "Squad" page, you can eit
 
 ---
 
-## Local Deelopment Setup
+## Local Development Setup
 You can run UniSphere locally or build a new feature by following these steps:
 
 ### 1. Clone the repository
