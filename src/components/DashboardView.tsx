@@ -13,11 +13,13 @@ import { playClickBeep, playFuturisticChime } from '../utils/audio';
 import { fireTaskConfetti, fireCelebrationConfetti } from '../utils/confetti';
 import { getPowerBorderClass, getPowerBarFillClass } from '../utils/telemetry';
 import { NewAssignmentModal, NewStudyLogModal } from './Modals';
+import { X } from 'lucide-react';
 
 interface DashboardViewProps {
   profile: StudentProfile;
   courses: Course[];
   studyLogs: StudyLog[];
+  assignments?: AssignmentItem[];
   quickNotes?: string;
   onUpdateQuickNotes?: (notes: string) => void;
   onAddStudyLog: (log: Omit<StudyLog, 'id' | 'timestamp'>) => void;
@@ -28,12 +30,14 @@ interface DashboardViewProps {
   onOpenNewCourse?: () => void;
   onAddAssignment?: (asg: Omit<AssignmentItem, 'id'>) => void;
   onNavigateToAssignments?: () => void;
+  onUpdateAssignmentStatus?: (id: string, status: AssignmentItem['status']) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   profile,
   courses,
   studyLogs,
+  assignments = [],
   quickNotes = '',
   onUpdateQuickNotes,
   onAddStudyLog,
@@ -44,6 +48,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenNewCourse,
   onAddAssignment,
   onNavigateToAssignments,
+  onUpdateAssignmentStatus,
 }) => {
   // Local fallback if not passed by parent
   const [localNotes, setLocalNotes] = useState(quickNotes);
@@ -66,6 +71,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [notes, setNotes] = useState('');
   const [sessionJustAdded, setSessionJustAdded] = useState(false);
   const [copiedMatricola, setCopiedMatricola] = useState(false);
+  const [dismissedBannerId, setDismissedBannerId] = useState<string | null>(null);
 
   // Floating Action Button (FAB) & Quick Context Menu states
   const [fabOpen, setFabOpen] = useState(false);
@@ -209,8 +215,172 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setTimeout(() => setSessionJustAdded(false), 2400);
   };
 
+  // Deliverable Radar Calculation (Exams, Assignments, Deadlines)
+  const formatDeliverableDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    return dateStr;
+  };
+
+  const calculateDaysLeft = (dateStr: string) => {
+    if (!dateStr) return 999;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return 999;
+    const due = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    due.setHours(0, 0, 0, 0);
+    const diffTime = due.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  interface IncomingItem {
+    id: string;
+    title: string;
+    courseName: string;
+    type: string;
+    dueDate: string;
+    daysLeft: number;
+    isAssignment: boolean;
+    isCourseDeliverable?: boolean;
+    course?: Course;
+  }
+
+  const incomingItems: IncomingItem[] = React.useMemo(() => {
+    const list: IncomingItem[] = [];
+
+    // 1. Uncompleted assignments and exams
+    (assignments || [])
+      .filter((a) => a.status !== 'completed' && a.status !== 'submitted' && !!a.dueDate)
+      .forEach((a) => {
+        list.push({
+          id: a.id,
+          title: a.title,
+          courseName: a.courseName,
+          type: a.type || 'Task',
+          dueDate: a.dueDate,
+          daysLeft: calculateDaysLeft(a.dueDate),
+          isAssignment: true,
+        });
+      });
+
+    // 2. Next deliverables from active/planned courses
+    (courses || [])
+      .filter((c) => c.nextDeliverable && c.nextDeliverable.date && c.status !== 'completed')
+      .forEach((c) => {
+        const deliv = c.nextDeliverable!;
+        const exists = list.some(
+          (item) => item.title.toLowerCase() === deliv.title.toLowerCase()
+        );
+        if (!exists) {
+          list.push({
+            id: `course-deliv-${c.id}`,
+            title: deliv.title,
+            courseName: c.shortTitle || c.title,
+            type: deliv.type || 'Deliverable',
+            dueDate: deliv.date,
+            daysLeft: calculateDaysLeft(deliv.date),
+            isAssignment: false,
+            isCourseDeliverable: true,
+            course: c,
+          });
+        }
+      });
+
+    return list.sort((a, b) => a.daysLeft - b.daysLeft);
+  }, [assignments, courses]);
+
+  const nextItem = incomingItems[0];
+  const isExam =
+    nextItem &&
+    (nextItem.type.toLowerCase().includes('exam') ||
+      nextItem.type.toLowerCase().includes('midterm') ||
+      nextItem.type.toLowerCase().includes('final') ||
+      nextItem.type.toLowerCase().includes('oral') ||
+      nextItem.type.toLowerCase().includes('quiz') ||
+      nextItem.type.toLowerCase().includes('appello') ||
+      nextItem.type.toLowerCase().includes('parziale'));
+
+  const bannerTitle = isExam ? 'Incoming Exam' : 'Incoming Assignment';
+
+  const getDeliverableDisplayName = (item: IncomingItem) => {
+    const isGenericExam = ['exam', 'esame', 'final', 'midterm', 'parziale', 'appello', 'oral'].includes(
+      item.title.toLowerCase().trim()
+    );
+    if (isGenericExam && item.courseName) {
+      return item.courseName;
+    }
+    if (
+      item.courseName &&
+      item.courseName !== 'General' &&
+      item.courseName.toLowerCase() !== item.title.toLowerCase()
+    ) {
+      if (item.title.toLowerCase().includes(item.courseName.toLowerCase())) {
+        return item.title;
+      }
+      return `${item.courseName} - ${item.title}`;
+    }
+    return item.title || item.courseName;
+  };
+
+  const displayName = nextItem ? getDeliverableDisplayName(nextItem) : '';
+
+  const daysText =
+    nextItem
+      ? nextItem.daysLeft < 0
+        ? `${Math.abs(nextItem.daysLeft)} Days overdue`
+        : nextItem.daysLeft === 0
+        ? 'Due Today'
+        : nextItem.daysLeft === 1
+        ? '1 Day left'
+        : `${nextItem.daysLeft} Days left`
+      : '';
+
+  const isRed = (nextItem?.daysLeft ?? 999) <= 3;
+
   return (
     <div className="flex-1 bg-gray-50 dark:bg-zinc-950 overflow-y-auto p-2 sm:p-3.5 space-y-2.5 sm:space-y-3.5 transition-colors">
+      {/* INCOMING DELIVERABLE BANNER (Only shown when there are incoming items and not dismissed) */}
+      {nextItem && dismissedBannerId !== nextItem.id && (
+        <div
+          className={`rounded-xl border p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3 ${
+            isRed
+              ? 'border-red-500 bg-red-500/10 dark:bg-red-950/30 text-red-500 dark:text-red-400'
+              : 'border-orange-500 bg-orange-500/10 dark:bg-orange-950/30 text-orange-500 dark:text-orange-400'
+          }`}
+        >
+          <div className="space-y-1 min-w-0">
+            <h2 className="font-bold text-sm sm:text-base tracking-tight leading-none">
+              {bannerTitle}
+            </h2>
+            <p className="text-xs sm:text-sm font-medium opacity-90 leading-tight truncate">
+              {displayName} - {daysText}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setDismissedBannerId(nextItem.id)}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl border flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
+              isRed
+                ? 'border-red-500/60 hover:border-red-500 hover:bg-red-500/20 text-red-500 dark:text-red-400'
+                : 'border-orange-500/60 hover:border-orange-500 hover:bg-orange-500/20 text-orange-500 dark:text-orange-400'
+            }`}
+            title="Dismiss banner"
+            aria-label="Dismiss banner"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
       {/* 1. DEGREE TELEMETRY & MILESTONE BANNER */}
       <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-2.5 sm:p-3.5 text-xs shadow-sm">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 sm:gap-3">

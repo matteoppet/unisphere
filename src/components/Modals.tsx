@@ -16,19 +16,33 @@ interface CourseDetailModalProps {
   course: Course;
   onClose: () => void;
   onSave: (updated: Course) => void;
+  onDelete?: (courseId: string) => void;
 }
 
 export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
   course,
   onClose,
   onSave,
+  onDelete,
 }) => {
   const [formData, setFormData] = useState<Course>({ ...course });
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
     onClose();
+  };
+
+  const handleDeleteClick = () => {
+    if (!onDelete) return;
+    if (confirmDelete) {
+      onDelete(course.id);
+    } else {
+      setConfirmDelete(true);
+      // Auto-reset after 3 seconds if not confirmed
+      setTimeout(() => setConfirmDelete(false), 3000);
+    }
   };
 
   return (
@@ -261,20 +275,37 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
           </div>
 
           <div className="flex justify-between items-center pt-3 border-t border-gray-100 dark:border-zinc-800 dark:border-zinc-800">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              asChild
-            >
-              <a
-                href={`mailto:${formData.email}`}
-                className="text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5 font-medium"
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                asChild
               >
-                <span className="material-symbols-outlined text-[14px]">mail</span>
-                <span>Contact Professor</span>
-              </a>
-            </Button>
+                <a
+                  href={`mailto:${formData.email}`}
+                  className="text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5 font-medium"
+                >
+                  <span className="material-symbols-outlined text-[14px]">mail</span>
+                  <span>Contact Professor</span>
+                </a>
+              </Button>
+
+              {onDelete && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteClick}
+                  className="gap-1"
+                >
+                  <span className="material-symbols-outlined text-[14px]">
+                    {confirmDelete ? 'warning' : 'delete'}
+                  </span>
+                  <span>{confirmDelete ? 'Confirm Delete' : 'Delete'}</span>
+                </Button>
+              )}
+            </div>
 
             <div className="flex gap-2">
               <Button

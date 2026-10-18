@@ -8,6 +8,7 @@ interface CurriculumViewProps {
   onOpenCourseDetail: (course: Course) => void;
   onOpenNewCourse: () => void;
   onUpdateCourse: (course: Course) => void;
+  onDeleteCourse?: (courseId: string) => void;
 }
 
 export const CurriculumView: React.FC<CurriculumViewProps> = ({
@@ -16,6 +17,7 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
   onOpenCourseDetail,
   onOpenNewCourse,
   onUpdateCourse,
+  onDeleteCourse,
 }) => {
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -337,15 +339,31 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
                           </div>
                         </td>
                         <td className="px-2.5 py-2 text-center">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenCourseDetail(c);
-                            }}
-                            className="px-2.5 py-1 text-[10px] font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
-                          >
-                            Inspect
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenCourseDetail(c);
+                              }}
+                              className="px-2.5 py-1 text-[10px] font-medium rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
+                            >
+                              Inspect
+                            </button>
+                            {onDeleteCourse && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm(`Delete course "${c.title}"?`)) {
+                                    onDeleteCourse(c.id);
+                                  }
+                                }}
+                                title="Delete course"
+                                className="p-1 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                              >
+                                <span className="material-symbols-outlined text-[15px] leading-none">delete</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

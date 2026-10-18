@@ -24,8 +24,8 @@ const buttonVariants = cva(
           'border border-zinc-200/90 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 shadow-2xs hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:bg-zinc-100 dark:active:bg-zinc-800',
         matte:
           'border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 shadow-2xs',
-        glow:
-          'relative bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 shadow-md hover:shadow-indigo-500/20 border border-zinc-700 dark:border-zinc-300 transition-shadow',
+        accent:
+          'bg-zinc-800 text-zinc-100 dark:bg-zinc-200 dark:text-zinc-900 shadow-2xs hover:bg-zinc-700 dark:hover:bg-zinc-300 border border-zinc-700 dark:border-zinc-300 transition-colors',
       },
       size: {
         default: 'h-8 px-3 py-1.5 text-xs',

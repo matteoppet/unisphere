@@ -369,6 +369,14 @@ export default function App() {
     setTimeout(() => setStatusMessage('Ready'), 2500);
   };
 
+  const handleDeleteCourse = (courseId: string) => {
+    const target = courses.find((c) => c.id === courseId);
+    setCourses((prev) => prev.filter((c) => c.id !== courseId));
+    setInspectCourse(null);
+    setStatusMessage(`Deleted Course: ${target?.title || courseId}`);
+    setTimeout(() => setStatusMessage('Ready'), 2500);
+  };
+
   const handleAddCourse = (newCourse: Course) => {
     setCourses((prev) => [newCourse, ...prev]);
     setStatusMessage(`Added Course: ${newCourse.title}`);
@@ -517,6 +525,7 @@ export default function App() {
           <DashboardView
             profile={profile}
             courses={courses}
+            assignments={assignments}
             studyLogs={studyLogs}
             quickNotes={quickNotes}
             onUpdateQuickNotes={setQuickNotes}
@@ -528,6 +537,7 @@ export default function App() {
             onOpenNewCourse={() => setShowNewCourseModal(true)}
             onAddAssignment={handleAddAssignment}
             onNavigateToAssignments={() => setCurrentView('assignments-and-exams')}
+            onUpdateAssignmentStatus={handleUpdateAssignmentStatus}
           />
         )}
 
@@ -538,6 +548,7 @@ export default function App() {
             onOpenCourseDetail={setInspectCourse}
             onOpenNewCourse={() => setShowNewCourseModal(true)}
             onUpdateCourse={handleUpdateCourse}
+            onDeleteCourse={handleDeleteCourse}
           />
         )}
 
@@ -594,6 +605,7 @@ export default function App() {
           course={inspectCourse}
           onClose={() => setInspectCourse(null)}
           onSave={handleUpdateCourse}
+          onDelete={handleDeleteCourse}
         />
       )}
 
