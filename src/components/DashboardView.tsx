@@ -445,7 +445,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       title="Show only currently active courses"
                       className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
                         courseFilter === 'active'
-                          ? 'bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
+                          ? 'bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 shadow-2xs'
                           : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
                       }`}
                     >
@@ -457,7 +457,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       title="Show passed / completed courses"
                       className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
                         courseFilter === 'completed'
-                          ? 'bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 shadow-2xs'
+                          ? 'bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
                           : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
                       }`}
                     >
@@ -553,7 +553,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       title="Show only currently active courses"
                       className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer shrink-0 ${
                         courseFilter === 'active'
-                          ? 'bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
+                          ? 'bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 shadow-2xs'
                           : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
                       }`}
                     >
@@ -565,7 +565,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       title="Show passed / completed courses"
                       className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer shrink-0 ${
                         courseFilter === 'completed'
-                          ? 'bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 shadow-2xs'
+                          ? 'bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
                           : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
                       }`}
                     >
@@ -773,7 +773,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               </div>
                             </th>
                             <th
-                              className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-20 text-right cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors tabular-nums"
+                              className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-20 text-center cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors tabular-nums"
                               onClick={() => {
                                 if (courseSortField === 'cfu') setCourseSortAsc(!courseSortAsc);
                                 else {
@@ -783,7 +783,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                               }}
                               title="Sort by CFU"
                             >
-                              <div className="flex items-center justify-end gap-1.5">
+                              <div className="flex items-center justify-center gap-1.5">
                                 <span>CFU</span>
                                 {courseSortField === 'cfu' && (
                                   <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold">
@@ -909,9 +909,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                     </div>
                                   )}
                                 </td>
-                                <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-right font-mono font-bold text-[11px] text-zinc-900 dark:text-zinc-100 tabular-nums align-middle">
+                                <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-center font-mono font-bold text-[11px] text-zinc-900 dark:text-zinc-100 tabular-nums align-middle">
                                   <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 shadow-2xs">
-                                    {course.cfu} CFU
+                                    {course.cfu}
                                   </span>
                                 </td>
                                 <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-center font-mono text-[10px] text-zinc-600 dark:text-zinc-400 whitespace-nowrap align-middle">
@@ -920,40 +920,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                   </span>
                                 </td>
                                 <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-center whitespace-nowrap align-middle">
-                                  {course.status === 'active' ? (
-                                    <span
-                                      onClick={handleStatusCycle}
-                                      title={onUpdateCourse ? 'Click to cycle status (Active -> Completed -> Planned)' : 'Active Course'}
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs ${
-                                        onUpdateCourse ? 'hover:scale-105 active:scale-95 transition-transform' : ''
-                                      }`}
-                                    >
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                      <span>Active</span>
-                                    </span>
-                                  ) : course.status === 'completed' ? (
-                                    <span
-                                      onClick={handleStatusCycle}
-                                      title={onUpdateCourse ? 'Click to cycle status (Completed -> Planned -> Active)' : 'Passed Examination'}
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 shadow-2xs ${
-                                        onUpdateCourse ? 'hover:scale-105 active:scale-95 transition-transform' : ''
-                                      }`}
-                                    >
-                                      <span className="material-symbols-outlined text-[11px]">check_circle</span>
-                                      <span>Passed</span>
-                                    </span>
-                                  ) : (
-                                    <span
-                                      onClick={handleStatusCycle}
-                                      title={onUpdateCourse ? 'Click to cycle status (Planned -> Active -> Completed)' : 'Planned Module'}
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 shadow-2xs ${
-                                        onUpdateCourse ? 'hover:scale-105 active:scale-95 transition-transform' : ''
-                                      }`}
-                                    >
-                                      <span className="material-symbols-outlined text-[11px]">schedule</span>
-                                      <span>Planned</span>
-                                    </span>
-                                  )}
+                                  <StatusBadge
+                                    status={course.status}
+                                    size="sm"
+                                    onClick={handleStatusCycle}
+                                    title={
+                                      onUpdateCourse
+                                        ? course.status === 'active'
+                                          ? 'Click to cycle status (Active -> Completed -> Planned)'
+                                          : course.status === 'completed'
+                                          ? 'Click to cycle status (Completed -> Planned -> Active)'
+                                          : 'Click to cycle status (Planned -> Active -> Completed)'
+                                        : undefined
+                                    }
+                                    className={onUpdateCourse ? 'cursor-pointer hover:scale-105 active:scale-95' : ''}
+                                  />
                                 </td>
                                 <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 align-middle">
                                   {course.nextDeliverable ? (
@@ -1008,8 +989,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         <span>
                           Showing {filteredCourses.length} of {scopedCourses.length} courses ({courseFilter} view)
                         </span>
-                        <span>•</span>
-                        <span>{scopedCourses.reduce((s, c) => s + c.cfu, 0)} CFU in view</span>
                         <span>•</span>
                         <span>{activeCourses.length} active ({activeCourses.reduce((s, c) => s + c.cfu, 0)} CFU)</span>
                       </div>

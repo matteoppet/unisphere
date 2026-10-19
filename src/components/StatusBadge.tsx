@@ -8,6 +8,8 @@ interface StatusBadgeProps {
   showIcon?: boolean;
   showDot?: boolean;
   className?: string;
+  onClick?: (e: React.MouseEvent) => void;
+  title?: string;
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
@@ -15,6 +17,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   size = 'md',
   showDot = true,
   className = '',
+  onClick,
+  title,
 }) => {
   const configs = {
     active: {
@@ -45,6 +49,8 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     <Badge
       variant={cfg.variant}
       size={badgeSize}
+      onClick={onClick}
+      title={title}
       className={`inline-flex items-center gap-1.5 transition-transform hover:scale-[1.02] ${className}`}
     >
       {showDot && (

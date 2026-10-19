@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Course, StudyLog, AssignmentItem, COLOR_PALETTE } from '../types';
+import { Course, StudyLog, AssignmentItem } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -258,36 +258,6 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
               }
               placeholder="Office hours schedule and room / Zoom details"
             />
-          </div>
-
-          {/* Course Color Palette */}
-          <div>
-            <label className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 uppercase block mb-1">
-              Course Color Palette
-            </label>
-            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-              {COLOR_PALETTE.map((c) => {
-                const isSelected = (formData.color || '#2563eb').toLowerCase() === c.hex.toLowerCase();
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, color: c.hex })}
-                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform cursor-pointer ${
-                      isSelected ? 'ring-2 ring-indigo-500 scale-110 shadow-sm' : 'hover:scale-105 opacity-80 hover:opacity-100'
-                    }`}
-                    style={{ backgroundColor: c.hex }}
-                    title={c.name}
-                  >
-                    {isSelected && (
-                      <span className="material-symbols-outlined text-[13px] text-white font-bold">
-                        check
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           {/* Upcoming Exam / Deliverable with Delete Exam feature */}
@@ -614,36 +584,6 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
                 />
                 <span className="text-xs font-bold">Planned</span>
               </button>
-            </div>
-          </div>
-
-          {/* Course Color Accent */}
-          <div>
-            <label className="text-xs font-semibold text-gray-700 dark:text-zinc-300 block mb-1">
-              Course Color Accent
-            </label>
-            <div className="flex items-center gap-2 flex-wrap pt-0.5">
-              {COLOR_PALETTE.map((c) => {
-                const isSelected = color.toLowerCase() === c.hex.toLowerCase();
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setColor(c.hex)}
-                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform cursor-pointer ${
-                      isSelected ? 'ring-2 ring-indigo-500 scale-110 shadow-sm' : 'hover:scale-105 opacity-80 hover:opacity-100'
-                    }`}
-                    style={{ backgroundColor: c.hex }}
-                    title={c.name}
-                  >
-                    {isSelected && (
-                      <span className="material-symbols-outlined text-[13px] text-white font-bold">
-                        check
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
             </div>
           </div>
 

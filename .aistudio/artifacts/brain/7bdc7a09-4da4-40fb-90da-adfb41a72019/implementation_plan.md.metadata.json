@@ -1,6 +1,6 @@
 {
-  "summary": "Architectural plan to reorganize the dashboard layout and workstation navigation to faithfully match the user's sketch. Features a top bar with Light/Dark toggle on the left, central search bar, and Log-Out on the right; an Explorer sidebar with Dashboard, Courses, Assignments & Exams, Friends, and Settings; and a main dashboard featuring the full-width Incoming Deliverable banner, Degree Program & 3 Metric Chips header card, a left tabbed card switching between Active Courses and Sessions Logs with a contextual 'Go to Page' shortcut, and a dedicated right Quick Note taking panel with an embedded (+) Quick Action button.",
-  "updatedAt": "2026-10-19T08:57:06.573042377Z",
+  "summary": "Architectural plan for restructuring the Friends (Squads) page layout to match the user's sketch. Organizes the interface into a prominent top-level Live Study Lobby, a balanced two-column main section (Primary column featuring the Weekly Sprint Podium, Leaderboard, and Study Contribution Heatmap; Secondary column featuring the Real-Time Activity Feed and Ghost Racing Hub), while preserving all cloud synchronization, squad management, and focus session mechanics.",
+  "updatedAt": "2026-10-19T15:01:48.148149386Z",
   "requestFeedback": true,
   "userFacing": true
 }

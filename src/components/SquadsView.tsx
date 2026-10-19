@@ -279,10 +279,58 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
   const [showWrappedModal, setShowWrappedModal] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [activeRightTab, setActiveRightTab] = useState<'feed' | 'friends'>('feed');
+  const [feedFilter, setFeedFilter] = useState<'all' | 'sessions' | 'cheers'>('all');
+  const [feedReactions, setFeedReactions] = useState<Record<string, Record<string, number>>>({});
   const [codeCopied, setCodeCopied] = useState(false);
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [newSquadNameInput, setNewSquadNameInput] = useState('');
   const [joinError, setJoinError] = useState<string | null>(null);
+
+  const handleFeedReaction = (activityId: string, emoji: string) => {
+    playClickBeep();
+    setFeedReactions((prev) => {
+      const actReactions = prev[activityId] || {};
+      return {
+        ...prev,
+        [activityId]: {
+          ...actReactions,
+          [emoji]: (actReactions[emoji] || 0) + 1,
+        },
+      };
+    });
+  };
+
+  const getRelativeTime = (timestamp: number) => {
+    if (!timestamp) return 'recently';
+    const diffSecs = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+    if (diffSecs < 60) return 'just now';
+    const diffMins = Math.floor(diffSecs / 60);
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  const filteredActivities = React.useMemo(() => {
+    if (feedFilter === 'sessions') {
+      return activities.filter(
+        (a) =>
+          a.type === 'session_complete' ||
+          a.title.toLowerCase().includes('locked in') ||
+          a.title.toLowerCase().includes('session')
+      );
+    }
+    if (feedFilter === 'cheers') {
+      return activities.filter(
+        (a) =>
+          a.title.toLowerCase().includes('cheer') ||
+          a.title.toLowerCase().includes('high-five') ||
+          a.title.toLowerCase().includes('⚡')
+      );
+    }
+    return activities;
+  }, [activities, feedFilter]);
 
   // --- Admin & Manage Squad State (Rename & Kick) ---
   const [showManageModal, setShowManageModal] = useState(false);
@@ -1696,7 +1744,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
     <div className="flex-1 bg-white dark:bg-black overflow-y-auto p-2.5 sm:p-3.5 space-y-3 select-none transition-colors">
       {/* Top Squad Navigation & Switcher Header */}
       <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-2.5 sm:p-3 flex flex-wrap items-center justify-between gap-2 shadow-2xs">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-wrap">
           <div className="w-8 h-8 rounded-lg bg-[#3B77BC] text-white flex items-center justify-center shrink-0 font-bold shadow-2xs">
             <Users size={16} />
           </div>
@@ -1773,10 +1821,45 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Quick Squad Code Pill */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700/60 text-xs font-mono font-medium text-zinc-700 dark:text-zinc-300">
+            <span className="text-zinc-400 font-normal">Code:</span>
+            <span className="font-bold tracking-wider">#{currentSquad.code}</span>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(currentSquad.code);
+                setCodeCopied(true);
+                playMechanicalClick();
+                setTimeout(() => setCodeCopied(false), 2000);
+              }}
+              className="p-0.5 hover:text-[#3B77BC] dark:hover:text-[#689FE1] transition-colors cursor-pointer"
+              title="Copy squad invite code"
+            >
+              {codeCopied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+            </button>
+          </div>
         </div>
 
         {/* Header Right Actions */}
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              navigator.clipboard.writeText(currentSquad.code);
+              setCodeCopied(true);
+              playMechanicalClick();
+              setTimeout(() => setCodeCopied(false), 2000);
+            }}
+            className="h-8 text-xs font-semibold flex items-center gap-1.5 border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 cursor-pointer shadow-2xs transition-colors"
+            title="Copy invite code to share with friends"
+          >
+            <Share2 size={13} className="text-[#3B77BC] dark:text-[#689FE1]" />
+            <span>{codeCopied ? 'Code Copied!' : 'Invite'}</span>
+          </Button>
+
           {isCreator ? (
             <Button
               size="sm"
@@ -1809,13 +1892,13 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
         </div>
       </div>
 
-      {/* MODULE 1: Live Library Lobby (Real-Time Presence & "Lock-In" Status Bar) */}
-      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-3 shadow-sm space-y-2.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-2">
+      {/* MODULE 1: Hero Live Study Lobby (Real-Time Presence & "Lock-In" Status Bar) */}
+      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-3 sm:p-3.5 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
           <div className="flex items-center gap-2">
             <Radio size={16} className={isLockedIn ? 'text-emerald-500 animate-pulse' : 'text-zinc-400'} />
-            <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">
-              Live Library Lobby
+            <span className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100">
+              Live Study Lobby
             </span>
             <span className="text-[10px] font-mono font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200/50 dark:border-emerald-900/50">
               {presences.length} Studying Now
@@ -1826,7 +1909,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             {!isLockedIn ? (
               <>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1.5">
                   <span className="text-[10px] text-zinc-500 font-semibold uppercase">Course:</span>
                   <select
                     value={lockInCourse}
@@ -1843,15 +1926,15 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                 </div>
                 <Button
                   onClick={handleToggleLockIn}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-8 px-3 rounded-md flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-8 px-3.5 rounded-md flex items-center gap-1.5 shadow-2xs cursor-pointer"
                 >
                   <Play size={13} fill="currentColor" />
                   <span>Lock In</span>
                 </Button>
               </>
             ) : (
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-2.5 py-1 rounded-md text-xs font-mono font-bold">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 px-3 py-1 rounded-md text-xs font-mono font-bold">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
                   <span>{lockInCourse}:</span>
                   <span>
@@ -1871,38 +1954,57 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
           </div>
         </div>
 
-        {/* Live Pulsing Member Presence Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {/* Live Pulsing Member Presence Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           {presences.length === 0 ? (
-            <div className="col-span-full py-4 text-center text-xs text-zinc-400">
-              The library lobby is quiet. Lock in above to study and broadcast live focus to your squad!
+            <div className="col-span-full py-5 text-center text-xs text-zinc-400">
+              The study lobby is currently quiet. Lock in above to study and broadcast live focus to your squad!
             </div>
           ) : (
             presences.map((p) => {
               const elapsedMins = Math.max(1, Math.floor((Date.now() - p.startedAt) / 60000));
+              const isSelf = p.uid === currentUid;
               return (
                 <div
                   key={p.uid}
                   className="p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20 flex items-center justify-between gap-2 shadow-2xs transition-all"
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="relative">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="relative shrink-0">
                       <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center text-xs font-bold font-mono">
                         {p.displayName.charAt(0)}
                       </div>
                       <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-zinc-900" />
                     </div>
                     <div className="min-w-0">
-                      <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                        {p.displayName}
+                      <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate flex items-center gap-1">
+                        <span>{p.displayName}</span>
+                        {isSelf && (
+                          <span className="text-[9px] px-1 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-mono font-bold">
+                            You
+                          </span>
+                        )}
                       </div>
                       <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
                         Locked in on <span className="font-semibold text-emerald-600 dark:text-emerald-400">{p.courseName}</span>
                       </div>
                     </div>
                   </div>
-                  <div className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 shrink-0">
-                    {elapsedMins}m
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      {elapsedMins}m
+                    </span>
+                    {!isSelf && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleSendCheer(p.displayName)}
+                        className="h-6 w-6 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/20 rounded cursor-pointer"
+                        title={`Send high-five motivation to ${p.displayName}`}
+                      >
+                        <Sparkles size={12} />
+                      </Button>
+                    )}
                   </div>
                 </div>
               );
@@ -1911,85 +2013,60 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
         </div>
       </div>
 
-      {/* GHOST RACING LIVE HUD (If active) */}
-      {ghostRaceActive && activeGhostRace && (
-        <div className="border border-[#DE482B]/40 bg-[#DE482B]/5 dark:bg-black rounded-xl p-3 shadow-lg space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Swords size={16} className="text-[#DE482B] animate-spin" />
-              <span className="font-bold text-xs text-[#DE482B] dark:text-[#F37055]">
-                Ghost Racing: {activeGhostRace.memberName} ({activeGhostRace.courseName})
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-[#DE482B] dark:text-[#F37055]">
-                {Math.floor(ghostRaceElapsedSeconds / 60)}m / {activeGhostRace.durationMinutes}m
-              </span>
-              <Button size="sm" variant="ghost" onClick={handleCancelGhostRace} className="h-6 text-xs text-zinc-400">
-                Abort
-              </Button>
-            </div>
-          </div>
-          {/* Dual Progress Bars */}
-          <div className="space-y-1.5 pt-1">
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-[10px] text-[#DE482B] dark:text-[#F37055] font-mono">
-                <span>Your Live Progress</span>
-                <span>{Math.round((ghostRaceElapsedSeconds / (activeGhostRace.durationMinutes * 60)) * 100)}%</span>
+      {/* TWO-COLUMN MAIN SECTION: 7 cols Primary, 5 cols Secondary */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
+        {/* PRIMARY COLUMN: Weekly Sprint Podium, Leaderboard & Study Contribution Heatmap (7 cols) */}
+        <div className="lg:col-span-7 space-y-3.5">
+          {/* MODULE 2.1: Weekly Sprint Podium & Leaderboard */}
+          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-3 sm:p-3.5 shadow-2xs space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                  <Trophy size={14} />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100">
+                    Weekly Sprint Podium &amp; Leaderboard
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-mono hidden sm:inline">(Resets Mon 00:00)</span>
+                </div>
               </div>
-              <div className="w-full bg-zinc-800 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-gradient-to-r from-[#3B77BC] to-[#DE482B] h-full transition-all duration-300"
-                  style={{
-                    width: `${Math.min(100, (ghostRaceElapsedSeconds / (activeGhostRace.durationMinutes * 60)) * 100)}%`,
-                  }}
-                />
-              </div>
-            </div>
-            <div className="space-y-0.5">
-              <div className="flex justify-between text-[10px] text-zinc-400 font-mono">
-                <span>{activeGhostRace.memberName}&apos;s Ghost Pace</span>
-                <span>100% Target</span>
-              </div>
-              <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden opacity-60">
-                <div className="bg-[#DE482B] h-full w-full" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* BENTO GRID: Modules 2, 3, 4, 5, 6 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-        {/* LEFT COLUMN: Podium & Merged Heatmap (7 cols) */}
-        <div className="lg:col-span-7 space-y-3">
-          {/* MODULE 2.1: Weekly Sprint Podium */}
-          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 shadow-sm space-y-3">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
               <div className="flex items-center gap-1.5">
-                <Trophy size={16} className="text-amber-500" />
-                <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">
-                  Weekly Sprint Podium
-                </span>
-                <span className="text-[10px] text-zinc-400 font-mono">(Resets Mon 00:00)</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowWrappedModal(true);
+                    playClickBeep();
+                  }}
+                  className="h-7 text-[11px] gap-1 font-semibold text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900/50 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
+                >
+                  <Award size={13} />
+                  <span>Weekly Wrapped</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowMembersModal(true);
+                    playClickBeep();
+                  }}
+                  className="h-7 text-[11px] text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 cursor-pointer"
+                  title="View full roster details"
+                >
+                  <Users size={12} className="mr-1" />
+                  <span>Roster</span>
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowWrappedModal(true)}
-                className="h-7 text-[11px] gap-1 font-semibold text-indigo-600 dark:text-indigo-400"
-              >
-                <Award size={13} />
-                <span>Weekly Wrapped</span>
-              </Button>
             </div>
 
             {/* Top 3 Visual Podium */}
-            <div className="grid grid-cols-3 gap-2 pt-2 items-end">
+            <div className="grid grid-cols-3 gap-2 pt-1 items-end">
               {/* 2nd Place */}
               {podiumTop3[1] ? (
-                <div className="flex flex-col items-center p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-center">
-                  <div className="w-6 h-6 rounded-full bg-slate-400 text-white flex items-center justify-center font-bold text-xs mb-1">
+                <div className="flex flex-col items-center p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-center">
+                  <div className="w-6 h-6 rounded-full bg-slate-400 text-white flex items-center justify-center font-bold text-xs mb-1 shadow-2xs">
                     2
                   </div>
                   <div className="font-bold text-xs truncate max-w-full text-zinc-900 dark:text-zinc-100">
@@ -2011,13 +2088,16 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
               {/* 1st Place (Crown) */}
               {podiumTop3[0] ? (
                 <div className="flex flex-col items-center p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/40 text-center shadow-md -translate-y-1">
-                  <div className="w-7 h-7 rounded-full bg-amber-500 text-zinc-950 flex items-center justify-center font-black text-xs mb-1 shadow-2xs">
-                    1
+                  <div className="relative mb-1">
+                    <div className="w-7 h-7 rounded-full bg-amber-500 text-zinc-950 flex items-center justify-center font-black text-xs shadow-2xs">
+                      1
+                    </div>
+                    <Crown size={12} className="absolute -top-2.5 -right-1 text-amber-500 fill-amber-500" />
                   </div>
-                  <div className="font-extrabold text-xs truncate max-w-full text-amber-500">
+                  <div className="font-extrabold text-xs truncate max-w-full text-amber-600 dark:text-amber-400">
                     {podiumTop3[0].displayName}
                   </div>
-                  <div className="font-mono text-xs text-amber-500 font-black">
+                  <div className="font-mono text-xs text-amber-600 dark:text-amber-400 font-black">
                     {podiumTop3[0].elo} ELO
                   </div>
                   <div className="font-mono text-[10px] text-zinc-400">
@@ -2032,8 +2112,8 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
 
               {/* 3rd Place */}
               {podiumTop3[2] ? (
-                <div className="flex flex-col items-center p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 text-center">
-                  <div className="w-6 h-6 rounded-full bg-amber-700 text-white flex items-center justify-center font-bold text-xs mb-1">
+                <div className="flex flex-col items-center p-2.5 rounded-lg bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-center">
+                  <div className="w-6 h-6 rounded-full bg-amber-700 text-white flex items-center justify-center font-bold text-xs mb-1 shadow-2xs">
                     3
                   </div>
                   <div className="font-bold text-xs truncate max-w-full text-zinc-900 dark:text-zinc-100">
@@ -2052,15 +2132,125 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Ranked Squad Members Standings List */}
+            <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 px-1 pb-0.5">
+                <span>Squad Standings</span>
+                <span className="font-mono text-[10px]">{members.length} members</span>
+              </div>
+              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                {sortedMembers.map((m, idx) => {
+                  const isSelf = m.uid === currentUid;
+                  const memberPresence = presences.find((p) => p.uid === m.uid);
+                  const memberColor = m.color || MEMBER_COLORS[idx % MEMBER_COLORS.length].hex;
+                  const rank = idx + 1;
+
+                  return (
+                    <div
+                      key={m.uid}
+                      className={`p-2 rounded-lg border transition-all flex items-center justify-between gap-2 ${
+                        isSelf
+                          ? 'bg-[#3B77BC]/10 dark:bg-black border-[#3B77BC]/40 shadow-2xs'
+                          : 'bg-zinc-50/70 dark:bg-black border-zinc-200/80 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span
+                          className={`w-5 text-center font-mono text-xs font-black shrink-0 ${
+                            rank === 1
+                              ? 'text-amber-500'
+                              : rank === 2
+                              ? 'text-slate-400'
+                              : rank === 3
+                              ? 'text-amber-700'
+                              : 'text-zinc-400'
+                          }`}
+                        >
+                          #{rank}
+                        </span>
+
+                        <div className="relative shrink-0">
+                          <div
+                            className="w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold font-mono shadow-2xs"
+                            style={{ backgroundColor: memberColor }}
+                          >
+                            {m.displayName.charAt(0)}
+                          </div>
+                          {memberPresence ? (
+                            <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1.5 ring-zinc-900 animate-pulse" />
+                          ) : (
+                            <span className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-zinc-400 ring-1 ring-zinc-900" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">
+                              {m.displayName}
+                            </span>
+                            {isSelf && (
+                              <span className="text-[9px] px-1 py-0.2 rounded bg-[#3B77BC]/15 text-[#3B77BC] dark:text-[#689FE1] font-mono font-bold">
+                                You
+                              </span>
+                            )}
+                            {m.currentStreak && m.currentStreak > 1 && (
+                              <span className="text-[10px] text-amber-500 font-mono font-semibold flex items-center">
+                                <Flame size={11} className="fill-amber-500 text-amber-500 mr-0.5" />
+                                {m.currentStreak}d
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
+                            {memberPresence ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                Studying {memberPresence.courseName}
+                              </span>
+                            ) : (
+                              <span>
+                                {Math.round(m.minutesThisWeek / 60)}h studied • {m.tasksThisWeek} tasks
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right font-mono">
+                          <div className="text-xs font-black text-amber-500 leading-none">
+                            {m.elo}
+                          </div>
+                          <div className="text-[8.5px] text-zinc-400 uppercase font-bold leading-none mt-0.5">
+                            ELO
+                          </div>
+                        </div>
+
+                        {!isSelf && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleSendCheer(m.displayName)}
+                            className="h-6 w-6 p-0 text-zinc-400 hover:text-amber-500 hover:bg-amber-500/10 rounded cursor-pointer"
+                            title={`Send cheer motivation to ${m.displayName}`}
+                          >
+                            <Sparkles size={13} />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
-          {/* MODULE 2.2: Merged Commit Heatmap */}
-          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-3 sm:p-3.5 shadow-sm space-y-3">
+          {/* MODULE 2.2: Study Contribution Heatmap */}
+          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-3 sm:p-3.5 shadow-2xs space-y-3">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
               <div className="flex items-center gap-1.5">
                 <Calendar size={15} className="text-[#3B77BC] dark:text-[#689FE1]" />
                 <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">
-                  Merged Squad Heatmap
+                  Study Contribution Heatmap
                 </span>
                 <span className="text-[10px] text-zinc-400 font-mono hidden sm:inline">(20-Week Semester View)</span>
               </div>
@@ -2188,19 +2378,176 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Ghost Racing & Squad Activity Feed (5 cols) */}
-        <div className="lg:col-span-5 space-y-3">
-          {/* MODULE 2.3: Ghost Racing (Asynchronous Rivalry) */}
-          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-3 shadow-sm space-y-2.5">
+        {/* SECONDARY COLUMN: Live Squad Feed & Ghost Racing Hub (5 cols) */}
+        <div className="lg:col-span-5 space-y-3.5">
+          {/* MODULE 2.3: Live Squad Feed */}
+          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-3 sm:p-3.5 shadow-2xs space-y-2.5">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                  <Zap size={14} />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100">
+                    Live Squad Feed
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                </div>
+              </div>
+
+              {/* Feed Filter Segmented Controls */}
+              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/80 p-0.5 rounded-lg text-[10px]">
+                {(['all', 'sessions', 'cheers'] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => {
+                      setFeedFilter(filter);
+                      playClickBeep();
+                    }}
+                    className={`px-2 py-0.5 rounded capitalize font-medium transition-colors cursor-pointer ${
+                      feedFilter === filter
+                        ? 'bg-white dark:bg-black text-[#3B77BC] dark:text-[#689FE1] font-bold shadow-2xs'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Squad Activity Feed Stream */}
+            <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+              {filteredActivities.length === 0 ? (
+                <div className="py-8 text-center text-xs text-zinc-400">
+                  No activities in this filter. Complete focus sessions or send high-fives to light up the feed!
+                </div>
+              ) : (
+                filteredActivities.map((act) => {
+                  const reactions = feedReactions[act.id] || {};
+                  return (
+                    <div
+                      key={act.id}
+                      className="p-2.5 rounded-lg bg-zinc-50/70 dark:bg-black border border-zinc-200/80 dark:border-zinc-800 text-[11px] space-y-2 transition-all hover:border-zinc-300 dark:hover:border-zinc-700"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-[#3B77BC]/10 text-[#3B77BC] dark:text-[#689FE1] flex items-center justify-center shrink-0 mt-0.5">
+                            {act.type === 'session_complete' ? (
+                              <BookOpen size={11} />
+                            ) : act.type === 'loot_drop' ? (
+                              <Trophy size={11} className="text-amber-500" />
+                            ) : (
+                              <Sparkles size={11} className="text-amber-500" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="leading-snug">
+                              <span className="font-bold text-zinc-900 dark:text-zinc-100 mr-1">
+                                {act.displayName}
+                              </span>
+                              <span className="text-zinc-600 dark:text-zinc-400">
+                                {act.title}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <span className="font-mono text-[9.5px] text-zinc-400 shrink-0">
+                          {getRelativeTime(act.timestamp)}
+                        </span>
+                      </div>
+
+                      {/* Interactive Reaction Bar */}
+                      <div className="flex items-center gap-1.5 pt-0.5 pl-7">
+                        {['👏', '🔥', '⚡'].map((emoji) => {
+                          const count = reactions[emoji] || 0;
+                          return (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => handleFeedReaction(act.id, emoji)}
+                              className="flex items-center gap-1 px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px] cursor-pointer transition-transform active:scale-90"
+                              title={`React ${emoji}`}
+                            >
+                              <span>{emoji}</span>
+                              {count > 0 && (
+                                <span className="font-mono text-[9px] font-bold text-zinc-600 dark:text-zinc-400">
+                                  {count}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* MODULE 2.4: Ghost Racing (Asynchronous Rivalry) */}
+          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-3 sm:p-3.5 shadow-2xs space-y-2.5">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
               <div className="flex items-center gap-1.5">
                 <Swords size={15} className="text-[#DE482B]" />
-                <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100">
+                <span className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100">
                   Ghost Racing
                 </span>
               </div>
-              <span className="text-[10px] text-[#DE482B] dark:text-[#F37055] font-mono font-bold">+100 XP Bonus</span>
+              <span className="text-[10px] text-[#DE482B] dark:text-[#F37055] font-mono font-bold bg-[#DE482B]/10 px-1.5 py-0.5 rounded border border-[#DE482B]/20">
+                +100 XP Bonus
+              </span>
             </div>
+
+            {/* Active Ghost Racing HUD if active */}
+            {ghostRaceActive && activeGhostRace && (
+              <div className="border border-[#DE482B]/40 bg-[#DE482B]/5 dark:bg-black rounded-lg p-2.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Swords size={14} className="text-[#DE482B] animate-spin shrink-0" />
+                    <span className="font-bold text-xs text-[#DE482B] dark:text-[#F37055] truncate">
+                      {activeGhostRace.memberName} ({activeGhostRace.courseName})
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-mono font-bold text-[#DE482B] dark:text-[#F37055]">
+                      {Math.floor(ghostRaceElapsedSeconds / 60)}m / {activeGhostRace.durationMinutes}m
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={handleCancelGhostRace} className="h-6 text-xs text-zinc-400 hover:text-rose-500">
+                      Abort
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between text-[10px] text-[#DE482B] dark:text-[#F37055] font-mono">
+                      <span>Your Live Progress</span>
+                      <span>{Math.round((ghostRaceElapsedSeconds / (activeGhostRace.durationMinutes * 60)) * 100)}%</span>
+                    </div>
+                    <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-[#3B77BC] to-[#DE482B] h-full transition-all duration-300"
+                        style={{
+                          width: `${Math.min(100, (ghostRaceElapsedSeconds / (activeGhostRace.durationMinutes * 60)) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between text-[10px] text-zinc-400 font-mono">
+                      <span>{activeGhostRace.memberName}&apos;s Ghost Pace</span>
+                      <span>100% Target</span>
+                    </div>
+                    <div className="w-full bg-zinc-200 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden opacity-60">
+                      <div className="bg-[#DE482B] h-full w-full" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Ghost Session Cards */}
             <div className="space-y-2">
@@ -2209,7 +2556,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                   No completed study sessions recorded yet. Finish a live session above to record a ghost pace for your squad!
                 </div>
               ) : (
-                ghostSessions.slice(0, 3).map((ghost) => (
+                ghostSessions.slice(0, 4).map((ghost) => (
                   <div
                     key={ghost.id}
                     className="p-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-black hover:border-[#DE482B]/40 transition-all flex items-center justify-between gap-2"
@@ -2218,7 +2565,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                       <div className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">
                         {ghost.courseName}
                       </div>
-                      <div className="text-[10px] text-zinc-400 font-mono">
+                      <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
                         {ghost.memberName} • {ghost.durationMinutes}m pace
                       </div>
                     </div>
@@ -2226,7 +2573,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                       size="sm"
                       onClick={() => handleStartGhostRace(ghost)}
                       disabled={ghostRaceActive}
-                      className="bg-[#DE482B] hover:bg-[#BD361B] text-white text-[11px] h-7 px-2.5 font-bold cursor-pointer shrink-0"
+                      className="bg-[#DE482B] hover:bg-[#BD361B] text-white text-[11px] h-7 px-2.5 font-bold cursor-pointer shrink-0 shadow-2xs"
                     >
                       Race Ghost
                     </Button>
@@ -2234,175 +2581,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                 ))
               )}
             </div>
-          </div>
-
-          {/* MODULE 2.4: Squad Friends Roster & Live Feed Tabs */}
-          <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl p-3 shadow-sm space-y-2.5">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-2">
-              <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-800/80 p-0.5 rounded-lg">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveRightTab('friends');
-                    playClickBeep();
-                  }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                    activeRightTab === 'friends'
-                      ? 'bg-white dark:bg-black text-[#3B77BC] dark:text-[#689FE1] shadow-2xs'
-                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-                  }`}
-                >
-                  <Users size={13} />
-                  <span>Friends ({members.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveRightTab('feed');
-                    playClickBeep();
-                  }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                    activeRightTab === 'feed'
-                      ? 'bg-white dark:bg-black text-[#FCCF03] shadow-2xs'
-                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-                  }`}
-                >
-                  <Zap size={13} />
-                  <span>Feed</span>
-                </button>
-              </div>
-
-              {activeRightTab === 'friends' ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMembersModal(true);
-                    playClickBeep();
-                  }}
-                  className="text-[11px] font-semibold text-[#3B77BC] dark:text-[#689FE1] hover:underline cursor-pointer flex items-center gap-1"
-                >
-                  <span>Full Roster</span>
-                  <ArrowRight size={11} />
-                </button>
-              ) : (
-                <span className="text-[10px] text-zinc-400 font-mono">Live Sync</span>
-              )}
-            </div>
-
-            {/* Friends Tab Content */}
-            {activeRightTab === 'friends' ? (
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {sortedMembers.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-zinc-400">
-                    No classmates in this squad yet. Open Manage Squad in the header to view and share your squad invite code!
-                  </div>
-                ) : (
-                  sortedMembers.map((m, idx) => {
-                  const isSelf = m.uid === currentUid;
-                  const memberPresence = presences.find((p) => p.uid === m.uid);
-                  const memberColor = m.color || MEMBER_COLORS[idx % MEMBER_COLORS.length].hex;
-
-                  return (
-                    <div
-                      key={m.uid}
-                      className={`p-2 rounded-lg border transition-all flex items-center justify-between gap-2 ${
-                        isSelf
-                          ? 'bg-[#3B77BC]/10 dark:bg-black border-[#3B77BC]/40'
-                          : 'bg-zinc-50 dark:bg-black border-zinc-100 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="relative shrink-0">
-                          <div
-                            className="w-7 h-7 rounded-full text-white flex items-center justify-center text-xs font-bold font-mono shadow-2xs"
-                            style={{ backgroundColor: memberColor }}
-                          >
-                            {m.displayName.charAt(0)}
-                          </div>
-                          {memberPresence ? (
-                            <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1.5 ring-zinc-900 animate-pulse" />
-                          ) : (
-                            <span className="absolute bottom-0 right-0 w-1.5 h-1.5 rounded-full bg-zinc-400 ring-1 ring-zinc-900" />
-                          )}
-                        </div>
-
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">
-                              {m.displayName}
-                            </span>
-                            {isSelf && (
-                              <span className="text-[9px] px-1 rounded bg-[#3B77BC]/10 text-[#3B77BC] dark:text-[#689FE1] font-mono font-bold">
-                                You
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-zinc-500 dark:text-zinc-400 truncate">
-                            {memberPresence ? (
-                              <span className="text-emerald-500 font-medium">
-                                Studying {memberPresence.courseName}
-                              </span>
-                            ) : (
-                              <span>
-                                {Math.round(m.minutesThisWeek / 60)}h studied • {m.tasksThisWeek} tasks
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <div className="text-right font-mono mr-1">
-                          <div className="text-xs font-bold text-amber-500 leading-none">
-                            {m.elo}
-                          </div>
-                          <div className="text-[9px] text-zinc-400 leading-none mt-0.5">
-                            ELO
-                          </div>
-                        </div>
-
-                        {!isSelf && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleSendCheer(m.displayName)}
-                            className="h-6 w-6 p-0 text-zinc-400 hover:text-amber-500 hover:bg-amber-500/10 rounded cursor-pointer"
-                            title={`Send high-five motivation to ${m.displayName}`}
-                          >
-                            <Sparkles size={13} />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-              </div>
-            ) : (
-              /* Squad Activity Feed Tab Content */
-              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                {activities.length === 0 ? (
-                  <div className="py-4 text-center text-xs text-zinc-400">
-                    No activity logged yet today. Complete tasks or focus sessions to show off!
-                  </div>
-                ) : (
-                  activities.slice(0, 8).map((act) => (
-                    <div
-                      key={act.id}
-                      className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-100 dark:border-zinc-800 text-[11px] flex items-start gap-2"
-                    >
-                      <Sparkles size={13} className="text-amber-500 shrink-0 mt-0.5" />
-                      <div className="min-w-0">
-                        <span className="font-bold text-zinc-900 dark:text-zinc-100 mr-1">
-                          {act.displayName}
-                        </span>
-                        <span className="text-zinc-600 dark:text-zinc-400">{act.title}</span>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
