@@ -1,6 +1,6 @@
 {
-  "summary": "Architecture and implementation plan for UniSphere's Dopamine & Gamification update, including subtle audio micro-interactions, canvas-confetti, dynamic power border leveling, Firestore academic telemetry (XP, streaks, weekly minutes/tasks), and an isolated modular 'Squads' multiplayer hub in the Workspace Explorer sidebar featuring a Live Library Lobby, Weekly Sprint Podium with Merged Commit Heatmap, Sunday Weekly Wrapped Receipt, and Asynchronous Ghost Racing.",
-  "updatedAt": "2026-10-15T09:05:47.896574886Z",
+  "summary": "Architectural plan to reorganize the dashboard layout and workstation navigation to faithfully match the user's sketch. Features a top bar with Light/Dark toggle on the left, central search bar, and Log-Out on the right; an Explorer sidebar with Dashboard, Courses, Assignments & Exams, Friends, and Settings; and a main dashboard featuring the full-width Incoming Deliverable banner, Degree Program & 3 Metric Chips header card, a left tabbed card switching between Active Courses and Sessions Logs with a contextual 'Go to Page' shortcut, and a dedicated right Quick Note taking panel with an embedded (+) Quick Action button.",
+  "updatedAt": "2026-10-19T08:57:06.573042377Z",
   "requestFeedback": true,
   "userFacing": true
 }

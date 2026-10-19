@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { StudentProfile } from '../types';
+import { StudentProfile, COLOR_PALETTE } from '../types';
 import { Button } from './ui/button';
 import { isAudioMuted, toggleAudioMuted, playMechanicalClick, playFuturisticChime } from '../utils/audio';
 import { calculateLevel } from '../utils/telemetry';
-import { Volume2, VolumeX, Sparkles, Zap, Flame } from 'lucide-react';
+import { Volume2, VolumeX, Sparkles, Zap, Flame, Check } from 'lucide-react';
 
 interface SettingsViewProps {
   profile: StudentProfile;
@@ -79,21 +79,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </span>
             <span>Theme &amp; Appearance</span>
           </div>
+          <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+            ObsidianUI System
+          </span>
         </div>
 
-        <div className="p-3 text-xs">
+        <div className="p-3 text-xs space-y-3">
+          {/* Theme Mode Toggle (Dark / Light) */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/60 transition-colors">
             <div>
               <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 group">
                 <span className="material-symbols-outlined text-[16px] text-indigo-600 dark:text-indigo-400 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110">
                   {isDark ? 'dark_mode' : 'light_mode'}
                 </span>
-                <span>Active Theme: {isDark ? 'Dark Theme' : 'Light Theme'}</span>
+                <span>Active Theme: {isDark ? 'Dark Theme (Obsidian)' : 'Light Theme'}</span>
               </div>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                Toggle between pure Obsidian dark workstation mode and clean daylight paper mode.
+              </p>
             </div>
 
             {onToggleTheme && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <Button
                   type="button"
                   onClick={onToggleTheme}
@@ -107,6 +114,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </Button>
               </div>
             )}
+          </div>
+
+          {/* Color Palette Selection */}
+          <div className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/60 space-y-2.5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div>
+                <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-amber-500">
+                    colors
+                  </span>
+                  <span>Academic Color Palette &amp; Accent</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                  Select your signature accent color. It styles your telemetry, squads contribution heatmap, and presence indicator.
+                </p>
+              </div>
+              <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-zinc-200/80 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 self-start sm:self-center">
+                {COLOR_PALETTE.find((c) => c.hex.toLowerCase() === (profile.color || profile.accentColor || '#3B77BC').toLowerCase())?.name || 'Custom Color'}
+              </span>
+            </div>
+
+            {/* Swatches Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              {COLOR_PALETTE.map((color) => {
+                const isSelected = (profile.color || profile.accentColor || '#3B77BC').toLowerCase() === color.hex.toLowerCase();
+                return (
+                  <button
+                    key={color.id}
+                    type="button"
+                    onClick={() => {
+                      playMechanicalClick();
+                      const updated: StudentProfile = {
+                        ...profile,
+                        color: color.hex,
+                        accentColor: color.hex,
+                      };
+                      setFormData(updated);
+                      onUpdateProfile(updated);
+                    }}
+                    className={`p-2 rounded-xl border flex items-center gap-2.5 transition-all text-left cursor-pointer group ${
+                      isSelected
+                        ? 'border-zinc-900 dark:border-zinc-100 bg-white dark:bg-zinc-900 shadow-sm ring-2 ring-indigo-500/30'
+                        : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-white/70 dark:bg-zinc-900/60'
+                    }`}
+                  >
+                    <span
+                      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 shadow-xs transition-transform group-hover:scale-110"
+                      style={{ backgroundColor: color.hex }}
+                    >
+                      {isSelected && (
+                        <Check size={12} className="text-white drop-shadow-xs" strokeWidth={3} />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 truncate">
+                        {color.name}
+                      </div>
+                      <div className="font-mono text-[9.5px] text-zinc-400 truncate">
+                        {color.hex}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

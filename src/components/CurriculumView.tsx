@@ -22,6 +22,7 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   // Filter courses
   const filteredCourses = courses.filter((c) => {
@@ -350,18 +351,33 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
                               Inspect
                             </button>
                             {onDeleteCourse && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (window.confirm(`Delete course "${c.title}"?`)) {
+                              confirmDeleteId === c.id ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     onDeleteCourse(c.id);
-                                  }
-                                }}
-                                title="Delete course"
-                                className="p-1 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-[15px] leading-none">delete</span>
-                              </button>
+                                    setConfirmDeleteId(null);
+                                  }}
+                                  className="px-2 py-0.5 text-[9.5px] font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-md transition-colors cursor-pointer shadow-2xs"
+                                  title="Confirm deletion"
+                                >
+                                  Confirm
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirmDeleteId(c.id);
+                                    setTimeout(() => setConfirmDeleteId((prev) => (prev === c.id ? null : prev)), 3500);
+                                  }}
+                                  title="Delete course"
+                                  className="p-1 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[15px] leading-none">delete</span>
+                                </button>
+                              )
                             )}
                           </div>
                         </td>

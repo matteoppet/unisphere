@@ -105,7 +105,29 @@ export interface StudentProfile {
   audioEnabled?: boolean;
   activeSquadId?: string;
   squadIds?: string[];
+  color?: string;
+  accentColor?: string;
 }
+
+export interface PaletteColor {
+  id: string;
+  name: string;
+  hex: string;
+  bgClass: string;
+  textClass: string;
+  borderClass: string;
+}
+
+export const COLOR_PALETTE: PaletteColor[] = [
+  { id: 'tibet-blue', name: 'Tibet Blue', hex: '#3B77BC', bgClass: 'bg-[#3B77BC]', textClass: 'text-[#3B77BC] dark:text-[#689FE1]', borderClass: 'border-[#3B77BC]/50' },
+  { id: 'mint-green', name: 'Mint Green', hex: '#81C046', bgClass: 'bg-[#81C046]', textClass: 'text-[#81C046] dark:text-[#95D45B]', borderClass: 'border-[#81C046]/50' },
+  { id: 'dark-yellow', name: 'Dark Yellow', hex: '#FCCF03', bgClass: 'bg-[#FCCF03]', textClass: 'text-[#FCCF03]', borderClass: 'border-[#FCCF03]/50' },
+  { id: 'palm-red', name: 'Palm Red', hex: '#DE482B', bgClass: 'bg-[#DE482B]', textClass: 'text-[#DE482B] dark:text-[#F37055]', borderClass: 'border-[#DE482B]/50' },
+  { id: 'slate-blue', name: 'Slate Blue', hex: '#5A738E', bgClass: 'bg-[#5A738E]', textClass: 'text-[#5A738E] dark:text-[#8CA3BA]', borderClass: 'border-[#5A738E]/50' },
+  { id: 'emerald', name: 'Emerald', hex: '#10B981', bgClass: 'bg-[#10B981]', textClass: 'text-[#10B981]', borderClass: 'border-[#10B981]/50' },
+  { id: 'indigo', name: 'Obsidian Indigo', hex: '#6366F1', bgClass: 'bg-[#6366F1]', textClass: 'text-[#6366F1]', borderClass: 'border-[#6366F1]/50' },
+  { id: 'rose', name: 'Crimson Rose', hex: '#F43F5E', bgClass: 'bg-[#F43F5E]', textClass: 'text-[#F43F5E]', borderClass: 'border-[#F43F5E]/50' },
+];
 
 export const INITIAL_PROFILE: StudentProfile = {
   name: '',

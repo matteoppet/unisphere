@@ -161,9 +161,9 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
   };
 
   return (
-    <header className="bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border-b border-zinc-200/90 dark:border-zinc-800 px-2.5 sm:px-3.5 py-1.5 flex items-center justify-between gap-2 select-none shadow-2xs z-30 transition-colors">
-      {/* Left side: Mobile Hamburger & Desktop Actions */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+    <header className="bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border-b border-zinc-200/90 dark:border-zinc-800 px-3 sm:px-4 py-2 flex items-center justify-between gap-3 select-none shadow-2xs z-30 transition-colors">
+      {/* Left side: Light/Dark Toggle & Navigation actions */}
+      <div className="flex items-center gap-2 shrink-0">
         {onToggleMobileMenu && (
           <Button
             variant="ghost"
@@ -177,37 +177,36 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
           </Button>
         )}
 
-        {/* Desktop Quick Export */}
-        <div className="hidden md:flex items-center gap-1.5 shrink-0">
+        {/* Light/Dark Theme Switcher as shown on top-left of sketch (sm+ only, mobile has icon button) */}
+        {onToggleTheme && (
           <Button
-            variant="compact"
+            variant="outline"
             size="sm"
-            onClick={onExport}
-            title="Export CSV / JSON Report"
-            className="gap-1.5 text-zinc-700 dark:text-zinc-200 font-medium group"
+            onClick={onToggleTheme}
+            title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            aria-label="Toggle theme"
+            className="hidden sm:inline-flex gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer transition-all shadow-2xs group"
           >
-            <span className="material-symbols-outlined text-[15px] text-amber-600 dark:text-amber-400 transition-transform duration-200 group-hover:scale-110">
-              save
+            <span className="material-symbols-outlined text-[15px] text-amber-500 dark:text-amber-400 transition-transform duration-300 group-hover:rotate-45">
+              {isDark ? 'light_mode' : 'dark_mode'}
             </span>
-            <span>Export Data</span>
+            <span>{isDark ? 'Light' : 'Dark'}</span>
           </Button>
+        )}
 
-          {onToggleTheme && (
-            <Button
-              variant="compact"
-              size="sm"
-              onClick={onToggleTheme}
-              title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
-              aria-label="Toggle theme"
-              className="gap-1.5 text-zinc-700 dark:text-zinc-200 group"
-            >
-              <span className="material-symbols-outlined text-[15px] text-amber-500 dark:text-amber-400 transition-transform duration-300 group-hover:rotate-45">
-                {isDark ? 'light_mode' : 'dark_mode'}
-              </span>
-              <span className="font-semibold">{isDark ? 'Light' : 'Dark'}</span>
-            </Button>
-          )}
-        </div>
+        {/* Export Data Action */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onExport}
+          title="Export CSV / JSON Report"
+          className="hidden lg:inline-flex gap-1.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 text-xs font-medium"
+        >
+          <span className="material-symbols-outlined text-[15px] text-amber-600 dark:text-amber-400">
+            save
+          </span>
+          <span>Export</span>
+        </Button>
       </div>
 
       {/* Center: Global Search Bar */}
@@ -225,8 +224,8 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
               setIsOpen(true);
             }}
             onFocus={() => setIsOpen(true)}
-            placeholder="Search courses, tasks, study logs..."
-            className="w-full h-7.5 sm:h-8 pl-8 pr-7 sm:pr-8 text-[11px] sm:text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/90 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:bg-white dark:focus:bg-zinc-900 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+            placeholder={window.innerWidth < 640 ? "Search..." : "Search courses, tasks, study logs..."}
+            className="w-full h-7.5 sm:h-8 pl-7 sm:pl-8 pr-6 sm:pr-8 text-[11px] sm:text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/90 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:bg-white dark:focus:bg-zinc-900 focus:ring-1 focus:ring-indigo-500/20 transition-all"
           />
           {query && (
             <button
@@ -514,44 +513,28 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
             variant="ghost"
             size="icon"
             onClick={onToggleTheme}
-            className="md:hidden text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100"
+            className="sm:hidden h-7 w-7 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center justify-center p-0 rounded-md"
             title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
             aria-label="Toggle theme"
           >
-            <span className="material-symbols-outlined text-[18px] text-amber-500 dark:text-amber-400">
+            <span className="material-symbols-outlined text-[17px] text-amber-500 dark:text-amber-400">
               {isDark ? 'light_mode' : 'dark_mode'}
             </span>
           </Button>
         )}
 
-        {/* Mobile Log-Out Button */}
-        <div className="flex md:hidden items-center gap-1">
-          {onSignOut && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onSignOut}
-              className="h-7 px-2 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-700 dark:hover:text-rose-300 text-[11px] font-medium gap-1 cursor-pointer"
-              title="Sign Out / Switch Student Account"
-              aria-label="Log out"
-            >
-              <span className="material-symbols-outlined text-[15px]">logout</span>
-              <span>Log out</span>
-            </Button>
-          )}
-        </div>
-
-        {/* Desktop Sign Out Button */}
+        {/* Log-Out Button matching sketch - icon-only on small mobile to prevent right clipping */}
         {onSignOut && (
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={onSignOut}
+            className="h-7 w-7 sm:w-auto sm:h-8 p-0 sm:px-3 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-700 dark:hover:text-rose-300 border-rose-200 dark:border-rose-900/60 text-xs font-semibold sm:gap-1.5 cursor-pointer shadow-2xs shrink-0"
             title="Sign Out / Switch Student Account"
-            className="hidden md:inline-flex text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-800 dark:hover:text-rose-300"
+            aria-label="Log-Out"
           >
-            <span className="material-symbols-outlined text-[13px]">logout</span>
-            <span>Sign Out</span>
+            <span className="material-symbols-outlined text-[15px]">logout</span>
+            <span className="hidden sm:inline">Log-Out</span>
           </Button>
         )}
       </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Course, StudyLog, AssignmentItem } from '../types';
+import { Course, StudyLog, AssignmentItem, COLOR_PALETTE } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -260,6 +260,97 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
             />
           </div>
 
+          {/* Course Color Palette */}
+          <div>
+            <label className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 uppercase block mb-1">
+              Course Color Palette
+            </label>
+            <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+              {COLOR_PALETTE.map((c) => {
+                const isSelected = (formData.color || '#2563eb').toLowerCase() === c.hex.toLowerCase();
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setFormData({ ...formData, color: c.hex })}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform cursor-pointer ${
+                      isSelected ? 'ring-2 ring-indigo-500 scale-110 shadow-sm' : 'hover:scale-105 opacity-80 hover:opacity-100'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  >
+                    {isSelected && (
+                      <span className="material-symbols-outlined text-[13px] text-white font-bold">
+                        check
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Upcoming Exam / Deliverable with Delete Exam feature */}
+          <div className="p-3 rounded-xl border border-gray-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-900/60 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[15px] text-rose-500">
+                  event_note
+                </span>
+                <span>Upcoming Exam / Deliverable</span>
+              </span>
+              {formData.nextDeliverable && (
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, nextDeliverable: undefined })}
+                  className="px-2 py-0.5 text-[10px] text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded border border-rose-200 dark:border-rose-900 flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Delete Exam / Remove deliverable"
+                >
+                  <span className="material-symbols-outlined text-[12px]">delete</span>
+                  <span>Delete Exam</span>
+                </button>
+              )}
+            </div>
+
+            {formData.nextDeliverable ? (
+              <div className="p-2 rounded-lg bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">
+                    {formData.nextDeliverable.title}
+                  </div>
+                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+                    Type: {formData.nextDeliverable.type || 'Exam'} • Due: {formData.nextDeliverable.date || 'No date set'}
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 font-semibold shrink-0">
+                  Scheduled
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-500 dark:text-zinc-400 py-1">
+                <span>No incoming exam scheduled for this course.</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setFormData({
+                      ...formData,
+                      nextDeliverable: {
+                        title: 'Final Exam',
+                        date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                        type: 'Exam',
+                        badgeColor: 'red',
+                      },
+                    })
+                  }
+                  className="px-2 py-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded border border-indigo-200 dark:border-indigo-900 flex items-center gap-1 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[13px]">add</span>
+                  <span>Schedule Exam</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           <div>
             <label className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 dark:text-zinc-300 uppercase block mb-1">
               Syllabus Study Notes &amp; Exam Requirements
@@ -346,6 +437,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
   const [year, setYear] = useState(2);
   const [semester, setSemester] = useState<1 | 2>(1);
   const [status, setStatus] = useState<Course['status']>('active');
+  const [color, setColor] = useState('#3B77BC');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -362,7 +454,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
       semester,
       status,
       progress: status === 'completed' ? 100 : 30,
-      color: '#2563eb',
+      color: color || '#3B77BC',
     });
     onClose();
   };
@@ -522,6 +614,36 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
                 />
                 <span className="text-xs font-bold">Planned</span>
               </button>
+            </div>
+          </div>
+
+          {/* Course Color Accent */}
+          <div>
+            <label className="text-xs font-semibold text-gray-700 dark:text-zinc-300 block mb-1">
+              Course Color Accent
+            </label>
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              {COLOR_PALETTE.map((c) => {
+                const isSelected = color.toLowerCase() === c.hex.toLowerCase();
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setColor(c.hex)}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-transform cursor-pointer ${
+                      isSelected ? 'ring-2 ring-indigo-500 scale-110 shadow-sm' : 'hover:scale-105 opacity-80 hover:opacity-100'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  >
+                    {isSelected && (
+                      <span className="material-symbols-outlined text-[13px] text-white font-bold">
+                        check
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

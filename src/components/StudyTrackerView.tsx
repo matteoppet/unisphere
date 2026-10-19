@@ -447,29 +447,29 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
               })}
             </div>
 
-            {/* Desktop Table */}
-            <div className="hidden sm:block overflow-x-auto max-h-[420px]">
-              <table className="w-full text-left border-collapse text-[11px]">
-                <thead className="sticky top-0 bg-slate-50/90 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 z-10">
-                  <tr className="font-semibold text-slate-700 dark:text-zinc-300">
-                    <th className="win-header-cell px-2.5 py-1.5 w-28">Date &amp; Time</th>
-                    <th className="win-header-cell px-2.5 py-1.5">Target Course</th>
-                    <th className="win-header-cell px-2.5 py-1.5 w-20 text-right">
+            {/* Desktop Table with clear grid borders, alternating row colors, and fixed header */}
+            <div className="hidden sm:block overflow-x-auto max-h-[420px] border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900">
+              <table className="w-full text-left border-separate border-spacing-0 text-[11px] min-w-[620px]">
+                <thead className="sticky top-0 bg-slate-100 dark:bg-zinc-800 z-20 shadow-xs">
+                  <tr className="font-bold text-[10.5px] uppercase tracking-wider text-slate-700 dark:text-zinc-200 select-none">
+                    <th className="border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-3 py-2 w-32">Date &amp; Time</th>
+                    <th className="border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-3 py-2">Target Course</th>
+                    <th className="border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-3 py-2 w-24 text-right">
                       Duration
                     </th>
-                    <th className="win-header-cell px-2.5 py-1.5 w-28 text-center">
+                    <th className="border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-3 py-2 w-28 text-center">
                       Focus Tag
                     </th>
-                    <th className="win-header-cell px-2.5 py-1.5 w-20 text-center">
+                    <th className="border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-3 py-2 w-20 text-center">
                       Notes
                     </th>
-                    <th className="win-header-cell px-2.5 py-1.5 w-16 text-center">
+                    <th className="border-b-2 border-zinc-300 dark:border-zinc-700 px-3 py-2 w-16 text-center">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-zinc-800/80 font-sans">
-                  {filteredLogs.map((log) => {
+                <tbody>
+                  {filteredLogs.map((log, idx) => {
                     const hours = Math.floor(log.durationMinutes / 60);
                     const mins = log.durationMinutes % 60;
                     const durStr =
@@ -478,30 +478,35 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                         : `${mins}m`;
 
                     const isExpanded = expandedRowId === log.id;
+                    const isEvenRow = idx % 2 === 0;
 
                     return (
                       <React.Fragment key={log.id}>
-                        <tr className="hover:bg-blue-50/50 dark:hover:bg-zinc-800/60 transition-colors">
-                          <td className="px-2.5 py-2 font-mono text-zinc-600 dark:text-zinc-400 dark:text-zinc-400 text-[10px]">
-                            <div>{log.date}</div>
+                        <tr className={`group transition-colors duration-150 ${
+                          isEvenRow ? 'bg-white dark:bg-zinc-900' : 'bg-slate-50 dark:bg-zinc-800/40'
+                        } hover:bg-blue-50/80 dark:hover:bg-blue-950/40`}>
+                          <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-3 py-2 font-mono text-zinc-600 dark:text-zinc-400 text-[10px] align-middle">
+                            <div className="font-semibold text-zinc-900 dark:text-zinc-100">{log.date}</div>
                             <div className="text-[9px] text-neutral-400 dark:text-zinc-500">
                               {log.timeRange}
                             </div>
                           </td>
-                          <td className="px-2.5 py-2 font-bold text-zinc-900 dark:text-zinc-100 dark:text-zinc-100">
+                          <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-3 py-2 font-bold text-zinc-900 dark:text-zinc-100 align-middle">
                             {log.courseName}
                           </td>
-                          <td className="px-2.5 py-2 text-right font-mono text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 font-semibold">
-                            {durStr}
+                          <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-3 py-2 text-right font-mono text-indigo-700 dark:text-indigo-400 font-bold tabular-nums align-middle">
+                            <span className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/80">
+                              {durStr}
+                            </span>
                           </td>
 
-                          <td className="px-2.5 py-2 text-center">
-                            <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 rounded-md text-[10px] font-semibold">
+                          <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-3 py-2 text-center align-middle">
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 rounded-md text-[10px] font-semibold shadow-2xs">
                               {log.tag}
                             </span>
                           </td>
 
-                          <td className="px-2.5 py-2 text-center">
+                          <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-3 py-2 text-center align-middle">
                             <button
                               onClick={() => toggleRowExpand(log.id)}
                               className={`px-2.5 py-1 text-[10px] rounded-md border font-medium active:scale-[0.98] transition-all flex items-center justify-center gap-0.5 mx-auto cursor-pointer shadow-2xs ${
@@ -515,7 +520,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                             </button>
                           </td>
 
-                          <td className="px-2.5 py-2 text-center">
+                          <td className="border-b border-zinc-200 dark:border-zinc-800 px-3 py-2 text-center align-middle">
                             <button
                               onClick={() => setDeleteConfirmLog(log)}
                               className="px-2 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 text-[10px] hover:bg-red-50 dark:hover:bg-red-950/40 hover:border-red-200 dark:hover:border-red-900 active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
@@ -528,10 +533,10 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
 
                         {/* Expandable note drawer row */}
                         {isExpanded && (
-                          <tr className="bg-amber-50/40 dark:bg-zinc-950/60 border-b border-amber-200 dark:border-zinc-800">
+                          <tr className="bg-amber-50/40 dark:bg-zinc-950/60">
                             <td
                               colSpan={6}
-                              className="px-3.5 py-2 text-[10px] text-zinc-800 dark:text-zinc-200 dark:text-zinc-200"
+                              className="border-b border-zinc-200 dark:border-zinc-800 px-3.5 py-2 text-[10px] text-zinc-800 dark:text-zinc-200"
                             >
                               <div className="flex items-start gap-1.5">
                                 <span className="font-semibold text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 shrink-0">

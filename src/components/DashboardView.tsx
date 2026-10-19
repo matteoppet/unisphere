@@ -13,7 +13,6 @@ import { playClickBeep, playFuturisticChime } from '../utils/audio';
 import { fireTaskConfetti, fireCelebrationConfetti } from '../utils/confetti';
 import { getPowerBorderClass, getPowerBarFillClass } from '../utils/telemetry';
 import { NewAssignmentModal, NewStudyLogModal } from './Modals';
-import { X } from 'lucide-react';
 
 interface DashboardViewProps {
   profile: StudentProfile;
@@ -23,14 +22,18 @@ interface DashboardViewProps {
   quickNotes?: string;
   onUpdateQuickNotes?: (notes: string) => void;
   onAddStudyLog: (log: Omit<StudyLog, 'id' | 'timestamp'>) => void;
+  onDeleteStudyLog?: (id: string) => void;
   onOpenCourseDetail: (course: Course) => void;
   onOpenColumnsModal: () => void;
   onOpenEmailGroup: () => void;
   onNavigateToCurriculum: () => void;
+  onNavigateToStudyTracker?: () => void;
   onOpenNewCourse?: () => void;
   onAddAssignment?: (asg: Omit<AssignmentItem, 'id'>) => void;
   onNavigateToAssignments?: () => void;
   onUpdateAssignmentStatus?: (id: string, status: AssignmentItem['status']) => void;
+  onUpdateCourse?: (course: Course) => void;
+  onDeleteCourse?: (courseId: string) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -41,14 +44,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   quickNotes = '',
   onUpdateQuickNotes,
   onAddStudyLog,
+  onDeleteStudyLog,
   onOpenCourseDetail,
   onOpenColumnsModal,
   onOpenEmailGroup,
   onNavigateToCurriculum,
+  onNavigateToStudyTracker,
   onOpenNewCourse,
   onAddAssignment,
   onNavigateToAssignments,
   onUpdateAssignmentStatus,
+  onUpdateCourse,
+  onDeleteCourse,
 }) => {
   // Local fallback if not passed by parent
   const [localNotes, setLocalNotes] = useState(quickNotes);
@@ -60,18 +67,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setLocalNotes(newNotes);
     }
   };
-  // Study session form states
-  const [selectedCourse, setSelectedCourse] = useState(
-    courses.find((c) => c.status === 'active')?.title || courses[0]?.title || ''
-  );
-  const [sessionDate, setSessionDate] = useState(
-    new Date().toISOString().split('T')[0]
-  );
-  const [durationMinutes, setDurationMinutes] = useState(90);
-  const [notes, setNotes] = useState('');
-  const [sessionJustAdded, setSessionJustAdded] = useState(false);
+  const [dashboardTab, setDashboardTab] = useState<'courses' | 'logs'>('courses');
+  const [courseFilter, setCourseFilter] = useState<'all' | 'active' | 'completed' | 'planned'>('all');
   const [copiedMatricola, setCopiedMatricola] = useState(false);
-  const [dismissedBannerId, setDismissedBannerId] = useState<string | null>(null);
+
+  // Data Table Search & Sorting States
+  const [tableSearch, setTableSearch] = useState('');
+  const [courseSortField, setCourseSortField] = useState<'title' | 'cfu' | 'year' | 'status' | 'deliverable'>('title');
+  const [courseSortAsc, setCourseSortAsc] = useState(true);
+  const [logSortField, setLogSortField] = useState<'date' | 'course' | 'duration' | 'tag'>('date');
+  const [logSortAsc, setLogSortAsc] = useState(false);
 
   // Floating Action Button (FAB) & Quick Context Menu states
   const [fabOpen, setFabOpen] = useState(false);
@@ -113,9 +118,78 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setTimeout(() => setCopiedMatricola(false), 2000);
   };
 
-  // Active courses
+  // Course collections by status
   const activeCourses = courses.filter((c) => c.status === 'active');
   const completedCourses = courses.filter((c) => c.status === 'completed');
+  const plannedCourses = courses.filter((c) => c.status === 'planned');
+
+  // Courses scoped by courseFilter: 'all' | 'active' | 'completed' | 'planned'
+  const scopedCourses =
+    courseFilter === 'all'
+      ? courses
+      : courseFilter === 'active'
+      ? activeCourses
+      : courseFilter === 'completed'
+      ? completedCourses
+      : plannedCourses;
+
+  // Filtered & Sorted Courses for Data Table
+  const filteredCourses = scopedCourses
+    .filter((course) => {
+      if (!tableSearch.trim()) return true;
+      const q = tableSearch.toLowerCase();
+      return (
+        course.title.toLowerCase().includes(q) ||
+        (course.code && course.code.toLowerCase().includes(q)) ||
+        (course.email && course.email.toLowerCase().includes(q)) ||
+        (course.status && course.status.toLowerCase().includes(q)) ||
+        (course.nextDeliverable && course.nextDeliverable.title.toLowerCase().includes(q))
+      );
+    })
+    .sort((a, b) => {
+      let cmp = 0;
+      if (courseSortField === 'title') {
+        cmp = a.title.localeCompare(b.title);
+      } else if (courseSortField === 'cfu') {
+        cmp = a.cfu - b.cfu;
+      } else if (courseSortField === 'year') {
+        cmp = (a.year * 10 + a.semester) - (b.year * 10 + b.semester);
+      } else if (courseSortField === 'status') {
+        cmp = a.status.localeCompare(b.status);
+      } else if (courseSortField === 'deliverable') {
+        const da = a.nextDeliverable?.title || '';
+        const db = b.nextDeliverable?.title || '';
+        cmp = da.localeCompare(db);
+      }
+      return courseSortAsc ? cmp : -cmp;
+    });
+
+  // Filtered & Sorted Study Logs for Data Table
+  const filteredLogs = studyLogs
+    .filter((log) => {
+      if (!tableSearch.trim()) return true;
+      const q = tableSearch.toLowerCase();
+      return (
+        log.courseName.toLowerCase().includes(q) ||
+        log.tag.toLowerCase().includes(q) ||
+        log.notes.toLowerCase().includes(q) ||
+        log.date.includes(q)
+      );
+    })
+    .sort((a, b) => {
+      let cmp = 0;
+      if (logSortField === 'date') {
+        cmp = a.date.localeCompare(b.date);
+        if (cmp === 0) cmp = (a.timestamp || 0) - (b.timestamp || 0);
+      } else if (logSortField === 'course') {
+        cmp = a.courseName.localeCompare(b.courseName);
+      } else if (logSortField === 'duration') {
+        cmp = a.durationMinutes - b.durationMinutes;
+      } else if (logSortField === 'tag') {
+        cmp = a.tag.localeCompare(b.tag);
+      }
+      return logSortAsc ? cmp : -cmp;
+    });
 
   // Calculate earned CFU: sum of completed courses
   const targetCFU = profile.totalTargetCFU || 180;
@@ -186,272 +260,69 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const powerBorderClass = getPowerBorderClass(dailyPowerPercent);
   const powerBarFill = getPowerBarFillClass(dailyPowerPercent);
 
-  // Submit study session
-  const handleSubmitSession = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCourse) return;
-
-    const matchedCourse = courses.find((c) => c.title === selectedCourse || c.shortTitle === selectedCourse);
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    const prefix = sessionDate === todayStr ? 'Today' : sessionDate;
-    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    onAddStudyLog({
-      courseName: matchedCourse ? matchedCourse.shortTitle : selectedCourse,
-      courseId: matchedCourse?.id,
-      durationMinutes: Number(durationMinutes),
-      date: sessionDate,
-      timeRange: `${prefix} ${nowTime}`,
-      notes: notes.trim() || 'General course syllabus study & topic review.',
-      rating: 5,
-      tag: 'Deep Work',
-    });
-
-    setNotes('');
-    playFuturisticChime();
-    fireCelebrationConfetti();
-    setSessionJustAdded(true);
-    setTimeout(() => setSessionJustAdded(false), 2400);
-  };
-
-  // Deliverable Radar Calculation (Exams, Assignments, Deadlines)
-  const formatDeliverableDate = (dateStr: string) => {
-    if (!dateStr) return '';
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
-      const d = new Date(year, month, day);
-      return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-    }
-    return dateStr;
-  };
-
-  const calculateDaysLeft = (dateStr: string) => {
-    if (!dateStr) return 999;
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return 999;
-    const due = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    due.setHours(0, 0, 0, 0);
-    const diffTime = due.getTime() - today.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
-  interface IncomingItem {
-    id: string;
-    title: string;
-    courseName: string;
-    type: string;
-    dueDate: string;
-    daysLeft: number;
-    isAssignment: boolean;
-    isCourseDeliverable?: boolean;
-    course?: Course;
-  }
-
-  const incomingItems: IncomingItem[] = React.useMemo(() => {
-    const list: IncomingItem[] = [];
-
-    // 1. Uncompleted assignments and exams
-    (assignments || [])
-      .filter((a) => a.status !== 'completed' && a.status !== 'submitted' && !!a.dueDate)
-      .forEach((a) => {
-        list.push({
-          id: a.id,
-          title: a.title,
-          courseName: a.courseName,
-          type: a.type || 'Task',
-          dueDate: a.dueDate,
-          daysLeft: calculateDaysLeft(a.dueDate),
-          isAssignment: true,
-        });
-      });
-
-    // 2. Next deliverables from active/planned courses
-    (courses || [])
-      .filter((c) => c.nextDeliverable && c.nextDeliverable.date && c.status !== 'completed')
-      .forEach((c) => {
-        const deliv = c.nextDeliverable!;
-        const exists = list.some(
-          (item) => item.title.toLowerCase() === deliv.title.toLowerCase()
-        );
-        if (!exists) {
-          list.push({
-            id: `course-deliv-${c.id}`,
-            title: deliv.title,
-            courseName: c.shortTitle || c.title,
-            type: deliv.type || 'Deliverable',
-            dueDate: deliv.date,
-            daysLeft: calculateDaysLeft(deliv.date),
-            isAssignment: false,
-            isCourseDeliverable: true,
-            course: c,
-          });
-        }
-      });
-
-    return list.sort((a, b) => a.daysLeft - b.daysLeft);
-  }, [assignments, courses]);
-
-  const nextItem = incomingItems[0];
-  const isExam =
-    nextItem &&
-    (nextItem.type.toLowerCase().includes('exam') ||
-      nextItem.type.toLowerCase().includes('midterm') ||
-      nextItem.type.toLowerCase().includes('final') ||
-      nextItem.type.toLowerCase().includes('oral') ||
-      nextItem.type.toLowerCase().includes('quiz') ||
-      nextItem.type.toLowerCase().includes('appello') ||
-      nextItem.type.toLowerCase().includes('parziale'));
-
-  const bannerTitle = isExam ? 'Incoming Exam' : 'Incoming Assignment';
-
-  const getDeliverableDisplayName = (item: IncomingItem) => {
-    const isGenericExam = ['exam', 'esame', 'final', 'midterm', 'parziale', 'appello', 'oral'].includes(
-      item.title.toLowerCase().trim()
-    );
-    if (isGenericExam && item.courseName) {
-      return item.courseName;
-    }
-    if (
-      item.courseName &&
-      item.courseName !== 'General' &&
-      item.courseName.toLowerCase() !== item.title.toLowerCase()
-    ) {
-      if (item.title.toLowerCase().includes(item.courseName.toLowerCase())) {
-        return item.title;
-      }
-      return `${item.courseName} - ${item.title}`;
-    }
-    return item.title || item.courseName;
-  };
-
-  const displayName = nextItem ? getDeliverableDisplayName(nextItem) : '';
-
-  const daysText =
-    nextItem
-      ? nextItem.daysLeft < 0
-        ? `${Math.abs(nextItem.daysLeft)} Days overdue`
-        : nextItem.daysLeft === 0
-        ? 'Due Today'
-        : nextItem.daysLeft === 1
-        ? '1 Day left'
-        : `${nextItem.daysLeft} Days left`
-      : '';
-
-  const isRed = (nextItem?.daysLeft ?? 999) <= 3;
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-zinc-950 overflow-y-auto p-2 sm:p-3.5 space-y-2.5 sm:space-y-3.5 transition-colors">
-      {/* INCOMING DELIVERABLE BANNER (Only shown when there are incoming items and not dismissed) */}
-      {nextItem && dismissedBannerId !== nextItem.id && (
-        <div
-          className={`rounded-xl border p-3.5 sm:p-4 transition-all flex items-center justify-between gap-3 ${
-            isRed
-              ? 'border-red-500 bg-red-500/10 dark:bg-red-950/30 text-red-500 dark:text-red-400'
-              : 'border-orange-500 bg-orange-500/10 dark:bg-orange-950/30 text-orange-500 dark:text-orange-400'
-          }`}
-        >
-          <div className="space-y-1 min-w-0">
-            <h2 className="font-bold text-sm sm:text-base tracking-tight leading-none">
-              {bannerTitle}
-            </h2>
-            <p className="text-xs sm:text-sm font-medium opacity-90 leading-tight truncate">
-              {displayName} - {daysText}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setDismissedBannerId(nextItem.id)}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl border flex items-center justify-center transition-colors cursor-pointer shrink-0 ${
-              isRed
-                ? 'border-red-500/60 hover:border-red-500 hover:bg-red-500/20 text-red-500 dark:text-red-400'
-                : 'border-orange-500/60 hover:border-orange-500 hover:bg-orange-500/20 text-orange-500 dark:text-orange-400'
-            }`}
-            title="Dismiss banner"
-            aria-label="Dismiss banner"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      )}
+    <div className="flex-1 flex flex-col h-full min-h-0 bg-gray-50 dark:bg-zinc-950 p-2 sm:p-3.5 pb-24 xl:pb-3.5 gap-2.5 sm:gap-3 transition-colors overflow-y-auto xl:overflow-hidden select-none">
 
       {/* 1. DEGREE TELEMETRY & MILESTONE BANNER */}
-      <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-2.5 sm:p-3.5 text-xs shadow-sm">
+      <div className="shrink-0 border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-2.5 sm:p-3 text-xs shadow-xs">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 sm:gap-3">
           {/* Degree, Student & Matricola Lockup */}
           <div className="py-0.5 space-y-1">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap">
               <h1 className="font-extrabold text-sm sm:text-lg lg:text-xl text-neutral-900 dark:text-zinc-100 tracking-tight leading-tight">
-                {profile.degreeName || 'Degree Program'}
+                {profile.degreeName || 'Mechanical Engineering'}
               </h1>
-              {profile.studentId ? (
-                <button
-                  type="button"
-                  onClick={handleCopyMatricola}
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200/80 dark:hover:bg-zinc-700 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 font-mono text-[10px] sm:text-[11px] font-medium transition-colors shadow-2xs group cursor-pointer"
-                  title="Click to copy Matricola to clipboard"
-                >
-                  <span className="text-slate-500 dark:text-zinc-400 font-sans text-[10px] font-semibold uppercase tracking-wider">
-                    Matricola:
-                  </span>
-                  <span className="font-bold text-slate-900 dark:text-zinc-100 tracking-wide">
-                    {profile.studentId}
-                  </span>
-                  <span className="material-symbols-outlined text-[11px] text-slate-400 dark:text-zinc-400 group-hover:text-slate-700 dark:group-hover:text-zinc-200 ml-0.5">
-                    {copiedMatricola ? 'check' : 'content_copy'}
-                  </span>
-                  {copiedMatricola && (
-                    <span className="text-[9px] font-sans font-semibold text-emerald-700 dark:text-emerald-400 ml-0.5">
-                      Copied!
-                    </span>
-                  )}
-                </button>
-              ) : (
-                <span
-                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-50 dark:bg-zinc-800/60 border border-slate-200/80 dark:border-zinc-700 text-slate-500 dark:text-zinc-400 font-mono text-[10px] sm:text-[11px]"
-                  title="Matricola not set (can be configured in Settings)"
-                >
-                  <span className="font-sans text-[10px] font-semibold uppercase tracking-wider">
-                    Matricola:
-                  </span>
-                  <span className="italic text-slate-400 dark:text-zinc-500">Not set</span>
+              <button
+                type="button"
+                onClick={handleCopyMatricola}
+                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100/80 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-mono text-[10px] sm:text-[11px] font-medium transition-colors shadow-2xs group cursor-pointer shrink-0"
+                title="Click to copy Matricola to clipboard"
+              >
+                <span className="font-sans text-[9.5px] sm:text-[10px] font-semibold tracking-wide text-blue-600 dark:text-blue-400">
+                  Matricola:
                 </span>
-              )}
+                <span className="font-bold text-blue-900 dark:text-blue-100 tracking-wide">
+                  {profile.studentId || '665924'}
+                </span>
+                <span className="material-symbols-outlined text-[11px] text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-200 ml-0.5">
+                  {copiedMatricola ? 'check' : 'content_copy'}
+                </span>
+                {copiedMatricola && (
+                  <span className="text-[9px] font-sans font-semibold text-emerald-700 dark:text-emerald-400 ml-0.5">
+                    Copied!
+                  </span>
+                )}
+              </button>
             </div>
 
             <div className="text-[10px] sm:text-[11px] text-neutral-600 dark:text-zinc-400 font-sans flex items-center gap-1.5 flex-wrap pt-0.5">
               <span className="font-semibold text-neutral-800 dark:text-zinc-200">
-                {profile.institution || 'University / Institution'}
+                {profile.institution || 'Università degli Studi Roma Tre'}
               </span>
-              <span className="text-neutral-400 dark:text-zinc-600">•</span>
+              <span className="text-neutral-400 dark:text-zinc-600">-</span>
               <span className="text-neutral-700 dark:text-zinc-300 font-medium">
-                {profile.degreeType || 'Degree Level'}
+                {profile.degreeType || 'Laurea Triennale'}
               </span>
             </div>
           </div>
 
-          {/* Key Metric Gauges */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 text-[10.5px] sm:text-[11px]">
-            {/* Total Earned CFU */}
-            <div className="bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2 rounded-lg min-w-[100px] shadow-2xs">
-              <div className="text-neutral-500 dark:text-zinc-400 text-[9.5px] sm:text-[10px] uppercase font-semibold">
-                Total Earned
+          {/* Key Metric Gauges: Compact 3-col grid on all screens so it never overflows */}
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-[10px] sm:text-[11px]">
+            {/* Total CFU */}
+            <div className="bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2.5 rounded-xl shadow-2xs flex flex-col justify-between">
+              <div className="text-neutral-600 dark:text-zinc-400 text-[9px] sm:text-[10px] font-bold truncate">
+                Total CFU
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="font-bold text-sm sm:text-base text-neutral-900 dark:text-zinc-100 font-mono">
+              <div className="flex items-baseline gap-0.5 sm:gap-1 my-0.5">
+                <span className="font-bold text-xs sm:text-base lg:text-lg text-neutral-900 dark:text-zinc-100 font-mono">
                   {totalEarnedCFU}
                 </span>
-                <span className="text-neutral-600 dark:text-zinc-400 text-[9.5px] sm:text-[10px]">
-                  / {targetCFU} CFU
+                <span className="text-neutral-500 dark:text-zinc-400 text-[8.5px] sm:text-[10px]">
+                  /{targetCFU}
                 </span>
               </div>
-              <div className="w-full bg-slate-200 dark:bg-zinc-800 h-1 sm:h-1.5 rounded-full overflow-hidden mt-0.5 sm:mt-1">
+              <div className="w-full bg-slate-200 dark:bg-zinc-800 h-1 sm:h-1.5 rounded-full overflow-hidden mt-0.5">
                 <div
                   className="bg-blue-600 dark:bg-blue-500 h-full transition-all duration-500 rounded-full"
                   style={{ width: `${donePercent}%` }}
@@ -459,555 +330,996 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
 
-            {/* Completed Courses */}
-            <div className="bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2 rounded-lg min-w-[100px] shadow-2xs">
-              <div className="text-neutral-500 dark:text-zinc-400 text-[9.5px] sm:text-[10px] uppercase font-semibold">
+            {/* Completed courses */}
+            <div className="bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2.5 rounded-xl shadow-2xs flex flex-col justify-between">
+              <div className="text-neutral-600 dark:text-zinc-400 text-[9px] sm:text-[10px] font-bold truncate">
                 Completed
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="font-bold text-sm sm:text-base text-neutral-900 dark:text-zinc-100 font-mono">
+              <div className="flex items-baseline gap-0.5 sm:gap-1 my-0.5">
+                <span className="font-bold text-xs sm:text-base lg:text-lg text-neutral-900 dark:text-zinc-100 font-mono">
                   {completedCourses.length}
                 </span>
-                <span className="text-neutral-600 dark:text-zinc-400 text-[9.5px] sm:text-[10px]">Passed</span>
+                <span className="text-neutral-500 dark:text-zinc-400 text-[8.5px] sm:text-[10px]">Passed</span>
               </div>
-              <div className="text-[9.5px] sm:text-[10px] text-neutral-500 dark:text-zinc-400 font-mono mt-1 sm:mt-2">
-                {activeCourses.length} ongoing in term
+              <div className="text-[8.5px] sm:text-[10px] text-neutral-500 dark:text-zinc-400 font-mono truncate">
+                {activeCourses.length} active
               </div>
             </div>
 
             {/* Weekly Focus */}
-            <div className={`col-span-2 sm:col-span-1 bg-slate-50/70 dark:bg-zinc-900/80 border p-1.5 sm:p-2 rounded-lg min-w-[100px] shadow-2xs ${powerBorderClass}`}>
-              <div className="text-neutral-500 dark:text-zinc-400 text-[9.5px] sm:text-[10px] uppercase font-semibold">
+            <div className={`bg-slate-50/70 dark:bg-zinc-900/80 border p-1.5 sm:p-2.5 rounded-xl shadow-2xs flex flex-col justify-between ${powerBorderClass}`}>
+              <div className="text-neutral-600 dark:text-zinc-400 text-[9px] sm:text-[10px] font-bold truncate">
                 Weekly Focus
               </div>
-              <div className="flex items-baseline gap-1">
-                <span className="font-bold text-sm sm:text-base text-emerald-700 dark:text-emerald-400 font-mono">
+              <div className="flex items-baseline gap-0.5 sm:gap-1 my-0.5">
+                <span className="font-bold text-xs sm:text-base lg:text-lg text-emerald-700 dark:text-emerald-400 font-mono">
                   {weeklyHours}h
                 </span>
-                <span className="text-neutral-600 dark:text-zinc-400 text-[9.5px] sm:text-[10px]">
-                  / {profile.weeklyGoalHours}h
+                <span className="text-neutral-500 dark:text-zinc-400 text-[8.5px] sm:text-[10px]">
+                  /{profile.weeklyGoalHours || 20}h
                 </span>
               </div>
-              <div className="w-full bg-slate-200 dark:bg-zinc-800 h-1 sm:h-1.5 rounded-full overflow-hidden mt-0.5 sm:mt-1">
+              <div className="w-full bg-slate-200 dark:bg-zinc-800 h-1 sm:h-1.5 rounded-full overflow-hidden mt-0.5">
                 <div
                   className={`h-full transition-all duration-500 rounded-full ${powerBarFill}`}
                   style={{ width: `${weeklyGoalPercent}%` }}
                 />
               </div>
-              <div className="text-[9.5px] sm:text-[10px] text-neutral-500 dark:text-zinc-400 font-mono mt-0.5">
-                Target: {weeklyGoalPercent}% Reached
+              <div className="text-[8.5px] sm:text-[10px] text-neutral-500 dark:text-zinc-400 font-mono mt-0.5 truncate">
+                {weeklyGoalPercent}% goal
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2-COLUMN MAIN WORKSTATION GRID */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 items-start">
-        {/* LEFT COLUMN: Active Courses Table + Study Activity Log (8 cols) */}
-        <div className="xl:col-span-8 space-y-3">
-          {/* Active Courses Table */}
-          <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-sm overflow-hidden flex flex-col">
-            <div className="bg-slate-50/80 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 sm:gap-2">
-              <div className="flex items-center gap-1.5 font-bold text-[11px] text-neutral-800 dark:text-zinc-200">
-                <span className="material-symbols-outlined text-[15px] text-blue-700 dark:text-blue-400">
-                  table_view
-                </span>
-                <span>Active Courses</span>
-              </div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <Button
-                  variant="compact"
-                  size="sm"
-                  onClick={onOpenEmailGroup}
-                  title="Email all active course professors"
-                  className="gap-1 text-zinc-800 dark:text-zinc-200"
-                >
-                  <span className="material-symbols-outlined text-[13px]">
-                    mail
-                  </span>
-                  <span>Email Group</span>
-                </Button>
-                <Button
-                  variant="compact"
-                  size="sm"
-                  onClick={onNavigateToCurriculum}
-                  title="Open Complete Degree Curriculum"
-                  className="gap-1 text-indigo-700 dark:text-indigo-400 font-semibold"
-                >
-                  <span>Go to page</span>
-                  <span className="material-symbols-outlined text-[13px]">
-                    open_in_new
-                  </span>
-                </Button>
-              </div>
-            </div>
+      {/* 2-COLUMN MAIN WORKSTATION - SCROLLABLE ON MOBILE, PINNED FILL Y-SPACE ON XL */}
+      <div className="flex-1 min-h-0 flex flex-col xl:grid xl:grid-cols-12 gap-2.5 sm:gap-3 items-stretch">
+        {/* LEFT COLUMN: Tabbed Panel [Courses] | [Sessions Logs] (8 cols on desktop) */}
+        <div className="xl:col-span-8 flex flex-col min-h-[460px] xl:min-h-0 h-auto xl:h-full">
+          <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px] xl:min-h-0 h-full">
+            {/* Header: Clean responsive segmented control, filter pills, search & actions */}
+            <div className="shrink-0 bg-slate-50/90 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-2.5 sm:px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              {/* Left group on desktop / Top row on mobile */}
+              <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                {/* Segmented Control */}
+                <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-slate-300/80 dark:border-zinc-700">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickBeep();
+                      setDashboardTab('courses');
+                    }}
+                    className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                      dashboardTab === 'courses'
+                        ? 'bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 shadow-2xs'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">school</span>
+                    <span>Courses</span>
+                    <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-slate-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                      {scopedCourses.length}
+                    </span>
+                  </button>
 
-            {/* If no active courses, display clean empty state */}
-            {activeCourses.length === 0 ? (
-              <div className="p-6 text-center text-slate-500 dark:text-zinc-400 bg-slate-50/50 dark:bg-zinc-900/40">
-                <span className="material-symbols-outlined text-[32px] text-slate-300 dark:text-zinc-600 block mb-1">
-                  school
-                </span>
-                <p className="text-xs font-semibold text-slate-700 dark:text-zinc-300">No active courses enrolled yet</p>
-                <p className="text-[11px] text-slate-500 dark:text-zinc-500 mt-0.5 mb-3">Add courses to your curriculum to track your semester progress.</p>
-                <button
-                  onClick={onNavigateToCurriculum}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <span className="material-symbols-outlined text-[14px]">add</span>
-                  <span>Add Course in Curriculum</span>
-                </button>
-              </div>
-            ) : (
-              <>
-                {/* Mobile Cards View */}
-                <div className="sm:hidden p-1.5 space-y-1.5">
-                  {activeCourses.map((course) => {
-                    const badgeClass =
-                      course.nextDeliverable?.badgeColor === 'red'
-                        ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/70 dark:text-red-300 dark:border-red-900/80'
-                        : course.nextDeliverable?.badgeColor === 'amber'
-                        ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-900/80'
-                        : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700';
-
-                    return (
-                      <div
-                        key={course.id}
-                        onClick={() => onOpenCourseDetail(course)}
-                        className="px-2.5 py-1.5 rounded-lg border border-gray-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 active:bg-slate-100 dark:active:bg-zinc-700 transition-colors cursor-pointer shadow-2xs flex flex-col gap-1"
-                      >
-                        <div className="flex items-center justify-between gap-2 min-w-0">
-                          <div className="font-semibold text-xs text-neutral-900 dark:text-zinc-100 truncate leading-snug">
-                            {course.title}
-                          </div>
-                          <span className="shrink-0 font-mono font-bold text-[10px] bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 px-1.5 py-0.5 rounded border border-gray-200 dark:border-zinc-700 leading-none">
-                            {course.cfu} CFU
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-1 text-[10px] text-neutral-500 dark:text-zinc-400">
-                          <div className="flex items-center gap-1.5 truncate min-w-0">
-                            {course.nextDeliverable ? (
-                              <span
-                                className={`inline-flex items-center px-1.5 py-0.5 border rounded text-[9.5px] font-semibold leading-none truncate ${badgeClass}`}
-                              >
-                                {course.nextDeliverable.title}
-                              </span>
-                            ) : (
-                              <span className="text-neutral-400 dark:text-zinc-500 font-mono text-[9px] leading-none">
-                                No deliverable
-                              </span>
-                            )}
-                            {course.email && (
-                              <>
-                                <span className="text-neutral-300 dark:text-zinc-600">•</span>
-                                <a
-                                  href={`mailto:${course.email}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="text-blue-600 dark:text-blue-400 hover:underline truncate text-[10px]"
-                                  title={course.email}
-                                >
-                                  {course.email}
-                                </a>
-                              </>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-0.5 text-blue-600 dark:text-blue-400 font-medium shrink-0 ml-1">
-                            <span className="text-[10px]">View</span>
-                            <span className="material-symbols-outlined text-[13px] leading-none">
-                              chevron_right
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClickBeep();
+                      setDashboardTab('logs');
+                    }}
+                    className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                      dashboardTab === 'logs'
+                        ? 'bg-white dark:bg-zinc-900 text-indigo-700 dark:text-indigo-400 shadow-2xs'
+                        : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">history_edu</span>
+                    <span className="hidden xs:inline">Sessions Logs</span>
+                    <span className="xs:hidden">Logs</span>
+                    <span className="text-[10px] font-mono px-1 py-0.2 rounded bg-slate-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400">
+                      {studyLogs.length}
+                    </span>
+                  </button>
                 </div>
 
-                {/* Desktop Table View */}
-                <div className="hidden sm:block overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="cursor-pointer">
-                          Course Title
-                        </TableHead>
-                        <TableHead className="w-16 text-right cursor-pointer tabular-nums">
-                          CFU
-                        </TableHead>
-                        <TableHead className="w-24 text-center cursor-pointer">
-                          Status
-                        </TableHead>
-                        <TableHead className="w-32 cursor-pointer">
-                          Incoming
-                        </TableHead>
-                        <TableHead className="w-16 text-center cursor-pointer">
-                          Actions
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {activeCourses.map((course, idx) => {
-                        const badgeClass =
-                          course.nextDeliverable?.badgeColor === 'red'
-                            ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-900/80'
-                            : course.nextDeliverable?.badgeColor === 'amber'
-                            ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-900/80'
-                            : 'bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700';
-
-                        return (
-                          <TableRow
-                            key={course.id}
-                            onClick={() => onOpenCourseDetail(course)}
-                            className={`cursor-pointer group ${
-                              idx % 2 === 1 ? 'bg-slate-50/20 dark:bg-zinc-900/30' : ''
-                            }`}
-                          >
-                            <TableCell className="px-2.5 py-2">
-                              <div className="font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                {course.title}
-                              </div>
-                              {course.email && (
-                                <div className="text-[10px] text-zinc-500 dark:text-zinc-400 flex items-center gap-2 mt-0.5">
-                                  <a
-                                    href={`mailto:${course.email}`}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="text-indigo-600 dark:text-indigo-400 hover:underline"
-                                  >
-                                    {course.email}
-                                  </a>
-                                </div>
-                              )}
-                            </TableCell>
-                            <TableCell className="px-2.5 py-2 text-right font-mono font-bold text-zinc-800 dark:text-zinc-200 tabular-nums">
-                              {course.cfu}
-                            </TableCell>
-                            <TableCell className="px-2.5 py-2 text-center">
-                              <StatusBadge status={course.status} size="sm" />
-                            </TableCell>
-                            <TableCell className="px-2.5 py-2">
-                              {course.nextDeliverable ? (
-                                <span
-                                  className={`inline-block px-1.5 py-0.5 border rounded-md text-[10px] font-semibold ${badgeClass}`}
-                                >
-                                  {course.nextDeliverable.title}
-                                </span>
-                              ) : (
-                                <span className="text-zinc-400 dark:text-zinc-500 font-mono text-[10px]">
-                                  None
-                                </span>
-                              )}
-                            </TableCell>
-                            <TableCell className="px-2.5 py-2 text-center">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-6 px-2 text-[10px] font-medium"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenCourseDetail(course);
-                                }}
-                                title="Open Course Details"
-                              >
-                                View
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Minimal Compact Week Study Schedule Chart */}
-          <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-sm overflow-hidden flex flex-col">
-            <div className="bg-slate-50/80 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 font-bold text-[11px] text-neutral-800 dark:text-zinc-200">
-                <span className="material-symbols-outlined text-[15px] text-emerald-700 dark:text-emerald-400">
-                  calendar_view_week
-                </span>
-                <span>Current Week</span>
-              </div>
-            </div>
-
-            <div className="p-2.5 sm:p-3 text-xs space-y-2">
-              <div className="flex items-center justify-between text-[10.5px] sm:text-[11px] pb-1.5 border-b border-gray-100 dark:border-zinc-800">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <span className="font-bold text-neutral-900 dark:text-zinc-100 font-mono text-xs">
-                    {weekTotalHours}h Focus Time
-                  </span>
-                </div>
-              </div>
-
-              {/* Minimal 7-day strip */}
-              <div className="grid grid-cols-7 gap-1 sm:gap-1.5 pt-0.5">
-                {weekDays.map((wd) => {
-                  const isGreen = wd.hasSessions;
-                  return (
-                    <div
-                      key={wd.dateStr}
-                      className={`py-1 sm:py-2 px-0.5 sm:px-1 rounded-lg border flex flex-col items-center justify-between text-center transition-all ${
-                        isGreen
-                          ? 'bg-emerald-50/80 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 shadow-2xs ring-1 ring-emerald-200/70 dark:ring-emerald-900/50'
-                          : 'bg-slate-50/60 dark:bg-zinc-900/60 border-gray-200 dark:border-zinc-800 text-neutral-400 dark:text-zinc-500'
+                {/* Course Status Filter Scope Pills (Desktop View >= md) */}
+                {dashboardTab === 'courses' && (
+                  <div className="hidden md:flex items-center gap-1 py-0.5 bg-slate-200/80 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-slate-300/80 dark:border-zinc-700 text-[10.5px]">
+                    <button
+                      type="button"
+                      onClick={() => setCourseFilter('all')}
+                      title="Show all curriculum courses"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
+                        courseFilter === 'all'
+                          ? 'bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 shadow-2xs'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
                       }`}
                     >
-                      <div className="w-full pb-0.5 sm:pb-1 border-b border-inherit">
-                        <div
-                          className={`text-[8px] sm:text-[9px] font-bold uppercase ${
-                            isGreen ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-500 dark:text-zinc-400'
-                          }`}
-                        >
-                          {wd.shortDay}
-                        </div>
-                        <div className="text-[7px] sm:text-[8px] font-mono opacity-80 leading-tight">
-                          {wd.formattedDate}
-                        </div>
-                      </div>
-
-                      <div className="my-0.5 sm:my-1.5 flex flex-col items-center">
-                        <div
-                          className={`font-mono font-bold text-[10px] sm:text-[12px] leading-tight ${
-                            isGreen ? 'text-emerald-800 dark:text-emerald-300' : 'text-neutral-400 dark:text-zinc-400'
-                          }`}
-                        >
-                          {wd.hours}
-                        </div>
-                        <div
-                          className={`text-[7px] sm:text-[9px] font-mono leading-tight ${
-                            isGreen ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-neutral-400 dark:text-zinc-500'
-                          }`}
-                        >
-                          {wd.sessionCount}s
-                        </div>
-                      </div>
-
-                      <div className="w-full pt-0.5 flex justify-center">
-                        {isGreen ? (
-                          <span
-                            className="inline-flex items-center justify-center w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full bg-emerald-600 dark:bg-emerald-500 text-white text-[7px] sm:text-[8px] font-bold"
-                            title={`${wd.sessionCount} session(s)`}
-                          >
-                            ✓
-                          </span>
-                        ) : (
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-zinc-800" />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: Study Session Logger + Quick Notes (4 cols) */}
-        <div className="xl:col-span-4 space-y-3">
-          {/* Study Session Quick Entry Widget */}
-          <div className={`border bg-white dark:bg-zinc-900 rounded-xl shadow-sm overflow-hidden flex flex-col ${powerBorderClass}`}>
-            <div className="bg-slate-50/80 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-between">
-              <div className="flex items-center gap-1.5 font-bold text-[11px] text-neutral-800 dark:text-zinc-200">
-                <span className="material-symbols-outlined text-[15px] text-blue-600 dark:text-blue-400">
-                  add_circle
-                </span>
-                <span>Log Study Session</span>
-              </div>
-              <span className="text-[10px] font-mono text-neutral-500 dark:text-zinc-400">
-                {activeCourses.length} active
-              </span>
-            </div>
-
-            <div className="p-2.5 sm:p-3 text-xs">
-              <form onSubmit={handleSubmitSession} className="space-y-2 sm:space-y-2.5">
-                {/* Target Course */}
-                <div className="space-y-0.5">
-                  <label
-                    className="text-[10px] font-bold text-neutral-700 dark:text-zinc-300 uppercase tracking-wide block"
-                    htmlFor="course-select"
-                  >
-                    Target Course
-                  </label>
-                  <select
-                    id="course-select"
-                    value={selectedCourse}
-                    onChange={(e) => setSelectedCourse(e.target.value)}
-                    className="w-full text-[11px] py-1.5 px-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-blue-500 dark:focus:border-indigo-500 font-medium transition-all"
-                    required
-                    disabled={activeCourses.length === 0}
-                  >
-                    {activeCourses.length === 0 ? (
-                      <option value="">No active courses available</option>
-                    ) : (
-                      activeCourses.map((c) => (
-                        <option key={c.id} value={c.title}>
-                          {c.shortTitle || c.title} ({c.cfu} CFU)
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </div>
-
-                {/* Date & Duration inputs */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-0.5">
-                    <label
-                      className="text-[10px] font-bold text-neutral-700 dark:text-zinc-300 uppercase tracking-wide"
-                      htmlFor="session-date"
-                    >
-                      Date
-                    </label>
-                    <input
-                      id="session-date"
-                      type="date"
-                      value={sessionDate}
-                      onChange={(e) => setSessionDate(e.target.value)}
-                      className="w-full text-[11px] py-1.5 px-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-blue-500 font-mono transition-all"
-                    />
-                  </div>
-
-                  <div className="space-y-0.5">
-                    <div className="flex items-center justify-between">
-                      <label
-                        className="text-[10px] font-bold text-neutral-700 dark:text-zinc-300 uppercase tracking-wide"
-                        htmlFor="session-duration"
-                      >
-                        Duration
-                      </label>
-                      <span className="text-[10px] font-mono text-blue-700 dark:text-blue-400 font-bold">
-                        {durationMinutes} min
-                      </span>
-                    </div>
-                    <input
-                      id="session-duration"
-                      type="number"
-                      min="15"
-                      step="15"
-                      value={durationMinutes}
-                      onChange={(e) =>
-                        setDurationMinutes(Math.max(15, parseInt(e.target.value) || 15))
-                      }
-                      className="w-full text-[11px] py-1.5 px-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-blue-500 font-mono transition-all"
-                    />
-                  </div>
-                </div>
-
-                {/* Preset duration pills for instant 1-click selection */}
-                <div className="flex items-center gap-1 pt-0.5">
-                  <span className="text-[9px] font-mono text-neutral-500 dark:text-zinc-400 uppercase">Preset:</span>
-                  {[30, 45, 60, 90, 120].map((mins) => (
+                      All ({courses.length})
+                    </button>
                     <button
-                      key={mins}
                       type="button"
+                      onClick={() => setCourseFilter('active')}
+                      title="Show only currently active courses"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
+                        courseFilter === 'active'
+                          ? 'bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                      }`}
+                    >
+                      Active ({activeCourses.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCourseFilter('completed')}
+                      title="Show passed / completed courses"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
+                        courseFilter === 'completed'
+                          ? 'bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 shadow-2xs'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                      }`}
+                    >
+                      Passed ({completedCourses.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCourseFilter('planned')}
+                      title="Show planned future courses"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer ${
+                        courseFilter === 'planned'
+                          ? 'bg-white dark:bg-zinc-900 text-amber-700 dark:text-amber-400 shadow-2xs'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                      }`}
+                    >
+                      Planned ({plannedCourses.length})
+                    </button>
+                  </div>
+                )}
+
+                {/* Mobile Header Actions (compact on small screens) */}
+                <div className="flex sm:hidden items-center gap-1 shrink-0">
+                  {dashboardTab === 'courses' && onOpenNewCourse && (
+                    <Button
+                      variant="compact"
+                      size="sm"
                       onClick={() => {
                         playClickBeep();
-                        setDurationMinutes(mins);
+                        onOpenNewCourse();
                       }}
-                      className={`px-2 py-0.5 text-[10px] rounded-md font-mono transition-colors ${
-                        durationMinutes === mins
-                          ? 'bg-indigo-600 text-white font-bold shadow-2xs'
-                          : 'bg-slate-50 dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 border border-gray-200 dark:border-zinc-700'
+                      title="Add course"
+                      className="gap-0.5 text-blue-700 dark:text-blue-400 font-semibold h-7 text-[10.5px] px-2"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">add</span>
+                      <span>Course</span>
+                    </Button>
+                  )}
+
+                  {dashboardTab === 'logs' && (
+                    <Button
+                      variant="compact"
+                      size="sm"
+                      onClick={() => {
+                        playClickBeep();
+                        setShowQuickStudyModal(true);
+                      }}
+                      title="Log session"
+                      className="gap-0.5 text-emerald-700 dark:text-emerald-400 h-7 text-[10.5px] px-2"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">add</span>
+                      <span>Log</span>
+                    </Button>
+                  )}
+
+                  <Button
+                    variant="compact"
+                    size="sm"
+                    onClick={() => {
+                      playClickBeep();
+                      if (dashboardTab === 'courses') onNavigateToCurriculum();
+                      else if (onNavigateToStudyTracker) onNavigateToStudyTracker();
+                      else onNavigateToCurriculum();
+                    }}
+                    title="Open full page"
+                    className="gap-0.5 text-indigo-700 dark:text-indigo-400 font-semibold h-7 text-[10.5px] px-2"
+                  >
+                    <span>Page</span>
+                    <span className="material-symbols-outlined text-[12px]">open_in_new</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Right group on desktop / Bottom section on mobile */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 w-full sm:w-auto">
+                {/* Mobile/Tablet Scope Filter Pills (Horizontally scrollable) */}
+                {dashboardTab === 'courses' && (
+                  <div className="flex md:hidden items-center gap-1 overflow-x-auto no-scrollbar py-0.5 bg-slate-200/80 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-slate-300/80 dark:border-zinc-700 text-[10.5px]">
+                    <button
+                      type="button"
+                      onClick={() => setCourseFilter('all')}
+                      title="Show all curriculum courses"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer shrink-0 ${
+                        courseFilter === 'all'
+                          ? 'bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 shadow-2xs'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
                       }`}
                     >
-                      {mins}m
+                      All ({courses.length})
                     </button>
-                  ))}
-                </div>
-
-                {/* Notes */}
-                <div className="space-y-0.5">
-                  <label
-                    className="text-[10px] font-bold text-neutral-700 dark:text-zinc-300 uppercase tracking-wide"
-                    htmlFor="session-topic"
-                  >
-                    Notes / Topic
-                  </label>
-                  <textarea
-                    id="session-topic"
-                    rows={2}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Study session notes, problem set, topics covered..."
-                    className="w-full text-[11px] p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 resize-none font-sans transition-all"
-                  />
-                </div>
-
-                {/* Action Button & Confirmation feedback */}
-                <div className="pt-1 flex flex-col gap-1">
-                  {sessionJustAdded ? (
-                    <div className="py-2 px-2.5 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow-2xs">
-                      <span className="material-symbols-outlined text-[15px] text-emerald-600 dark:text-emerald-400">
-                        check_circle
-                      </span>
-                      <span>Session Recorded to Telemetry!</span>
-                    </div>
-                  ) : (
                     <button
-                      type="submit"
-                      className="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold py-2 px-3 rounded-lg text-[11px] shadow-xs hover:shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                      type="button"
+                      onClick={() => setCourseFilter('active')}
+                      title="Show only currently active courses"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer shrink-0 ${
+                        courseFilter === 'active'
+                          ? 'bg-white dark:bg-zinc-900 text-emerald-700 dark:text-emerald-400 shadow-2xs'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                      }`}
                     >
-                      <span className="material-symbols-outlined text-[15px]">
-                        add_task
-                      </span>
-                      <span>Log Study Session (Ctrl+S)</span>
+                      Active ({activeCourses.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCourseFilter('completed')}
+                      title="Show passed / completed courses"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer shrink-0 ${
+                        courseFilter === 'completed'
+                          ? 'bg-white dark:bg-zinc-900 text-blue-700 dark:text-blue-400 shadow-2xs'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                      }`}
+                    >
+                      Passed ({completedCourses.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCourseFilter('planned')}
+                      title="Show planned future courses"
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-all cursor-pointer shrink-0 ${
+                        courseFilter === 'planned'
+                          ? 'bg-white dark:bg-zinc-900 text-amber-700 dark:text-amber-400 shadow-2xs'
+                          : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100'
+                      }`}
+                    >
+                      Planned ({plannedCourses.length})
+                    </button>
+                  </div>
+                )}
+
+                {/* Inline Data Table Search Filter */}
+                <div className="relative flex-1 sm:w-36 md:w-44 flex items-center">
+                  <span className="material-symbols-outlined absolute left-2 text-[14px] text-zinc-400 pointer-events-none">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    value={tableSearch}
+                    onChange={(e) => setTableSearch(e.target.value)}
+                    placeholder={dashboardTab === 'courses' ? 'Filter courses...' : 'Filter logs...'}
+                    className="h-7 w-full pl-6 pr-6 text-[11px] rounded-md border border-gray-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500/30"
+                  />
+                  {tableSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setTableSearch('')}
+                      className="absolute right-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer text-xs"
+                      title="Clear search"
+                    >
+                      ×
                     </button>
                   )}
                 </div>
-              </form>
-            </div>
-          </div>
 
-          {/* Quick Notes Section */}
+                {/* Desktop Header Actions */}
+                <div className="hidden sm:flex items-center gap-1 shrink-0">
+                  {dashboardTab === 'courses' && onOpenNewCourse && (
+                    <Button
+                      variant="compact"
+                      size="sm"
+                      onClick={() => {
+                        playClickBeep();
+                        onOpenNewCourse();
+                      }}
+                      title="Add new course to curriculum"
+                      className="gap-1 text-blue-700 dark:text-blue-400 font-semibold h-7 text-[11px] px-2 sm:px-2.5"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">add</span>
+                      <span>Add Course</span>
+                    </Button>
+                  )}
+
+                  {dashboardTab === 'logs' && (
+                    <Button
+                      variant="compact"
+                      size="sm"
+                      onClick={() => {
+                        playClickBeep();
+                        setShowQuickStudyModal(true);
+                      }}
+                      title="Record a new study session"
+                      className="gap-1 text-emerald-700 dark:text-emerald-400 h-7 text-[11px] px-2 sm:px-2.5"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">add</span>
+                      <span>Log Session</span>
+                    </Button>
+                  )}
+
+                  {/* Go to Page button matching sketch */}
+                  <Button
+                    variant="compact"
+                    size="sm"
+                    onClick={() => {
+                      playClickBeep();
+                      if (dashboardTab === 'courses') {
+                        onNavigateToCurriculum();
+                      } else if (onNavigateToStudyTracker) {
+                        onNavigateToStudyTracker();
+                      } else {
+                        onNavigateToCurriculum();
+                      }
+                    }}
+                    title={dashboardTab === 'courses' ? 'Open Complete Degree Curriculum' : 'Open Complete Study Tracker'}
+                    className="gap-1 text-indigo-700 dark:text-indigo-400 font-semibold h-7 text-[11px] px-2 sm:px-2.5"
+                  >
+                    <span className="hidden sm:inline">Go to Page</span>
+                    <span className="sm:hidden">Page</span>
+                    <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* TAB CONTENT: Courses Data Table (Compact, Clear Grid Borders, Zebra Striped, Sticky Header, No CODE column) */}
+            {dashboardTab === 'courses' && (
+              <div className="flex-1 min-h-[360px] xl:min-h-0 flex flex-col overflow-hidden">
+                {scopedCourses.length === 0 ? (
+                  <div className="p-8 text-center text-slate-500 dark:text-zinc-400 bg-slate-50/50 dark:bg-zinc-900/40 my-auto">
+                    <span className="material-symbols-outlined text-[36px] text-slate-300 dark:text-zinc-600 block mb-1">
+                      school
+                    </span>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                      {courseFilter === 'active'
+                        ? 'No active courses currently enrolled'
+                        : courseFilter === 'completed'
+                        ? 'No completed courses recorded yet'
+                        : courseFilter === 'planned'
+                        ? 'No planned future courses'
+                        : 'No courses in curriculum'}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-500 mt-0.5 mb-3">
+                      {courseFilter === 'all'
+                        ? 'Add courses to your curriculum to track your semester progress.'
+                        : 'You can switch the scope filter or add new courses to your academic plan.'}
+                    </p>
+                    {courseFilter !== 'all' ? (
+                      <button
+                        type="button"
+                        onClick={() => setCourseFilter('all')}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">visibility</span>
+                        <span>Show All Courses ({courses.length})</span>
+                      </button>
+                    ) : onOpenNewCourse ? (
+                      <button
+                        type="button"
+                        onClick={onOpenNewCourse}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">add</span>
+                        <span>Add Course</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={onNavigateToCurriculum}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                        <span>Go to Curriculum</span>
+                      </button>
+                    )}
+                  </div>
+                ) : filteredCourses.length === 0 ? (
+                  <div className="p-8 text-center text-slate-500 dark:text-zinc-400 bg-slate-50/50 dark:bg-zinc-900/40 my-auto">
+                    <span className="material-symbols-outlined text-[30px] text-slate-300 dark:text-zinc-600 block mb-1">
+                      search_off
+                    </span>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-zinc-300">No courses match "{tableSearch}"</p>
+                    <button
+                      type="button"
+                      onClick={() => setTableSearch('')}
+                      className="mt-2 text-xs text-blue-600 hover:underline cursor-pointer"
+                    >
+                      Reset search filter
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Subtle Mobile Horizontal Swipe Hint */}
+                    <div className="sm:hidden px-2.5 py-1 bg-slate-100/90 dark:bg-zinc-800/90 text-[10px] text-zinc-600 dark:text-zinc-400 flex items-center justify-between border-t border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+                      <span className="inline-flex items-center gap-1 font-medium">
+                        <span className="material-symbols-outlined text-[13px] text-blue-600 dark:text-blue-400">swipe</span>
+                        <span>Swipe horizontally to view all columns</span>
+                      </span>
+                      <span className="font-mono text-[9.5px] text-zinc-500">
+                        {filteredCourses.length} items
+                      </span>
+                    </div>
+
+                    {/* Dedicated Compact Data Table with clear grid borders, alternating row colors, and fixed header row */}
+                    <div className="flex-1 min-h-[280px] xl:min-h-0 overflow-auto border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                      <table className="w-full text-[11px] border-separate border-spacing-0 text-left min-w-[580px]">
+                        <thead className="sticky top-0 z-20 shadow-xs bg-slate-100 dark:bg-zinc-800">
+                          <tr className="bg-slate-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-bold text-[10px] tracking-wider uppercase select-none">
+                            <th
+                              className="sticky top-0 left-0 z-30 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors shadow-[1px_0_3px_rgba(0,0,0,0.04)]"
+                              onClick={() => {
+                                if (courseSortField === 'title') setCourseSortAsc(!courseSortAsc);
+                                else {
+                                  setCourseSortField('title');
+                                  setCourseSortAsc(true);
+                                }
+                              }}
+                              title="Sort by Course Title"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>Course Title &amp; Contact</span>
+                                {courseSortField === 'title' && (
+                                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold">
+                                    {courseSortAsc ? '▲' : '▼'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th
+                              className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-20 text-right cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors tabular-nums"
+                              onClick={() => {
+                                if (courseSortField === 'cfu') setCourseSortAsc(!courseSortAsc);
+                                else {
+                                  setCourseSortField('cfu');
+                                  setCourseSortAsc(false);
+                                }
+                              }}
+                              title="Sort by CFU"
+                            >
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span>CFU</span>
+                                {courseSortField === 'cfu' && (
+                                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold">
+                                    {courseSortAsc ? '▲' : '▼'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th
+                              className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-24 text-center cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors"
+                              onClick={() => {
+                                if (courseSortField === 'year') setCourseSortAsc(!courseSortAsc);
+                                else {
+                                  setCourseSortField('year');
+                                  setCourseSortAsc(true);
+                                }
+                              }}
+                              title="Sort by Academic Term"
+                            >
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span>Term</span>
+                                {courseSortField === 'year' && (
+                                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold">
+                                    {courseSortAsc ? '▲' : '▼'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th
+                              className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-28 text-center cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors"
+                              onClick={() => {
+                                if (courseSortField === 'status') setCourseSortAsc(!courseSortAsc);
+                                else {
+                                  setCourseSortField('status');
+                                  setCourseSortAsc(true);
+                                }
+                              }}
+                              title="Sort by Status"
+                            >
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span>Status</span>
+                                {courseSortField === 'status' && (
+                                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold">
+                                    {courseSortAsc ? '▲' : '▼'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th
+                              className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-44 cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors"
+                              onClick={() => {
+                                if (courseSortField === 'deliverable') setCourseSortAsc(!courseSortAsc);
+                                else {
+                                  setCourseSortField('deliverable');
+                                  setCourseSortAsc(true);
+                                }
+                              }}
+                              title="Sort by Deliverable"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>Incoming Deliverable</span>
+                                {courseSortField === 'deliverable' && (
+                                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono font-bold">
+                                    {courseSortAsc ? '▲' : '▼'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-16 text-center">
+                              Action
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredCourses.map((course, idx) => {
+                            const badgeClass =
+                              course.nextDeliverable?.badgeColor === 'red'
+                                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/70 dark:text-rose-300 dark:border-rose-900/80'
+                                : course.nextDeliverable?.badgeColor === 'amber'
+                                ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/70 dark:text-amber-300 dark:border-amber-900/80'
+                                : 'bg-zinc-100 text-zinc-800 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:border-zinc-700';
+
+                            const isEvenRow = idx % 2 === 0;
+
+                            const handleStatusCycle = (e: React.MouseEvent) => {
+                              e.stopPropagation();
+                              if (!onUpdateCourse) return;
+                              const nextStatus: Course['status'] =
+                                course.status === 'active'
+                                  ? 'completed'
+                                  : course.status === 'completed'
+                                  ? 'planned'
+                                  : 'active';
+                              onUpdateCourse({ ...course, status: nextStatus });
+                            };
+
+                            return (
+                              <tr
+                                key={course.id}
+                                onClick={() => onOpenCourseDetail(course)}
+                                className={`group cursor-pointer transition-colors duration-150 ${
+                                  isEvenRow
+                                    ? 'bg-white dark:bg-zinc-900'
+                                    : 'bg-slate-50/80 dark:bg-zinc-800/40'
+                                } hover:bg-blue-50/80 dark:hover:bg-zinc-800/70`}
+                              >
+                                <td className={`sticky left-0 z-10 border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 min-w-[190px] sm:min-w-[210px] align-middle ${
+                                  isEvenRow ? 'bg-white dark:bg-zinc-900' : 'bg-slate-50 dark:bg-zinc-800/90'
+                                } group-hover:bg-blue-50 dark:group-hover:bg-zinc-800 transition-colors shadow-[1px_0_3px_rgba(0,0,0,0.04)]`}>
+                                  <div className="font-bold text-[11.5px] text-zinc-900 dark:text-zinc-100 leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                    {course.title}
+                                  </div>
+                                  {course.email && (
+                                    <div className="text-[9.5px] text-zinc-500 dark:text-zinc-400 flex items-center gap-1 mt-0.5 leading-none">
+                                      <span className="material-symbols-outlined text-[12px] text-zinc-400 dark:text-zinc-500">mail</span>
+                                      <a
+                                        href={`mailto:${course.email}`}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                                      >
+                                        {course.email}
+                                      </a>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-right font-mono font-bold text-[11px] text-zinc-900 dark:text-zinc-100 tabular-nums align-middle">
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 shadow-2xs">
+                                    {course.cfu} CFU
+                                  </span>
+                                </td>
+                                <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-center font-mono text-[10px] text-zinc-600 dark:text-zinc-400 whitespace-nowrap align-middle">
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100/70 dark:bg-zinc-800/70 border border-zinc-200/80 dark:border-zinc-700/80">
+                                    Y{course.year || 1} • S{course.semester || 1}
+                                  </span>
+                                </td>
+                                <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-center whitespace-nowrap align-middle">
+                                  {course.status === 'active' ? (
+                                    <span
+                                      onClick={handleStatusCycle}
+                                      title={onUpdateCourse ? 'Click to cycle status (Active -> Completed -> Planned)' : 'Active Course'}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800 shadow-2xs ${
+                                        onUpdateCourse ? 'hover:scale-105 active:scale-95 transition-transform' : ''
+                                      }`}
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                      <span>Active</span>
+                                    </span>
+                                  ) : course.status === 'completed' ? (
+                                    <span
+                                      onClick={handleStatusCycle}
+                                      title={onUpdateCourse ? 'Click to cycle status (Completed -> Planned -> Active)' : 'Passed Examination'}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800 shadow-2xs ${
+                                        onUpdateCourse ? 'hover:scale-105 active:scale-95 transition-transform' : ''
+                                      }`}
+                                    >
+                                      <span className="material-symbols-outlined text-[11px]">check_circle</span>
+                                      <span>Passed</span>
+                                    </span>
+                                  ) : (
+                                    <span
+                                      onClick={handleStatusCycle}
+                                      title={onUpdateCourse ? 'Click to cycle status (Planned -> Active -> Completed)' : 'Planned Module'}
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800 shadow-2xs ${
+                                        onUpdateCourse ? 'hover:scale-105 active:scale-95 transition-transform' : ''
+                                      }`}
+                                    >
+                                      <span className="material-symbols-outlined text-[11px]">schedule</span>
+                                      <span>Planned</span>
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 align-middle">
+                                  {course.nextDeliverable ? (
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className={`inline-block px-1.5 py-0.5 border rounded text-[9.5px] font-semibold shadow-2xs ${badgeClass}`}>
+                                        {course.nextDeliverable.title}
+                                      </span>
+                                      {course.nextDeliverable.date && (
+                                        <span className="font-mono text-[9px] text-zinc-500 dark:text-zinc-400 whitespace-nowrap">
+                                          {course.nextDeliverable.date}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : course.status === 'completed' ? (
+                                    <span className="text-emerald-700 dark:text-emerald-400 font-mono text-[9.5px] font-medium inline-flex items-center gap-1">
+                                      <span className="material-symbols-outlined text-[12px]">verified</span>
+                                      <span>Exam Passed • {course.cfu} CFU Acquired</span>
+                                    </span>
+                                  ) : course.status === 'planned' ? (
+                                    <span className="text-zinc-400 dark:text-zinc-500 font-mono text-[9.5px]">
+                                      Planned curriculum module
+                                    </span>
+                                  ) : (
+                                    <span className="text-zinc-400 dark:text-zinc-500 font-mono text-[9.5px]">
+                                      — None scheduled
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="border-b border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-center whitespace-nowrap align-middle">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onOpenCourseDetail(course);
+                                    }}
+                                    className="px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 rounded border border-blue-200 dark:border-blue-800 transition-colors inline-flex items-center gap-0.5 cursor-pointer shadow-2xs"
+                                  >
+                                    <span>Open</span>
+                                    <span className="material-symbols-outlined text-[12px]">chevron_right</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Data Table Footer Strip (Clean metrics, 'All up-to-date' removed) */}
+                    <div className="shrink-0 px-3 py-1.5 border-t border-zinc-200 dark:border-zinc-800 bg-slate-50/90 dark:bg-zinc-900/90 flex items-center justify-between text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                        <span>
+                          Showing {filteredCourses.length} of {scopedCourses.length} courses ({courseFilter} view)
+                        </span>
+                        <span>•</span>
+                        <span>{scopedCourses.reduce((s, c) => s + c.cfu, 0)} CFU in view</span>
+                        <span>•</span>
+                        <span>{activeCourses.length} active ({activeCourses.reduce((s, c) => s + c.cfu, 0)} CFU)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {completedCourses.length > 0 && (
+                          <span className="text-blue-700 dark:text-blue-400 font-semibold text-[10px]">
+                            {completedCourses.length} passed ({completedCourses.reduce((s, c) => s + c.cfu, 0)} CFU)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* TAB CONTENT: Sessions Logs (Genuine Compact Data Table) */}
+            {dashboardTab === 'logs' && (
+              <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                {/* Minimal 7-day strip for quick weekly summary (shrink-0) */}
+                <div className="shrink-0 p-2 sm:p-2.5 bg-slate-50/70 dark:bg-zinc-900/60 border-b border-gray-200 dark:border-zinc-800">
+                  <div className="flex items-center justify-between text-[11px] pb-1 border-b border-gray-200/60 dark:border-zinc-800">
+                    <span className="font-bold text-neutral-900 dark:text-zinc-100 font-mono text-xs">
+                      {weekTotalHours}h Focus Time this week
+                    </span>
+                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+                      {weekTotalSessions} session{weekTotalSessions === 1 ? '' : 's'} logged
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1 mt-1.5">
+                    {weekDays.map((wd) => {
+                      const isGreen = wd.hasSessions;
+                      return (
+                        <div
+                          key={wd.dateStr}
+                          className={`py-1 px-0.5 rounded border flex flex-col items-center justify-between text-center transition-all ${
+                            isGreen
+                              ? 'bg-emerald-50/80 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 shadow-2xs'
+                              : 'bg-white/60 dark:bg-zinc-900/60 border-gray-200 dark:border-zinc-800 text-neutral-400 dark:text-zinc-500'
+                          }`}
+                        >
+                          <div className={`text-[8px] font-bold uppercase ${isGreen ? 'text-emerald-800 dark:text-emerald-400' : 'text-neutral-500 dark:text-zinc-400'}`}>
+                            {wd.shortDay}
+                          </div>
+                          <div className={`my-0.5 font-mono font-bold text-[10px] ${isGreen ? 'text-emerald-800 dark:text-emerald-300' : 'text-neutral-400 dark:text-zinc-400'}`}>
+                            {wd.hours}
+                          </div>
+                          <div className="text-[7.5px] font-mono opacity-80 leading-tight">
+                            {wd.formattedDate}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Real Data Table for Study Logs */}
+                {studyLogs.length === 0 ? (
+                  <div className="p-8 text-center text-slate-500 dark:text-zinc-400 bg-slate-50/40 dark:bg-zinc-900/40 rounded-lg border border-dashed border-gray-200 dark:border-zinc-800 my-auto">
+                    <span className="material-symbols-outlined text-[36px] text-slate-300 dark:text-zinc-600 block mb-1">
+                      history_edu
+                    </span>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-zinc-300">No study sessions logged yet</p>
+                    <p className="text-[11px] text-slate-500 dark:text-zinc-500 mt-0.5 mb-3">Record your deep work, problem sets, and review sessions.</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickStudyModal(true)}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">add</span>
+                      <span>Log First Session</span>
+                    </button>
+                  </div>
+                ) : filteredLogs.length === 0 ? (
+                  <div className="p-8 text-center text-slate-500 dark:text-zinc-400 bg-slate-50/50 dark:bg-zinc-900/40 my-auto">
+                    <span className="material-symbols-outlined text-[30px] text-slate-300 dark:text-zinc-600 block mb-1">
+                      search_off
+                    </span>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-zinc-300">No sessions match "{tableSearch}"</p>
+                    <button
+                      type="button"
+                      onClick={() => setTableSearch('')}
+                      className="mt-2 text-xs text-blue-600 hover:underline cursor-pointer"
+                    >
+                      Reset search filter
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {/* Subtle Mobile Horizontal Swipe Hint */}
+                    <div className="sm:hidden px-2.5 py-1 bg-slate-100/90 dark:bg-zinc-800/90 text-[10px] text-zinc-600 dark:text-zinc-400 flex items-center justify-between border-t border-b border-zinc-200 dark:border-zinc-800 shrink-0">
+                      <span className="inline-flex items-center gap-1 font-medium">
+                        <span className="material-symbols-outlined text-[13px] text-indigo-600 dark:text-indigo-400">swipe</span>
+                        <span>Swipe horizontally to view all columns</span>
+                      </span>
+                      <span className="font-mono text-[9.5px] text-zinc-500">
+                        {filteredLogs.length} sessions
+                      </span>
+                    </div>
+
+                    {/* Dedicated Compact Data Table for Study Logs with clear grid borders, alternating row colors, and fixed header row */}
+                    <div className="flex-1 min-h-[280px] xl:min-h-0 overflow-auto border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                      <table className="w-full text-[11px] border-separate border-spacing-0 text-left min-w-[580px]">
+                        <thead className="sticky top-0 z-20 shadow-xs bg-slate-100 dark:bg-zinc-800">
+                          <tr className="bg-slate-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-bold text-[10px] tracking-wider uppercase select-none">
+                            <th
+                              className="sticky top-0 left-0 z-30 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-28 sm:w-32 cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors shadow-[1px_0_3px_rgba(0,0,0,0.04)]"
+                              onClick={() => {
+                                if (logSortField === 'date') setLogSortAsc(!logSortAsc);
+                                else {
+                                  setLogSortField('date');
+                                  setLogSortAsc(false);
+                                }
+                              }}
+                              title="Sort by Date"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>Date &amp; Time</span>
+                                {logSortField === 'date' && (
+                                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                                    {logSortAsc ? '▲' : '▼'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th
+                              className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors"
+                              onClick={() => {
+                                if (logSortField === 'course') setLogSortAsc(!logSortAsc);
+                                else {
+                                  setLogSortField('course');
+                                  setLogSortAsc(true);
+                                }
+                              }}
+                              title="Sort by Course"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span>Course / Subject</span>
+                                {logSortField === 'course' && (
+                                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                                    {logSortAsc ? '▲' : '▼'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th
+                              className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-20 text-center cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors tabular-nums"
+                              onClick={() => {
+                                if (logSortField === 'duration') setLogSortAsc(!logSortAsc);
+                                else {
+                                  setLogSortField('duration');
+                                  setLogSortAsc(false);
+                                }
+                              }}
+                              title="Sort by Duration"
+                            >
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span>Duration</span>
+                                {logSortField === 'duration' && (
+                                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                                    {logSortAsc ? '▲' : '▼'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th
+                              className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-r border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-28 text-center cursor-pointer hover:bg-slate-200/80 dark:hover:bg-zinc-700 transition-colors"
+                              onClick={() => {
+                                if (logSortField === 'tag') setLogSortAsc(!logSortAsc);
+                                else {
+                                  setLogSortField('tag');
+                                  setLogSortAsc(true);
+                                }
+                              }}
+                              title="Sort by Category Tag"
+                            >
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span>Category Tag</span>
+                                {logSortField === 'tag' && (
+                                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono font-bold">
+                                    {logSortAsc ? '▲' : '▼'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th className={`sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 ${onDeleteStudyLog ? 'border-r' : ''} border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5`}>
+                              Focus Topic &amp; Notes
+                            </th>
+                            {onDeleteStudyLog && (
+                              <th className="sticky top-0 bg-slate-100 dark:bg-zinc-800 border-b-2 border-zinc-300 dark:border-zinc-700 px-2.5 py-1.5 w-14 text-center">
+                                Action
+                              </th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredLogs.map((log, idx) => {
+                            const isEvenRow = idx % 2 === 0;
+
+                            return (
+                              <tr
+                                key={log.id}
+                                className={`group transition-colors duration-150 ${
+                                  isEvenRow
+                                    ? 'bg-white dark:bg-zinc-900'
+                                    : 'bg-slate-50/80 dark:bg-zinc-800/40'
+                                } hover:bg-indigo-50/80 dark:hover:bg-zinc-800/70`}
+                              >
+                                <td className={`sticky left-0 z-10 border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 font-mono text-[9.5px] whitespace-nowrap align-middle ${
+                                  isEvenRow ? 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400' : 'bg-slate-50 dark:bg-zinc-800/90 text-zinc-600 dark:text-zinc-400'
+                                } group-hover:bg-indigo-50 dark:group-hover:bg-zinc-800 transition-colors shadow-[1px_0_3px_rgba(0,0,0,0.04)]`}>
+                                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">{log.date}</div>
+                                  <div className="text-[9px] text-zinc-400 dark:text-zinc-500 leading-none mt-0.5">{log.timeRange}</div>
+                                </td>
+                                <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 font-bold text-[11.5px] text-zinc-900 dark:text-zinc-100 align-middle">
+                                  {log.courseName}
+                                </td>
+                                <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-center tabular-nums align-middle">
+                                  <span className="inline-block px-1.5 py-0.5 rounded font-mono font-bold text-[10px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 shadow-2xs">
+                                    {log.durationMinutes}m
+                                  </span>
+                                </td>
+                                <td className="border-b border-r border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-center whitespace-nowrap align-middle">
+                                  <span className="inline-block px-2 py-0.5 rounded text-[9.5px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-700 shadow-2xs">
+                                    {log.tag}
+                                  </span>
+                                </td>
+                                <td className={`border-b ${onDeleteStudyLog ? 'border-r' : ''} border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-[10.5px] text-zinc-700 dark:text-zinc-300 max-w-sm align-middle`} title={log.notes}>
+                                  <div className="truncate font-sans leading-tight">
+                                    {log.notes || 'General syllabus review and problem sets'}
+                                  </div>
+                                </td>
+                                {onDeleteStudyLog && (
+                                  <td className="border-b border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-center align-middle">
+                                    <button
+                                      type="button"
+                                      onClick={() => onDeleteStudyLog(log.id)}
+                                      className="text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 p-0.5 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                      title="Delete log entry"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">delete</span>
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Sessions Data Table Footer Strip */}
+                    <div className="shrink-0 px-3 py-1.5 border-t border-zinc-200 dark:border-zinc-800 bg-slate-50/90 dark:bg-zinc-900/90 flex items-center justify-between text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono">
+                      <div className="flex items-center gap-3">
+                        <span>Showing {filteredLogs.length} of {studyLogs.length} sessions</span>
+                        <span>•</span>
+                        <span>Total {(filteredLogs.reduce((s, l) => s + l.durationMinutes, 0) / 60).toFixed(1)} hours</span>
+                      </div>
+                      <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                        {filteredLogs.length > 0 ? `${Math.round(filteredLogs.reduce((s, l) => s + l.durationMinutes, 0) / filteredLogs.length)}m avg/session` : ''}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Quick Note taking - Clean & full height (4 cols) */}
+        <div className="xl:col-span-4 flex flex-col min-h-[320px] xl:min-h-0 h-auto xl:h-full">
           <QuickNotesSection
             notes={currentNotes}
             onUpdateNotes={handleUpdateNotes}
+            className="flex-1 min-h-[320px] xl:min-h-0 h-full"
           />
         </div>
       </div>
 
-      {/* Floating Action Feedback Toast */}
-      {quickNotification && (
-        <div className="fixed bottom-20 sm:bottom-22 right-5 sm:right-6 z-50 py-2 px-3 bg-emerald-600 dark:bg-emerald-500 text-white text-xs font-semibold rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
-          <span className="material-symbols-outlined text-[16px]">check_circle</span>
-          <span>{quickNotification}</span>
-        </div>
-      )}
-
-      {/* Floating Action Button (FAB) & Context Menu */}
-      <div className="fixed bottom-5 right-5 sm:bottom-6 sm:right-6 z-40">
+      {/* Dynamic Floating Quick Actions Button (Shown ONLY in Mobile & Tablet views, Hidden on PC view) */}
+      <div className="xl:hidden fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-40">
         {/* Backdrop click-away overlay when context menu is open */}
         {fabOpen && (
           <div
-            className="fixed inset-0 bg-black/20 dark:bg-black/50 backdrop-blur-[1px] -z-10 transition-opacity animate-in fade-in duration-150"
+            className="fixed inset-0 z-40 bg-black/25 dark:bg-black/60 backdrop-blur-[2px] transition-opacity"
             onClick={() => setFabOpen(false)}
           />
         )}
 
-        {/* Context Menu Speed-Dial */}
+        {/* Dynamic Context Menu Speed-Dial for Mobile/Tablet Quick Adds */}
         {fabOpen && (
           <div
             role="menu"
-            aria-orientation="vertical"
-            className="absolute bottom-14 sm:bottom-16 right-0 mb-2 w-64 sm:w-72 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-gray-200/90 dark:border-zinc-800 rounded-2xl shadow-2xl p-1.5 space-y-1 animate-in fade-in slide-in-from-bottom-3 duration-200 text-left select-none ring-1 ring-black/5 dark:ring-white/5"
+            className="absolute bottom-14 right-0 w-64 max-w-[calc(100vw-2rem)] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-1.5 space-y-1 z-50 text-left select-none animate-in fade-in slide-in-from-bottom-3 duration-200"
           >
             <div className="px-3 py-1.5 flex items-center justify-between border-b border-gray-100 dark:border-zinc-800/80 mb-0.5">
               <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-zinc-400">
-                <span className="material-symbols-outlined text-[13px] text-indigo-500">
-                  bolt
-                </span>
+                <span className="material-symbols-outlined text-[13px] text-indigo-500">bolt</span>
                 <span>Quick Actions</span>
               </div>
-              <span className="text-[9.5px] font-mono text-neutral-400 dark:text-zinc-500">
-                Esc to close
-              </span>
+              <button
+                type="button"
+                onClick={() => setFabOpen(false)}
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer"
+                title="Close menu"
+              >
+                <span className="material-symbols-outlined text-[14px]">close</span>
+              </button>
             </div>
 
-            {/* Action 1: New Task / Exam */}
             <button
               type="button"
               onClick={() => {
@@ -1015,27 +1327,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 playClickBeep();
                 setShowQuickTaskModal(true);
               }}
-              className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-emerald-50/80 dark:hover:bg-emerald-950/40 border border-transparent hover:border-emerald-200/60 dark:hover:border-emerald-800/40 transition-all group cursor-pointer"
+              className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
             >
-              <div className="w-9 h-9 rounded-xl bg-emerald-100/80 dark:bg-emerald-950/80 border border-emerald-200 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
-                <span className="material-symbols-outlined text-[18px]">
-                  add_task
-                </span>
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">add_task</span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-semibold text-xs text-neutral-900 dark:text-zinc-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
-                  New Task / Exam
-                </div>
-                <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">
-                  Add assignment, deadline or test
-                </div>
+                <div className="font-semibold text-xs group-hover:text-emerald-700 dark:group-hover:text-emerald-300">New Task / Exam</div>
+                <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">Add assignment, deadline or test</div>
               </div>
-              <span className="material-symbols-outlined text-[16px] text-neutral-300 dark:text-zinc-600 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-all">
-                chevron_right
-              </span>
             </button>
 
-            {/* Action 2: Log Study Session */}
             <button
               type="button"
               onClick={() => {
@@ -1043,92 +1345,64 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 playClickBeep();
                 setShowQuickStudyModal(true);
               }}
-              className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-blue-50/80 dark:hover:bg-blue-950/40 border border-transparent hover:border-blue-200/60 dark:hover:border-blue-800/40 transition-all group cursor-pointer"
+              className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-blue-50 dark:hover:bg-blue-950/40 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
             >
-              <div className="w-9 h-9 rounded-xl bg-blue-100/80 dark:bg-blue-950/80 border border-blue-200 dark:border-blue-800/80 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
-                <span className="material-symbols-outlined text-[18px]">
-                  history_edu
-                </span>
+              <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">history_edu</span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-semibold text-xs text-neutral-900 dark:text-zinc-100 group-hover:text-blue-700 dark:group-hover:text-blue-300">
-                  Log Study Session
-                </div>
-                <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">
-                  Record study hours &amp; topic review
-                </div>
+                <div className="font-semibold text-xs group-hover:text-blue-700 dark:group-hover:text-blue-300">Log Study Session</div>
+                <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">Record study hours & topic review</div>
               </div>
-              <span className="material-symbols-outlined text-[16px] text-neutral-300 dark:text-zinc-600 group-hover:text-blue-600 dark:group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all">
-                chevron_right
-              </span>
             </button>
 
-            {/* Action 3: New Course */}
             <button
               type="button"
               onClick={() => {
                 setFabOpen(false);
                 playClickBeep();
-                if (onOpenNewCourse) {
-                  onOpenNewCourse();
-                } else {
-                  onNavigateToCurriculum();
-                }
+                if (onOpenNewCourse) onOpenNewCourse();
+                else onNavigateToCurriculum();
               }}
-              className="w-full flex items-center gap-3 p-2 rounded-xl text-left hover:bg-indigo-50/80 dark:hover:bg-indigo-950/40 border border-transparent hover:border-indigo-200/60 dark:hover:border-indigo-800/40 transition-all group cursor-pointer"
+              className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
             >
-              <div className="w-9 h-9 rounded-xl bg-indigo-100/80 dark:bg-indigo-950/80 border border-indigo-200 dark:border-indigo-800/80 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-2xs">
-                <span className="material-symbols-outlined text-[18px]">
-                  school
-                </span>
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[18px]">school</span>
               </div>
               <div className="min-w-0 flex-1">
-                <div className="font-semibold text-xs text-neutral-900 dark:text-zinc-100 group-hover:text-indigo-700 dark:group-hover:text-indigo-300">
-                  Add New Course
-                </div>
-                <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">
-                  Register syllabus course &amp; CFUs
-                </div>
+                <div className="font-semibold text-xs group-hover:text-indigo-700 dark:group-hover:text-indigo-300">Add New Course</div>
+                <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">Register syllabus & CFUs</div>
               </div>
-              <span className="material-symbols-outlined text-[16px] text-neutral-300 dark:text-zinc-600 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all">
-                chevron_right
-              </span>
             </button>
           </div>
         )}
 
-        {/* Main FAB Trigger Button */}
+        {/* Dynamic Floating Action Button */}
         <button
           type="button"
           onClick={() => {
             playClickBeep();
             setFabOpen((prev) => !prev);
           }}
-          aria-label={fabOpen ? "Close quick actions menu" : "Open quick actions menu"}
-          aria-expanded={fabOpen}
+          aria-label="Quick Actions"
           title="Quick Actions (Add Task, Study Log, or Course)"
-          className={`group relative flex items-center justify-center w-12 h-12 sm:w-13 sm:h-13 rounded-full text-white shadow-xl shadow-indigo-600/30 hover:shadow-indigo-600/50 ring-2 ring-white/20 dark:ring-zinc-800 transition-all duration-200 cursor-pointer ${
+          className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white shadow-lg transition-all duration-200 cursor-pointer ${
             fabOpen
-              ? 'bg-zinc-800 hover:bg-zinc-700 dark:bg-zinc-700 dark:hover:bg-zinc-600 scale-95'
-              : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-105 active:scale-95'
+              ? 'bg-zinc-800 dark:bg-zinc-700 rotate-45 scale-95 shadow-zinc-900/30'
+              : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-indigo-600/40 hover:shadow-indigo-600/60 ring-2 ring-indigo-400/30'
           }`}
         >
-          <span
-            className={`material-symbols-outlined text-[24px] sm:text-[26px] transition-transform duration-300 ${
-              fabOpen ? 'rotate-45' : 'rotate-0'
-            }`}
-          >
-            add
-          </span>
-
-          {/* Tooltip on hover when closed */}
-          {!fabOpen && (
-            <span className="pointer-events-none absolute right-full mr-2.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-neutral-900/90 dark:bg-zinc-800/90 text-white text-[10.5px] font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity shadow-md backdrop-blur-xs hidden sm:block">
-              Quick Actions
-            </span>
-          )}
+          <span className="material-symbols-outlined text-[24px]">add</span>
         </button>
       </div>
+
+      {/* Dynamic Action Notification Toast */}
+      {quickNotification && (
+        <div className="fixed bottom-20 right-5 sm:bottom-22 sm:right-6 z-50 bg-neutral-900 text-white px-3.5 py-2 rounded-xl text-xs shadow-xl flex items-center gap-2 border border-zinc-700 animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <span className="material-symbols-outlined text-[15px] text-emerald-400">check_circle</span>
+          <span>{quickNotification}</span>
+        </div>
+      )}
 
       {/* Quick Modals from Context Menu */}
       {showQuickTaskModal && (

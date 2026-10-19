@@ -4,11 +4,15 @@ import { playClickBeep } from '../utils/audio';
 interface QuickNotesSectionProps {
   notes: string;
   onUpdateNotes: (notes: string) => void;
+  actionButton?: React.ReactNode;
+  className?: string;
 }
 
 export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   notes,
   onUpdateNotes,
+  actionButton,
+  className = '',
 }) => {
   const [activeTab, setActiveTab] = useState<'scratchpad' | 'checklist'>('scratchpad');
   const [newChecklistText, setNewChecklistText] = useState('');
@@ -204,14 +208,14 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   const isFromPreviousDay = noteDate !== todayDateStr && notes.trim().length > 0;
 
   return (
-    <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-sm overflow-hidden flex flex-col relative transition-colors">
-      {/* Widget Header with title inside */}
-      <div className="bg-slate-50/80 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 font-bold text-[11px] text-zinc-800 dark:text-zinc-200">
-          <span className="material-symbols-outlined text-[15px] text-amber-600 dark:text-amber-400">
+    <div className={`border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-0 h-full relative transition-colors ${className}`}>
+      {/* Widget Header with title matching sketch: Quick Note taking */}
+      <div className="shrink-0 bg-slate-50/80 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-3 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 font-bold text-xs text-zinc-900 dark:text-zinc-100">
+          <span className="material-symbols-outlined text-[16px] text-amber-600 dark:text-amber-400">
             sticky_note_2
           </span>
-          <span>Quick Notes</span>
+          <span>Quick Note taking</span>
         </div>
         <div className="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-zinc-400 font-mono">
           <span className="material-symbols-outlined text-[12px] text-blue-700 dark:text-blue-400 transition-transform duration-200 group-hover:scale-110">
@@ -221,9 +225,9 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
         </div>
       </div>
 
-      <div className="p-2.5 sm:p-3 text-xs flex flex-col flex-1">
+      <div className="p-2.5 sm:p-3 text-xs flex flex-col flex-1 min-h-0">
         {/* Mode Tabs & Save Status */}
-        <div className="flex items-center justify-between pb-2 mb-2 border-b border-gray-100 dark:border-zinc-800 gap-1 flex-wrap">
+        <div className="shrink-0 flex items-center justify-between pb-2 mb-2 border-b border-gray-100 dark:border-zinc-800 gap-1 flex-wrap">
           <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
             <span>
               {lastSavedTime === 'Just now' ? 'Autosaved' : `Saved ${lastSavedTime}`}
@@ -316,15 +320,14 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
 
       {/* Content Area: Scratchpad Mode */}
       {activeTab === 'scratchpad' && (
-        <div className="flex-1 flex flex-col space-y-1">
-          <div className="relative border border-amber-200 dark:border-zinc-800 rounded-lg overflow-hidden bg-[#fffdf0] dark:bg-zinc-950 shadow-inner focus-within:border-amber-400 dark:focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-300/40">
+        <div className="flex-1 min-h-[160px] flex flex-col space-y-1">
+          <div className="flex-1 min-h-[150px] relative border border-amber-200 dark:border-zinc-800 rounded-lg overflow-hidden bg-[#fffdf0] dark:bg-zinc-950 shadow-inner focus-within:border-amber-400 dark:focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-300/40 flex flex-col">
             <textarea
               ref={textareaRef}
-              rows={6}
               value={notes}
               onChange={(e) => handleNotesChange(e.target.value)}
               placeholder="Jot down quick thoughts, room numbers, questions for office hours, library books, or ephemeral reminders for today..."
-              className="w-full text-[11px] p-2 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none resize-y min-h-[110px] font-sans leading-relaxed selection:bg-amber-200 dark:selection:bg-amber-900/60"
+              className="w-full flex-1 min-h-[140px] text-[11px] p-2.5 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none resize-none font-sans leading-relaxed selection:bg-amber-200 dark:selection:bg-amber-900/60"
             />
           </div>
         </div>
@@ -332,9 +335,9 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
 
       {/* Content Area: Checklist Mode */}
       {activeTab === 'checklist' && (
-        <div className="flex-1 flex flex-col space-y-2">
+        <div className="flex-1 min-h-[160px] flex flex-col space-y-2">
           {/* Quick Add Checklist Input */}
-          <form onSubmit={handleAddChecklistItem} className="flex gap-1.5">
+          <form onSubmit={handleAddChecklistItem} className="shrink-0 flex gap-1.5">
             <input
               type="text"
               value={newChecklistText}
@@ -354,7 +357,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
           </form>
 
           {/* Checklist Items Container */}
-          <div className="border border-gray-200 dark:border-zinc-800 rounded-lg bg-slate-50/40 dark:bg-zinc-950/40 p-2 max-h-[160px] overflow-y-auto space-y-1">
+          <div className="flex-1 min-h-[150px] border border-gray-200 dark:border-zinc-800 rounded-lg bg-slate-50/40 dark:bg-zinc-950/40 p-2 overflow-y-auto space-y-1">
             {checklistItems.length === 0 ? (
               <div className="py-4 text-center text-zinc-400 dark:text-zinc-500 text-[11px]">
                 <p>No active reminders for today.</p>
@@ -411,7 +414,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
       )}
 
       {/* Footer Toolbar */}
-      <div className="pt-2 mt-1.5 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between gap-1 flex-wrap">
+      <div className="shrink-0 pt-2 mt-1.5 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between gap-1 flex-wrap">
         {/* Left: Ephemeral settings toggle */}
         <label
           className="flex items-center gap-1.5 text-[10px] text-zinc-600 dark:text-zinc-400 cursor-pointer select-none"
@@ -477,7 +480,14 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
           )}
         </div>
       </div>
+      </div>
+
+      {/* Embedded Action Button (e.g. Floating (+) Speed Dial as sketched) */}
+      {actionButton && (
+        <div className="shrink-0 flex justify-end p-2 pt-1 border-t border-gray-100 dark:border-zinc-800/80 bg-slate-50/40 dark:bg-zinc-950/40">
+          {actionButton}
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
 };

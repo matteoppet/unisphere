@@ -530,11 +530,15 @@ export default function App() {
             quickNotes={quickNotes}
             onUpdateQuickNotes={setQuickNotes}
             onAddStudyLog={handleAddStudyLog}
+            onDeleteStudyLog={handleDeleteStudyLog}
             onOpenCourseDetail={setInspectCourse}
             onOpenColumnsModal={() => setShowColumnsModal(true)}
             onOpenEmailGroup={() => setShowEmailGroupModal(true)}
             onNavigateToCurriculum={() => setCurrentView('courses-and-curriculum')}
+            onNavigateToStudyTracker={() => setCurrentView('study-session-tracker')}
             onOpenNewCourse={() => setShowNewCourseModal(true)}
+            onUpdateCourse={handleUpdateCourse}
+            onDeleteCourse={handleDeleteCourse}
             onAddAssignment={handleAddAssignment}
             onNavigateToAssignments={() => setCurrentView('assignments-and-exams')}
             onUpdateAssignmentStatus={handleUpdateAssignmentStatus}

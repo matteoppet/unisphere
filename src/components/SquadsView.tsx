@@ -10,6 +10,7 @@ import {
   SquadActivity,
   GhostSession,
   LootDropReward,
+  COLOR_PALETTE,
 } from '../types';
 import { db, auth } from '../lib/firebase';
 import {
@@ -101,13 +102,7 @@ interface SquadsViewProps {
   onUpdateProfileTelemetry?: (telemetry: Partial<StudentProfile>) => void;
 }
 
-const MEMBER_COLORS = [
-  { name: 'Tibet Blue', hex: '#3B77BC', bgClass: 'bg-[#3B77BC]', textClass: 'text-[#3B77BC] dark:text-[#689FE1]', borderClass: 'border-[#3B77BC]/50' },
-  { name: 'Mint Green', hex: '#81C046', bgClass: 'bg-[#81C046]', textClass: 'text-[#81C046] dark:text-[#95D45B]', borderClass: 'border-[#81C046]/50' },
-  { name: 'Dark Yellow', hex: '#FCCF03', bgClass: 'bg-[#FCCF03]', textClass: 'text-[#FCCF03]', borderClass: 'border-[#FCCF03]/50' },
-  { name: 'Palm Red', hex: '#DE482B', bgClass: 'bg-[#DE482B]', textClass: 'text-[#DE482B] dark:text-[#F37055]', borderClass: 'border-[#DE482B]/50' },
-  { name: 'Slate Blue', hex: '#5A738E', bgClass: 'bg-[#5A738E]', textClass: 'text-[#5A738E] dark:text-[#8CA3BA]', borderClass: 'border-[#5A738E]/50' },
-];
+const MEMBER_COLORS = COLOR_PALETTE;
 
 export const SquadsView: React.FC<SquadsViewProps> = ({
   profile,
@@ -121,6 +116,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
   const currentUid = auth.currentUser?.uid || profile.studentId || profile.email || 'student';
   const currentUserName = profile.name || auth.currentUser?.displayName || 'Student';
   const currentUserEmail = auth.currentUser?.email || profile.email || '';
+  const currentUserColor = profile.color || profile.accentColor || MEMBER_COLORS[0].hex;
 
   // --- Squad State & Multi-squad support ---
   const [squads, setSquads] = useState<Squad[]>(() => {
@@ -372,12 +368,12 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
         const myMins = myLogs.reduce((acc, l) => acc + l.durationMinutes, 0);
 
         let contributor = currentUserName;
-        let contributorColor = MEMBER_COLORS[0].hex;
+        let contributorColor = currentUserColor;
         let minutes = 0;
 
         if (!isFuture && myMins > 0) {
           contributor = currentUserName;
-          contributorColor = MEMBER_COLORS[0].hex;
+          contributorColor = currentUserColor;
           minutes = myMins;
         }
 
@@ -397,7 +393,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
     }
 
     return { heatmapDays: daysList, weeksHeader: headersList };
-  }, [studyLogs, members, currentUserName]);
+  }, [studyLogs, members, currentUserName, currentUserColor]);
 
   // Save squads to storage
   useEffect(() => {
@@ -474,7 +470,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
         const selfMember: SquadMember = {
           uid: currentUid,
           displayName: currentUserName,
-          color: MEMBER_COLORS[0].hex,
+          color: currentUserColor,
           elo: calculateElo(thisWeekMins, thisWeekTasks, profile.currentStreak || 0),
           minutesThisWeek: thisWeekMins,
           tasksThisWeek: thisWeekTasks,
@@ -577,7 +573,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
         uid: currentUid,
         displayName: currentUserName,
         email: profile.email || auth.currentUser?.email || '',
-        color: MEMBER_COLORS[0].hex,
+        color: currentUserColor,
         elo: userElo,
         minutesThisWeek: thisWeekMins,
         tasksThisWeek: thisWeekTasks,
@@ -625,7 +621,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
         uid: currentUid,
         displayName: currentUserName,
         email: profile.email || '',
-        color: MEMBER_COLORS[0].hex,
+        color: currentUserColor,
         elo: calculateElo(thisWeekMins, thisWeekTasks, profile.currentStreak || 1),
         minutesThisWeek: thisWeekMins,
         tasksThisWeek: thisWeekTasks,
@@ -988,7 +984,7 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
         courseName: lockInCourse,
         startedAt: start,
         status: 'locked-in',
-        color: MEMBER_COLORS[0].hex,
+        color: currentUserColor,
         updatedAt: start,
       };
 
@@ -2180,10 +2176,10 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                   <div className="flex items-center gap-1.5 text-zinc-400 font-mono text-[9.5px] shrink-0">
                     <span>Less</span>
                     <div className="w-2.5 h-2.5 rounded-[2px] bg-zinc-200 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700" title="0 minutes" />
-                    <div className="w-2.5 h-2.5 rounded-[2px] bg-[#3B77BC]/30" title="1-30 minutes" />
-                    <div className="w-2.5 h-2.5 rounded-[2px] bg-[#3B77BC]/60" title="31-60 minutes" />
-                    <div className="w-2.5 h-2.5 rounded-[2px] bg-[#3B77BC]/85" title="61-90 minutes" />
-                    <div className="w-2.5 h-2.5 rounded-[2px] bg-[#3B77BC] shadow-[0_0_4px_rgba(59,119,188,0.5)]" title="90+ minutes" />
+                    <div className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: `${currentUserColor}4D` }} title="1-30 minutes" />
+                    <div className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: `${currentUserColor}99` }} title="31-60 minutes" />
+                    <div className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: `${currentUserColor}D9` }} title="61-90 minutes" />
+                    <div className="w-2.5 h-2.5 rounded-[2px]" style={{ backgroundColor: currentUserColor, boxShadow: `0 0 4px ${currentUserColor}80` }} title="90+ minutes" />
                     <span>More</span>
                   </div>
                 </div>
