@@ -10,10 +10,12 @@ import {
   StudyLog,
   AssignmentItem,
   StudentProfile,
+  ResourceLink,
   INITIAL_PROFILE,
   INITIAL_COURSES,
   INITIAL_STUDY_LOGS,
   INITIAL_ASSIGNMENTS,
+  INITIAL_RESOURCE_LINKS,
 } from './types';
 import { playClickBeep } from './utils/audio';
 import { auth, db } from './lib/firebase';
@@ -90,6 +92,27 @@ export default function App() {
     return '';
   });
 
+  const [resourceLinks, setResourceLinks] = useState<ResourceLink[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_resource_links`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter(
+            (r: ResourceLink) =>
+              !['res-1', 'res-2', 'res-3', 'res-4'].includes(r.id) &&
+              !r.url?.includes('unirand.it')
+          );
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem(`${STORAGE_KEY}_resource_links`, JSON.stringify(cleaned));
+          }
+          return cleaned;
+        }
+      }
+    } catch {}
+    return INITIAL_RESOURCE_LINKS;
+  });
+
   // --- Navigation ---
   const [currentView, setCurrentView] = useState<NavView>('dashboard');
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -97,13 +120,13 @@ export default function App() {
   // --- Status Message ---
   const [statusMessage, setStatusMessage] = useState<string>('Ready');
 
-  // --- Theme State (Dark Mode following ObsidianUI) ---
+  // --- Theme State (Warm Slite default with Obsidian Dark fallback) ---
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_theme`);
       if (saved === 'light' || saved === 'dark') return saved;
     } catch {}
-    return 'dark'; // Always default to dark Obsidian theme as requested
+    return 'light'; // Default to Slite-inspired warm minimalist aesthetic
   });
 
   useEffect(() => {
@@ -173,7 +196,14 @@ export default function App() {
               if (Array.isArray(data.courses)) setCourses(data.courses);
               if (Array.isArray(data.studyLogs)) setStudyLogs(data.studyLogs);
               if (Array.isArray(data.assignments)) setAssignments(data.assignments);
-              if (typeof data.quickNotes === 'string') setQuickNotes(data.quickNotes);
+              if (Array.isArray(data.resourceLinks)) {
+                const cleaned = data.resourceLinks.filter(
+                  (r: ResourceLink) =>
+                    !['res-1', 'res-2', 'res-3', 'res-4'].includes(r.id) &&
+                    !r.url?.includes('unirand.it')
+                );
+                setResourceLinks(cleaned);
+              }
             }
           }
         })
@@ -206,6 +236,7 @@ export default function App() {
       studyLogs?: StudyLog[];
       assignments?: AssignmentItem[];
       quickNotes?: string;
+      resourceLinks?: ResourceLink[];
     }
   ) => {
     setProfile(newProfile);
@@ -214,6 +245,7 @@ export default function App() {
       if (Array.isArray(cloudData.studyLogs)) setStudyLogs(cloudData.studyLogs);
       if (Array.isArray(cloudData.assignments)) setAssignments(cloudData.assignments);
       if (typeof cloudData.quickNotes === 'string') setQuickNotes(cloudData.quickNotes);
+      if (Array.isArray(cloudData.resourceLinks)) setResourceLinks(cloudData.resourceLinks);
     }
     if (newProfile.activeSquadId || newProfile.squadIds) {
       setProfile((prev) => ({
@@ -232,6 +264,7 @@ export default function App() {
       if (cloudData?.studyLogs) localStorage.setItem(`${STORAGE_KEY}_logs`, JSON.stringify(cloudData.studyLogs));
       if (cloudData?.assignments) localStorage.setItem(`${STORAGE_KEY}_assignments`, JSON.stringify(cloudData.assignments));
       if (typeof cloudData?.quickNotes === 'string') localStorage.setItem(`${STORAGE_KEY}_quick_notes`, cloudData.quickNotes);
+      if (Array.isArray(cloudData?.resourceLinks)) localStorage.setItem(`${STORAGE_KEY}_resource_links`, JSON.stringify(cloudData.resourceLinks));
     } catch (e) {
       console.warn('Storage sync error', e);
     }
@@ -259,10 +292,11 @@ export default function App() {
       localStorage.setItem(`${STORAGE_KEY}_logs`, JSON.stringify(studyLogs));
       localStorage.setItem(`${STORAGE_KEY}_assignments`, JSON.stringify(assignments));
       localStorage.setItem(`${STORAGE_KEY}_quick_notes`, quickNotes);
+      localStorage.setItem(`${STORAGE_KEY}_resource_links`, JSON.stringify(resourceLinks));
     } catch (e) {
       console.warn('Storage sync error', e);
     }
-  }, [profile, courses, studyLogs, assignments, quickNotes]);
+  }, [profile, courses, studyLogs, assignments, quickNotes, resourceLinks]);
 
   // Synchronize student workstation changes to Firestore for multi-device sync
   useEffect(() => {
@@ -291,6 +325,7 @@ export default function App() {
             studyLogs,
             assignments,
             quickNotes,
+            resourceLinks,
             activeSquadId: profile.activeSquadId || null,
             squadIds: profile.squadIds || [],
             updatedAt: new Date().toISOString(),
@@ -303,7 +338,7 @@ export default function App() {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [isAuthenticated, profile, courses, studyLogs, assignments, quickNotes]);
+  }, [isAuthenticated, profile, courses, studyLogs, assignments, quickNotes, resourceLinks]);
 
   // Keyboard Shortcuts: Ctrl+S / Ctrl+E / Ctrl+N
   useEffect(() => {
@@ -447,6 +482,7 @@ export default function App() {
       studyLogs,
       assignments,
       quickNotes,
+      resourceLinks,
       exportTimestamp: new Date().toISOString(),
       version: '2.4.0',
     };
@@ -469,6 +505,7 @@ export default function App() {
       if (parsed.studyLogs) setStudyLogs(parsed.studyLogs);
       if (parsed.assignments) setAssignments(parsed.assignments);
       if (typeof parsed.quickNotes === 'string') setQuickNotes(parsed.quickNotes);
+      if (Array.isArray(parsed.resourceLinks)) setResourceLinks(parsed.resourceLinks);
       setStatusMessage('Workstation Restored from JSON');
     } catch (e) {
       alert('Failed to parse backup JSON file.');
@@ -491,7 +528,7 @@ export default function App() {
   }
 
   return (
-    <div className="font-sans text-xs select-none antialiased min-h-screen flex flex-col h-[100dvh] overflow-hidden bg-gray-50 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 transition-colors">
+    <div className="font-sans text-xs select-none antialiased min-h-screen flex flex-col h-[100dvh] overflow-hidden bg-[#fdf9f4] dark:bg-[#09090b] text-[#2d2f34] dark:text-zinc-100 transition-colors">
       {/* Quick Toolbar */}
       <QuickToolbar
         profile={profile}
@@ -510,7 +547,7 @@ export default function App() {
       />
 
       {/* 3. Main Split View: Sidebar + Active Canvas */}
-      <div className="flex-1 flex overflow-hidden relative bg-gray-50 dark:bg-zinc-950">
+      <div className="flex-1 flex overflow-hidden relative bg-[#fdf9f4] dark:bg-[#09090b]">
         <Sidebar
           currentView={currentView}
           onNavigate={setCurrentView}
@@ -529,6 +566,8 @@ export default function App() {
             studyLogs={studyLogs}
             quickNotes={quickNotes}
             onUpdateQuickNotes={setQuickNotes}
+            resources={resourceLinks}
+            onUpdateResources={setResourceLinks}
             onAddStudyLog={handleAddStudyLog}
             onDeleteStudyLog={handleDeleteStudyLog}
             onOpenCourseDetail={setInspectCourse}

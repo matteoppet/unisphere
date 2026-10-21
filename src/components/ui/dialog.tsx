@@ -31,7 +31,7 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-xl translate-x-[-50%] translate-y-[-50%] gap-3 border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 p-0 shadow-2xl duration-200 rounded-2xl overflow-hidden animate-fadeIn text-[11px]',
+        'fixed left-[50%] top-[50%] z-50 grid w-full max-w-xl translate-x-[-50%] translate-y-[-50%] gap-3 border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 p-0 slite-shadow duration-200 rounded-md overflow-hidden animate-fadeIn text-[11px]',
         className
       )}
       {...props}
@@ -48,7 +48,7 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'bg-slate-50/90 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between font-bold text-slate-800 dark:text-zinc-100 shrink-0',
+      'bg-[#fdf9f4] dark:bg-zinc-900 border-b border-[#ecedef] dark:border-zinc-800 px-4 py-3 flex items-center justify-between font-bold text-[#2d2f34] dark:text-zinc-100 shrink-0',
       className
     )}
     {...props}
@@ -62,7 +62,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 border-t border-gray-100 dark:border-zinc-800 p-3 bg-slate-50/50 dark:bg-zinc-900/60',
+      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 border-t border-[#ecedef] dark:border-zinc-800 p-3 bg-[#fdf9f4]/60 dark:bg-zinc-900/60',
       className
     )}
     {...props}
@@ -77,7 +77,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      'text-xs font-semibold leading-none tracking-tight text-slate-900 dark:text-zinc-100 truncate',
+      'text-xs font-semibold leading-none tracking-tight text-[#2d2f34] dark:text-zinc-100 truncate',
       className
     )}
     {...props}

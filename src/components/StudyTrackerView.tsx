@@ -185,7 +185,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
   return (
     <div className="flex-1 bg-gray-50 dark:bg-zinc-950 overflow-y-auto p-2.5 sm:p-3.5 space-y-3 sm:space-y-3.5 select-none transition-colors">
       {/* 1. FIRST WIDGET: Current Week */}
-      <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-sm overflow-hidden flex flex-col">
+      <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md shadow-sm overflow-hidden flex flex-col">
         {/* Widget Header */}
         <div className="bg-slate-50/80 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-3 py-2 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -216,7 +216,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
             </button>
             <button
               onClick={handleOpenAddModal}
-              className="group bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.98] text-white px-2.5 py-1 text-[11px] font-semibold rounded-lg shadow-xs transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+              className="group bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.98] text-white px-2.5 py-1 text-[11px] font-semibold rounded-md shadow-xs transition-all flex items-center gap-1 shrink-0 cursor-pointer"
               title="Record new study session"
             >
               <span className="material-symbols-outlined text-[14px] transition-transform duration-200 group-hover:scale-110">add</span>
@@ -234,7 +234,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
               return (
                 <div
                   key={wd.dateStr}
-                  className={`py-1.5 sm:py-2 px-0.5 sm:px-1 rounded-lg border flex flex-col items-center justify-between text-center transition-all ${
+                  className={`py-1.5 sm:py-2 px-0.5 sm:px-1 rounded-md border flex flex-col items-center justify-between text-center transition-all ${
                     isGreen
                       ? 'bg-emerald-50/80 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-950 dark:text-emerald-200 shadow-2xs ring-1 ring-emerald-200/70 dark:ring-emerald-900/50'
                       : 'bg-slate-50/60 dark:bg-zinc-900/60 border-gray-200 dark:border-zinc-800 text-neutral-400 dark:text-zinc-500'
@@ -290,7 +290,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
       </div>
 
       {/* 2. Course Distribution Analysis */}
-      <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-3 text-xs">
+      <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md shadow-sm p-3 text-xs">
         <div className="font-bold text-[11px] text-zinc-800 dark:text-zinc-200 dark:text-zinc-200 border-b border-gray-100 dark:border-zinc-800 pb-1.5 flex items-center justify-between">
           <span>Course Distribution Analysis</span>
           <span className="font-mono text-[10px] text-neutral-500 dark:text-zinc-400">
@@ -327,7 +327,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
       </div>
 
       {/* 3. Audit Logs Table */}
-      <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-sm overflow-hidden flex flex-col">
+      <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md shadow-sm overflow-hidden flex flex-col">
         {/* Table Filters & Display Controls */}
         <div className="bg-slate-50/80 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -337,7 +337,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
             <select
               value={courseFilter}
               onChange={(e) => setCourseFilter(e.target.value)}
-              className="text-[11px] py-1 px-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+              className="text-[11px] py-1 px-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="all">All Courses</option>
               {courses.map((c) => (
@@ -350,7 +350,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
             <select
               value={tagFilter}
               onChange={(e) => setTagFilter(e.target.value)}
-              className="text-[11px] py-1 px-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+              className="text-[11px] py-1 px-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-800 dark:text-zinc-200 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
             >
               <option value="all">All Cognitive Tags</option>
               <option value="Deep Work">Deep Work</option>
@@ -366,11 +366,11 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
               placeholder="Search notes / topics..."
               value={searchNotes}
               onChange={(e) => setSearchNotes(e.target.value)}
-              className="text-[11px] px-2.5 py-1 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 placeholder:text-neutral-400 dark:placeholder:text-zinc-500 flex-1 sm:w-48 focus:outline-none focus:border-indigo-500"
+              className="text-[11px] px-2.5 py-1 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 placeholder:text-neutral-400 dark:placeholder:text-zinc-500 flex-1 sm:w-48 focus:outline-none focus:border-indigo-500"
             />
             <button
               onClick={handleOpenAddModal}
-              className="group bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.98] text-white px-2.5 py-1 text-[11px] font-semibold rounded-lg shadow-xs transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+              className="group bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 active:scale-[0.98] text-white px-2.5 py-1 text-[11px] font-semibold rounded-md shadow-xs transition-all flex items-center gap-1 shrink-0 cursor-pointer"
               title="Add Session"
             >
               <span className="material-symbols-outlined text-[14px] transition-transform duration-200 group-hover:scale-110">add</span>
@@ -389,7 +389,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
             <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5 mb-3">Record focused study blocks and track your weekly focus hours.</p>
             <button
               onClick={handleOpenAddModal}
-              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
             >
               <span className="material-symbols-outlined text-[14px] transition-transform duration-200 group-hover:scale-110">add</span>
               <span>Log First Session</span>
@@ -410,13 +410,13 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                 return (
                   <div
                     key={log.id}
-                    className="px-2.5 py-1.5 rounded-lg border border-gray-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs flex flex-col gap-1 text-xs"
+                    className="px-2.5 py-1.5 rounded-md border border-gray-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs flex flex-col gap-1 text-xs"
                   >
                     <div className="flex items-center justify-between gap-2 min-w-0">
                       <div className="font-semibold text-xs text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 truncate leading-snug">
                         {log.courseName}
                       </div>
-                      <span className="shrink-0 font-mono font-bold text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 leading-none">
+                      <span className="shrink-0 font-mono font-bold text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 leading-none">
                         {durStr}
                       </span>
                     </div>
@@ -424,12 +424,12 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                     <div className="flex items-center justify-between text-[10px] text-neutral-500 dark:text-zinc-400">
                       <span className="font-mono">{log.date} • {log.timeRange}</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 rounded text-[9px] font-semibold">
+                        <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 rounded-md text-[9px] font-semibold">
                           {log.tag}
                         </span>
                         <button
                           onClick={() => setDeleteConfirmLog(log)}
-                          className="text-red-500 hover:text-red-700 dark:text-red-400 p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+                          className="text-red-500 hover:text-red-700 dark:text-red-400 p-0.5 rounded-md hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
                           title="Delete log"
                         >
                           <span className="material-symbols-outlined text-[13px] leading-none">delete</span>
@@ -438,7 +438,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                     </div>
 
                     {log.notes && (
-                      <p className="text-[10px] text-zinc-600 dark:text-zinc-400 dark:text-zinc-400 bg-slate-50 dark:bg-zinc-950/60 px-1.5 py-0.5 rounded border border-gray-100 dark:border-zinc-800 leading-snug truncate">
+                      <p className="text-[10px] text-zinc-600 dark:text-zinc-400 dark:text-zinc-400 bg-slate-50 dark:bg-zinc-950/60 px-1.5 py-0.5 rounded-md border border-gray-100 dark:border-zinc-800 leading-snug truncate">
                         {log.notes}
                       </p>
                     )}
@@ -448,7 +448,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
             </div>
 
             {/* Desktop Table with clear grid borders, alternating row colors, and fixed header */}
-            <div className="hidden sm:block overflow-x-auto max-h-[420px] border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900">
+            <div className="hidden sm:block overflow-x-auto max-h-[420px] border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900">
               <table className="w-full text-left border-separate border-spacing-0 text-[11px] min-w-[620px]">
                 <thead className="sticky top-0 bg-slate-100 dark:bg-zinc-800 z-20 shadow-xs">
                   <tr className="font-bold text-[10.5px] uppercase tracking-wider text-slate-700 dark:text-zinc-200 select-none">
@@ -566,7 +566,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
           onClick={() => setShowAddModal(false)}
         >
           <div
-            className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col text-xs overflow-hidden"
+            className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-md shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col text-xs overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Title Bar */}
@@ -598,7 +598,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                 <select
                   value={selectedCourse}
                   onChange={(e) => setSelectedCourse(e.target.value)}
-                  className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
                   required
                 >
                   {courses.map((c) => (
@@ -619,7 +619,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                     required
                     value={sessionDate}
                     onChange={(e) => setSessionDate(e.target.value)}
-                    className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
 
@@ -641,7 +641,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                     onChange={(e) =>
                       setDurationMinutes(Math.max(15, parseInt(e.target.value) || 15))
                     }
-                    className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 font-mono"
                   />
                 </div>
               </div>
@@ -672,7 +672,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                 <select
                   value={tag}
                   onChange={(e) => setTag(e.target.value as StudyTag)}
-                  className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
                 >
                   <option value="Deep Work">Deep Work</option>
                   <option value="Problem Solving">Problem Solving</option>
@@ -691,7 +691,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Study session notes, topic, or objectives..."
-                  className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 placeholder:text-neutral-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 resize-none font-sans"
+                  className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 placeholder:text-neutral-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 resize-none font-sans"
                 />
               </div>
 
@@ -699,13 +699,13 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3 py-1.5 text-xs text-gray-600 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+                  className="px-3 py-1.5 text-xs text-gray-600 dark:text-zinc-400 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-md transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-3.5 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[15px]">add_task</span>
                   <span>Save Session</span>
@@ -723,7 +723,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
           onClick={() => setDeleteConfirmLog(null)}
         >
           <div
-            className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-sm flex flex-col text-xs overflow-hidden"
+            className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-md shadow-2xl w-full max-w-sm flex flex-col text-xs overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Title Bar */}
@@ -750,12 +750,12 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                 Are you sure you want to delete this study session log?
               </p>
 
-              <div className="bg-slate-50 dark:bg-zinc-950/70 border border-slate-200 dark:border-zinc-800 rounded-lg p-2.5 space-y-1 text-slate-700 dark:text-zinc-300">
+              <div className="bg-slate-50 dark:bg-zinc-950/70 border border-slate-200 dark:border-zinc-800 rounded-md p-2.5 space-y-1 text-slate-700 dark:text-zinc-300">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-slate-900 dark:text-zinc-100 text-xs">
                     {deleteConfirmLog.courseName}
                   </span>
-                  <span className="font-mono text-[10px] text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded font-bold">
+                  <span className="font-mono text-[10px] text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded-md font-bold">
                     {deleteConfirmLog.durationMinutes} min
                   </span>
                 </div>
@@ -780,7 +780,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
               <button
                 type="button"
                 onClick={() => setDeleteConfirmLog(null)}
-                className="px-3 py-1.5 text-xs text-gray-700 dark:text-zinc-300 hover:bg-gray-200/70 dark:hover:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-lg transition-colors cursor-pointer font-medium"
+                className="px-3 py-1.5 text-xs text-gray-700 dark:text-zinc-300 hover:bg-gray-200/70 dark:hover:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-md transition-colors cursor-pointer font-medium"
               >
                 Cancel
               </button>
@@ -790,7 +790,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                   onDeleteStudyLog(deleteConfirmLog.id);
                   setDeleteConfirmLog(null);
                 }}
-                className="px-3.5 py-1.5 text-xs bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-medium rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-1.5 text-xs bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[14px]">delete</span>
                 <span>Delete Session</span>

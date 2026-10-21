@@ -1,116 +1,91 @@
-# Friends Page Layout Restructure & Modernization
+# Implementation Plan: Slite-Inspired Warm Minimalist UI Refactor
 
-Realize the user's sketch layout for the Friends (Squads) page, creating a cohesive, high-density study community hub. The page features a prominent top-level Live Study Lobby and a balanced two-column workstation uniting the Weekly Sprint Leaderboard and Contribution Heatmap alongside the Live Squad Feed and Ghost Racing Hub.
+Transition UniSphere from the dark Obsidian theme to a warm, minimalist aesthetic inspired by Slite, with warm cream canvas (`#fdf9f4`), dust cream surfaces (`#f9efe4`), charcoal typography (`#2d2f34` / `#3f434a`), ember orange primary accents (`#f67748`), hairline silver borders (`#ecedef`), pill buttons, and dust chips, while retaining full functionality and maintaining a compact, data-primary layout.
 
 ---
 
-### User Clarifications & Critical Decisions
+## User Review Required
 
 > [!IMPORTANT]
-> The following decisions were confirmed by the user:
-> - **Main Grid Distribution**: Two-column layout with Lobby and Feed arranged side-by-side in balanced proportions (Desktop 7:5 ratio, responsive stack on mobile).
-> - **Hero Module Priority**: Prominently feature the Live Study Lobby, "Lock In" focus controller, and active member cards at the top.
-> - **Contribution Heatmap Placement**: Integrated directly alongside the Weekly Sprint Leaderboard and podium in the primary column.
-
-- **Confirmed Decision 1**: Keep the top squad switcher and header clean and accessible, featuring quick squad switching, invite code copying, and admin/membership controls.
-- **Confirmed Decision 2**: Present live library presences with clear active states (pulsing indicator, active course name, elapsed study timer) so friends can see who is studying in real time.
-- **Confirmed Decision 3**: Retain the complete GitHub-style study contribution heatmap with multi-member color intensity and interactive day tooltips in the primary column directly below the weekly podium.
-- **Confirmed Decision 4**: Unify the Ghost Racing challenger hub and the real-time social activity feed in the secondary column.
+> - **Theme Default & Toggle**: As selected, Warm Slite will be the default theme for all users (`#fdf9f4` canvas), with the dark Obsidian mode kept available via the QuickToolbar/Settings theme toggle.
+> - **Data Density Balance**: Section margins will provide distinct visual breathing room (`gap-8` to `gap-12`) without wasting vertical space, preserving UniSphere's high-efficiency academic workstation feel.
+> - **Zero Logic Alterations**: All Firestore sync hooks, telemetry, exam boss math, timers, ghost races, and audio systems remain 100% untouched.
 
 ---
 
-### 1. Overview & Architectural Blueprint
+## Proposed Changes
 
-```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│  [👥 Squad Name ▼]  [Code: #XK89J 📋]                       [+ Invite] [⚙️ Manage Squad]│
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│  🔴 LIVE STUDY LOBBY & FOCUS BAR                                                       │
-│  ┌──────────────────────────────────────────────────────────────────────────────────┐  │
-│  │ [Radio] 3 Studying Now  |  Course: [Math II ▼]  [▶ Lock In] / [⏹ Finish Session] │  │
-│  │ ──────────────────────────────────────────────────────────────────────────────── │  │
-│  │ ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────────┐ │  │
-│  │ │ 🟢 Alex M. · 42m     │  │ 🟢 Sarah K. · 1h 15m │  │ 🟢 Matteo · 25m          │ │  │
-│  │ │ Studying Physics I   │  │ Studying Algorithms  │  │ Studying Thermodynamics  │ │  │
-│  │ └──────────────────────┘  └──────────────────────┘  └──────────────────────────┘ │  │
-│  └──────────────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                        │
-│  TWO-COLUMN MAIN SECTION (lg:grid-cols-12)                                             │
-│  ┌──────────────────────────────────────────────┐ ┌──────────────────────────────────┐ │
-│  │ PRIMARY COLUMN (7 cols)                      │ │ SECONDARY COLUMN (5 cols)        │ │
-│  │                                              │ │                                  │ │
-│  │ 🏆 WEEKLY SPRINT PODIUM & LEADERBOARD        │ │ ⚡ LIVE SQUAD FEED               │ │
-│  │ ┌──────────────────────────────────────────┐ │ │ ┌──────────────────────────────┐ │ │
-│  │ │        [1st 👑 Matteo · 14.5h]           │ │ │ │ • Sarah completed 90m session │ │ │
-│  │ │ [2nd Alex · 11h]     [3rd Sarah · 9.5h]  │ │ │ │   +90 XP · 12m ago     [👏 3] │ │ │
-│  │ │ ──────────────────────────────────────── │ │ │ │ • Alex unlocked Streak (5d)   │ │ │
-│  │ │ #4 David L.    7.2h   Level 4   🔥 4-day │ │ │ │   +50 XP · 1h ago      [🔥 2] │ │ │
-│  │ │ #5 Elena R.    5.8h   Level 3   🔥 2-day │ │ │ │ • Matteo completed Physics HW│ │ │
-│  │ └──────────────────────────────────────────┘ │ │ └──────────────────────────────┘ │ │
-│  │                                              │ │                                  │ │
-│  │ 📅 STUDY CONTRIBUTION HEATMAP                │ │ 👻 GHOST RACING CHALLENGE HUB    │ │
-│  │ ┌──────────────────────────────────────────┐ │ │ ┌──────────────────────────────┐ │ │
-│  │ │ 20 Weeks x 7 Days Grid (Mon–Sun)         │ │ │ │ Race Sarah's 60m focus run    │ │ │
-│  │ │ Intensity Swatches · Hover Tooltips      │ │ │ │ [Start Ghost Race]            │ │ │
-│  │ └──────────────────────────────────────────┘ │ │ └──────────────────────────────┘ │ │
-│  └──────────────────────────────────────────────┘ └──────────────────────────────────┘ │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-```
+### 1. Global Tokens, Tailwind CSS, & Base Styles (`src/index.css`, `index.html`)
+- Update `:root` variables in `src/index.css` to define the Slite warm token system:
+  - `--canvas-bg`: `#fdf9f4` (Warm Cream page background)
+  - `--surface-card`: `#ffffff` (Elevated product/bento card surface)
+  - `--surface-dust`: `#f9efe4` (Secondary sections, chips, and tag backgrounds)
+  - `--text-charcoal-primary`: `#2d2f34` (Primary headings and icons)
+  - `--text-charcoal-secondary`: `#3f434a` (Secondary body & descriptive labels)
+  - `--accent-ember`: `#f67748` (CTA buttons, active indicator, active states)
+  - `--border-silver`: `#ecedef` (Hairline crisp borders)
+  - Soft diffuse shadow utility: `box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)`
+- Configure `html, body` base background to `#fdf9f4` and text to `#2d2f34`.
+- Ensure dark mode (`.dark`) continues to provide the Obsidian fallback cleanly without breaking when toggled.
+- Update `index.html` theme color meta tag to `#f67748` and canvas background to `#fdf9f4`.
 
----
+### 2. Workspace Explorer Sidebar (`src/components/Sidebar.tsx`)
+- Flatten the sidebar against the canvas using a seamless `#fdf9f4` background.
+- Redesign navigation links to Slite ghost buttons:
+  - Inactive state: Transparent background, `px-2.5 py-1.5`, `rounded-lg`, subtle text `#3f434a`, hovering to pure white `#ffffff` or `#f9efe4`.
+  - Active state: `#ffffff` pill or card with subtle `#f67748` ember accent bar or ember text indicator.
+- Remove dark borders and neon glows; apply crisp `border-r border-[#ecedef]`.
+- Restyle user profile and bottom action items with dust chips and charcoal text.
 
-### 2. User Experience & Visual Design
+### 3. Application Shell & Top Navigation (`src/App.tsx`, `src/components/QuickToolbar.tsx`)
+- Set default theme initialization in `src/App.tsx` to `'light'` (Warm Slite aesthetic).
+- Wrap the main workspace layout with `bg-[#fdf9f4] min-h-screen text-[#2d2f34]`.
+- Refactor `QuickToolbar.tsx` to sit flat on `#fdf9f4` with hairline border `#ecedef`, ember accent on active indicators, and dust cream pills for shortcuts.
+- Update header status badge and breadcrumb tokens to charcoal and ember orange.
 
-- **Visual Standards (Anti-Slop Compliance)**:
-  - Clean obsidian borders (`border-zinc-200 dark:border-zinc-800`), flat cards without heavy artificial shadows.
-  - No decorative pills for static metadata; clean typography with `·` separators and tabular figures (`font-mono tabular-nums`).
-  - Active presence indicated with micro-animations (pulsing green indicator dot) and high-contrast text.
-  - Clean segmented buttons for feed filters and ghost racing triggers.
+### 4. Dashboard View & Bento Grid (`src/components/DashboardView.tsx`)
+- Transform Bento cards from dark glassmorphic containers to Slite card geometry:
+  - `bg-white border border-[#ecedef] rounded-2xl shadow-xs`
+  - Subtle diffuse hover elevation instead of neon ring/glow.
+  - Headings styled with `#2d2f34` font-semibold.
+- Replace primary action buttons with full pill buttons:
+  - Primary CTA: `bg-[#f67748] hover:bg-[#e46435] text-white rounded-full font-medium px-4 py-2`
+  - Secondary CTA: Outlined pill `border-2 border-[#2d2f34] text-[#2d2f34] hover:bg-[#2d2f34] hover:text-white rounded-full`
+- Category labels, badges, and stats converted to "Dust Chips": `bg-[#f9efe4] text-[#2d2f34] rounded-full px-3 py-1 font-medium text-xs`.
+- Course badges updated to subtle warm-tinted badges on `#f9efe4`.
 
-- **Responsive Viewport Rhythm**:
-  - **Desktop ($\ge 1024\text{px}$)**: Full side-by-side two-column grid (`grid-cols-12`, 7 cols left, 5 cols right) maximizing screen real estate without nested scroll traps.
-  - **Tablet & Mobile ($< 1024\text{px}$)**: Natural vertical cascade—Top Lobby $\rightarrow$ Podium/Leaderboard $\rightarrow$ Live Feed $\rightarrow$ Contribution Heatmap $\rightarrow$ Ghost Racing.
+### 5. Squads & Friends View (`src/components/SquadsView.tsx`)
+- Refactor top hero Live Study Lobby card:
+  - Surface: `bg-white border border-[#ecedef] rounded-2xl`
+  - Action buttons: "Lock In" button as ember orange pill (`bg-[#f67748] text-white rounded-full`).
+  - Online member presence cards: `bg-[#fdf9f4] border border-[#ecedef] rounded-xl`.
+- Refactor Weekly Sprint Podium & Ranked Leaderboard:
+  - Surfaces in pure white with dust cream secondary highlights.
+  - Rank tags and ELO badges converted to dust chips (`bg-[#f9efe4] text-[#2d2f34] rounded-full`).
+  - Podium cards with warm amber and ember accents instead of obsidian neon rings.
+- Refactor GitHub-style Study Contribution Heatmap:
+  - Cells tinted in warm amber/ember palette scale (cream `#f9efe4` -> warm sand -> terracotta -> ember `#f67748`).
+- Refactor Live Squad Feed & Ghost Racing Hub:
+  - Filter tabs as ghost/pill dust chips.
+  - Ghost challenge cards in pure white `#ffffff` with silver border `#ecedef`.
 
----
-
-### 3. Implementation Steps & File Modifications
-
-#### File: `src/components/SquadsView.tsx`
-
-1. **Top Squad Header Alignment**:
-   - Refine the squad selector dropdown and header actions (`Manage Squad`, `Leave Squad`, invite code copy pill).
-   - Ensure seamless squad switching and one-click code sharing.
-
-2. **Hero Module: Live Study Lobby & Real-Time Presence**:
-   - Elevate the Lobby to the hero slot immediately beneath the top header.
-   - Refactor the "Lock In" controller into a sleek, unified command bar: Course selector dropdown, Start/Stop toggle button, elapsed timer display, and earned XP preview.
-   - Display active member cards in a responsive grid (`grid-cols-1 sm:grid-cols-2 md:grid-cols-3`), showing avatar initial, name, course name, and active session duration.
-
-3. **Primary Column (Left - 7 cols)**:
-   - **Weekly Sprint Podium**: Top 3 visual podium (2nd, 1st Crown, 3rd) with member avatars, hours logged, and rank cards.
-   - **Squad Leaderboard Table**: Clean high-density list for remaining squad members with rank, avatar, level indicator, study hours, and daily streak flame.
-   - **Study Contribution Heatmap**: High-fidelity GitHub-style 20-week x 7-day contribution grid with weekday labels (Mon, Wed, Fri), month markers, legend intensity scale, and interactive day hover inspection.
-
-4. **Secondary Column (Right - 5 cols)**:
-   - **Live Squad Social Feed**: Real-time event log of friend achievements (study sessions logged, level ups, streak milestones, loot drops) with celebratory reaction buttons (👏, 🔥, ⚡).
-   - **Ghost Racing Hub**: Asynchronous race cards against friends' past sessions, showing target duration, course, and instant "Start Race" CTA, plus the active Ghost Racing HUD overlay when in progress.
-
-5. **Modals & Persistence**:
-   - Maintain all existing Firestore syncing hooks (`fetchUserSquads`, `syncSquadToUserDoc`, real-time presences listener, activity logger).
-   - Ensure Create Squad, Join Squad, Manage Squad, and Confirmation modals open and function properly without DOM leaks.
+### 6. Curriculum & Course Cards (`src/components/CurriculumView.tsx`, `src/components/AssignmentsView.tsx`, `src/components/Modals.tsx`)
+- Course cards updated to generous `rounded-2xl` pure white cards with `#ecedef` border.
+- CFU, Grade, and Status badges styled with subtle warm tints on `#f9efe4` surfaces.
+- Modal dialogs refactored with clean white surface, soft diffuse multi-layer shadow, charcoal headers, and ember orange primary buttons.
 
 ---
 
-### 4. Verification & Testing Plan
+## Verification Plan
 
-1. **Visual Layout Verification**:
-   - Verify that the Live Study Lobby is at the top of the Friends view.
-   - Verify that the two-column grid (7:5) renders properly on desktop and cascades cleanly on mobile.
-   - Verify that the Heatmap and Leaderboard share the primary column, and the Activity Feed and Ghost Racing occupy the secondary column.
-2. **Interactive Functionality**:
-   - Test "Lock In" button: verify timer begins, presence broadcasts to Firestore/local state, and "Finish & Claim XP" awards points and triggers celebration.
-   - Test squad switcher: switch between squads, create new squad, and join squad via code.
-   - Test Ghost Race start and cancellation.
-   - Test feed reaction clicks.
-3. **Compilation & Linting**:
-   - Run `compile_applet` and `lint_applet` to ensure zero TypeScript errors and clean compilation.
+### Automated Compilation & Linting
+- Run `npm run lint` via `lint_applet` to verify no TypeScript or lint regressions.
+- Run `compile_applet` to verify Vite bundle builds cleanly with zero errors.
+
+### Visual & Functional Checks
+1. **Initial Page Load**: Verify UniSphere loads with the warm cream background (`#fdf9f4`), crisp charcoal typography, and ember orange accents.
+2. **Theme Switcher**: Click the theme toggle in QuickToolbar to verify seamless transition between Warm Slite and dark Obsidian mode.
+3. **Workspace Explorer**: Verify sidebar items are ghost buttons on flat background, active item highlights with ember accent, and navigation between views works smoothly.
+4. **Dashboard Bento Cards**: Confirm cards are pure white with hairline silver borders, rounded-2xl corners, dust chips for tags, and full pill primary buttons.
+5. **Squads/Friends Page**: Test Live Study Lobby lock-in toggle, online presence cards, podium, contribution heatmap, and ghost race cards.
+6. **Modals & Workflows**: Open course detail, new course, and export modals to check diffuse shadows and pill button interactions.

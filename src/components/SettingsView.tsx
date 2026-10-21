@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StudentProfile } from '../types';
 import { Button } from './ui/button';
 import { isAudioMuted, toggleAudioMuted, playMechanicalClick, playFuturisticChime } from '../utils/audio';
-import { calculateLevel } from '../utils/telemetry';
-import { Volume2, VolumeX, Sparkles, Zap, Flame } from 'lucide-react';
+import { Volume2, VolumeX, Sparkles, Flame } from 'lucide-react';
 
 interface SettingsViewProps {
   profile: StudentProfile;
@@ -43,8 +42,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setAudioMutedState(next);
   };
 
-  const levelInfo = calculateLevel(profile.xp || 0);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onUpdateProfile(formData);
@@ -71,7 +68,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   return (
     <div className="flex-1 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto p-2.5 sm:p-3.5 space-y-3 sm:space-y-3.5 select-none transition-colors">
       {/* 1. Theme & Appearance Card */}
-      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-xs overflow-hidden flex flex-col transition-all">
+      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md shadow-xs overflow-hidden flex flex-col transition-all">
         <div className="bg-zinc-50/80 dark:bg-zinc-900/90 border-b border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-bold text-[11px] text-zinc-900 dark:text-zinc-100 group">
             <span className="material-symbols-outlined text-[15px] text-amber-500 dark:text-amber-400 transition-transform duration-300 group-hover:rotate-12">
@@ -86,7 +83,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         <div className="p-3 text-xs space-y-3">
           {/* Theme Mode Toggle (Dark / Light) */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/60 transition-colors">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/60 transition-colors">
             <div>
               <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5 group">
                 <span className="material-symbols-outlined text-[16px] text-indigo-600 dark:text-indigo-400 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110">
@@ -119,21 +116,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       {/* 2. Sensory Audio & Academic Telemetry Card */}
-      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-xl shadow-xs overflow-hidden flex flex-col transition-all">
+      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-md shadow-xs overflow-hidden flex flex-col transition-all">
         <div className="bg-zinc-50/80 dark:bg-black/90 border-b border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-bold text-[11px] text-zinc-900 dark:text-zinc-100 group">
             <Sparkles size={14} className="text-[#3B77BC] dark:text-[#689FE1]" />
-            <span>Sensory Audio & Academic Telemetry</span>
+            <span>Sensory Audio &amp; Study Telemetry</span>
           </div>
           <div className="flex items-center gap-1 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
-            <span>Level {levelInfo.level}</span>
+            <span>{profile.currentStreak || 0}d Streak</span>
             <span>•</span>
-            <span>{levelInfo.safeXp} XP</span>
+            <span>{Math.round((profile.minutesStudiedThisWeek || 0) / 60)}h Studied</span>
           </div>
         </div>
 
         <div className="p-3 text-xs space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-black transition-colors">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-black transition-colors">
             <div className="space-y-0.5">
               <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
                 {audioMuted ? <VolumeX size={15} className="text-zinc-400" /> : <Volume2 size={15} className="text-[#3B77BC] dark:text-[#689FE1]" />}
@@ -171,19 +168,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
           {/* Telemetry Snapshot */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div className="p-2 rounded-lg bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 text-center">
-              <div className="text-[10px] text-zinc-400 uppercase font-semibold">Academic Level</div>
-              <div className="font-mono font-bold text-sm text-[#3B77BC] dark:text-[#689FE1]">Level {levelInfo.level}</div>
+            <div className="p-2 rounded-md bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 text-center">
+              <div className="text-[10px] text-zinc-400 uppercase font-semibold">Degree CFU Target</div>
+              <div className="font-mono font-bold text-sm text-[#3B77BC] dark:text-[#689FE1]">{profile.totalTargetCFU || 180} CFU</div>
             </div>
-            <div className="p-2 rounded-lg bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 text-center">
-              <div className="text-[10px] text-zinc-400 uppercase font-semibold">Total Experience</div>
-              <div className="font-mono font-bold text-sm text-amber-500">{levelInfo.safeXp} XP</div>
+            <div className="p-2 rounded-md bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 text-center">
+              <div className="text-[10px] text-zinc-400 uppercase font-semibold">Weekly Goal</div>
+              <div className="font-mono font-bold text-sm text-amber-500">{profile.weeklyGoalHours || 25} Hours</div>
             </div>
-            <div className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-center">
+            <div className="p-2 rounded-md bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-center">
               <div className="text-[10px] text-zinc-400 uppercase font-semibold">Active Streak</div>
-              <div className="font-mono font-bold text-sm text-orange-500">{profile.currentStreak || 0} Days</div>
+              <div className="font-mono font-bold text-sm text-indigo-600 dark:text-indigo-400">{profile.currentStreak || 0} Days</div>
             </div>
-            <div className="p-2 rounded-lg bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-center">
+            <div className="p-2 rounded-md bg-zinc-100 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-center">
               <div className="text-[10px] text-zinc-400 uppercase font-semibold">Weekly Study</div>
               <div className="font-mono font-bold text-sm text-emerald-500">{Math.round((profile.minutesStudiedThisWeek || 0) / 60)} Hours</div>
             </div>
@@ -192,7 +189,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       {/* 3. Student Identity & Degree Settings */}
-      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-xs overflow-hidden flex flex-col transition-all">
+      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md shadow-xs overflow-hidden flex flex-col transition-all">
         {/* Widget Header */}
         <div className="bg-zinc-50/80 dark:bg-zinc-900/90 border-b border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-bold text-[11px] text-zinc-900 dark:text-zinc-100 group">
@@ -206,7 +203,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <div className="p-3 text-xs">
           <form onSubmit={handleSubmit} className="space-y-3 text-[11px]">
             {savedSuccess && (
-              <div className="p-2 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 rounded-lg font-semibold text-[11px] flex items-center gap-1.5 shadow-2xs animate-fade-in">
+              <div className="p-2 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 rounded-md font-semibold text-[11px] flex items-center gap-1.5 shadow-2xs animate-fade-in">
                 <span className="material-symbols-outlined text-[15px] text-emerald-600 dark:text-emerald-400 transition-transform duration-200 scale-110">
                   check_circle
                 </span>
@@ -215,7 +212,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             )}
 
             {/* Student Identity */}
-            <div className="border border-zinc-200 dark:border-zinc-800 p-3 rounded-lg bg-zinc-50/50 dark:bg-zinc-950/40 space-y-2.5">
+            <div className="border border-zinc-200 dark:border-zinc-800 p-3 rounded-md bg-zinc-50/50 dark:bg-zinc-950/40 space-y-2.5">
               <div className="font-bold text-zinc-900 dark:text-zinc-100 border-b border-zinc-200 dark:border-zinc-800 pb-1.5">
                 Student Credentials
               </div>
@@ -231,7 +228,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     onChange={(e) =>
                       setFormData({ ...formData, name: e.target.value })
                     }
-                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
                   />
                 </div>
 
@@ -245,7 +242,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     onChange={(e) =>
                       setFormData({ ...formData, email: e.target.value })
                     }
-                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
                     placeholder="student@institution.edu"
                   />
                 </div>
@@ -260,7 +257,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     onChange={(e) =>
                       setFormData({ ...formData, studentId: e.target.value })
                     }
-                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
                   />
                 </div>
 
@@ -274,7 +271,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     onChange={(e) =>
                       setFormData({ ...formData, degreeName: e.target.value })
                     }
-                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
                   />
                 </div>
               </div>
@@ -289,7 +286,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                     onChange={(e) =>
                       setFormData({ ...formData, degreeType: e.target.value })
                     }
-                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all cursor-pointer"
+                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all cursor-pointer"
                   >
                     <option value="Laurea Triennale">Laurea Triennale (180 CFU)</option>
                     <option value="Laurea Magistrale">Laurea Magistrale (120 CFU)</option>
@@ -311,7 +308,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         totalTargetCFU: parseInt(e.target.value) || 180,
                       })
                     }
-                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
                   />
                 </div>
 
@@ -328,7 +325,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                         weeklyGoalHours: parseInt(e.target.value) || 25,
                       })
                     }
-                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+                    className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
                   />
                 </div>
               </div>
@@ -352,7 +349,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       </div>
 
       {/* 3. Data Backup & Disaster Recovery */}
-      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-xs overflow-hidden flex flex-col transition-all">
+      <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md shadow-xs overflow-hidden flex flex-col transition-all">
         {/* Widget Header with title inside */}
         <div className="bg-zinc-50/80 dark:bg-zinc-900/90 border-b border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-bold text-[11px] text-zinc-900 dark:text-zinc-100 group">
@@ -365,7 +362,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
         <div className="p-3 text-xs">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-[11px]">
-            <div className="p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50/50 dark:bg-zinc-950/50 flex flex-col justify-between transition-colors">
+            <div className="p-3 border border-zinc-200 dark:border-zinc-800 rounded-md bg-zinc-50/50 dark:bg-zinc-950/50 flex flex-col justify-between transition-colors">
               <div>
                 <div className="font-bold text-zinc-900 dark:text-zinc-100">Export State Backup</div>
                 <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
@@ -386,14 +383,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               </Button>
             </div>
 
-            <div className="p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50/50 dark:bg-zinc-950/50 flex flex-col justify-between transition-colors">
+            <div className="p-3 border border-zinc-200 dark:border-zinc-800 rounded-md bg-zinc-50/50 dark:bg-zinc-950/50 flex flex-col justify-between transition-colors">
               <div>
                 <div className="font-bold text-zinc-900 dark:text-zinc-100">Restore Snapshot</div>
                 <div className="text-[10px] text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
                   Upload a previously saved UniSphere JSON snapshot to replace current workstation state.
                 </div>
               </div>
-              <label className="mt-2.5 inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 shadow-2xs hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100 h-7 px-2.5 py-1 text-[11px] cursor-pointer group transition-all duration-150 active:scale-[0.98] self-start">
+              <label className="mt-2.5 inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 shadow-2xs hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100 h-7 px-2.5 py-1 text-[11px] cursor-pointer group transition-all duration-150 active:scale-[0.98] self-start">
                 <span className="material-symbols-outlined text-[15px] text-indigo-500 transition-transform duration-200 group-hover:translate-y-0.5">
                   upload_file
                 </span>
@@ -408,7 +405,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
 
             {onSignOut && (
-              <div className="p-3 border border-red-200 dark:border-red-900/60 rounded-lg bg-red-50/40 dark:bg-red-950/30 flex flex-col justify-between md:col-span-2 transition-colors">
+              <div className="p-3 border border-red-200 dark:border-red-900/60 rounded-md bg-red-50/40 dark:bg-red-950/30 flex flex-col justify-between md:col-span-2 transition-colors">
                 <div>
                   <div className="font-bold text-red-900 dark:text-red-300 flex items-center gap-1 group">
                     <span className="material-symbols-outlined text-[14px] transition-transform duration-200 group-hover:-translate-x-0.5">

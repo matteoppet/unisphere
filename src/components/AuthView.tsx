@@ -194,18 +194,18 @@ export const AuthView: React.FC<AuthViewProps> = ({
       studentId: data.studentId || '',
       email: data.email || normalizedEmail,
       degreeLevel: data.degreeLevel || "Degree / Master",
-      degreeName: data.degreeName || 'Computer Science & Engineering',
-      degreeType: data.degreeType || 'Laurea Triennale',
+      degreeName: data.degreeName || '',
+      degreeType: data.degreeType || '',
       status: data.status || 'Enrolled',
       currentSession: data.currentSession || 'Current Semester',
       academicYear: data.academicYear || 'Year 1',
-      enrolledYear: data.enrolledYear || 'AY 2024/25',
+      enrolledYear: data.enrolledYear || '',
       totalTargetCFU: data.totalTargetCFU || 180,
-      weeklyGoalHours: 20,
-      avatarUrl: '',
-      logoUrl: '',
-      thesisPointsExpected: 0,
-      institution: data.institution || 'University',
+      weeklyGoalHours: data.weeklyGoalHours || 20,
+      avatarUrl: data.avatarUrl || '',
+      logoUrl: data.logoUrl || '',
+      thesisPointsExpected: data.thesisPointsExpected || 0,
+      institution: data.institution || '',
       activeSquadId: data.activeSquadId || undefined,
       squadIds: Array.isArray(data.squadIds) ? data.squadIds : [],
     };
@@ -215,6 +215,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
       studyLogs: Array.isArray(data.studyLogs) ? data.studyLogs : [],
       assignments: Array.isArray(data.assignments) ? data.assignments : [],
       quickNotes: typeof data.quickNotes === 'string' ? data.quickNotes : '',
+      resourceLinks: Array.isArray(data.resourceLinks)
+        ? data.resourceLinks.filter(
+            (r: any) =>
+              !['res-1', 'res-2', 'res-3', 'res-4'].includes(r.id) &&
+              !r.url?.includes('unirand.it')
+          )
+        : [],
     };
 
     setSuccessMessage('Welcome back! Loading your workstation...');
@@ -1152,7 +1159,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                     <span>Student Email Code Verification</span>
                   </div>
                   {isEmailVerified ? (
-                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 px-2 py-0.5 rounded-md flex items-center gap-1">
                       <span className="material-symbols-outlined text-[13px]">check_circle</span>
                       Verified
                     </span>
@@ -1452,7 +1459,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           onClick={() => setShowGoogleSsoModal(false)}
         >
           <div
-            className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden text-xs"
+            className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-md shadow-2xl w-full max-w-md overflow-hidden text-xs"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

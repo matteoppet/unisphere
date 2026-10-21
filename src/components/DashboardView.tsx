@@ -4,15 +4,19 @@ import {
   StudyLog,
   StudentProfile,
   AssignmentItem,
+  ResourceLink,
 } from '../types';
 import { QuickNotesSection } from './QuickNotesSection';
+import { ResourceLinkerSection } from './ResourceLinkerSection';
 import { StatusBadge } from './StatusBadge';
 import { Button } from './ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 import { playClickBeep, playFuturisticChime } from '../utils/audio';
 import { fireTaskConfetti, fireCelebrationConfetti } from '../utils/confetti';
 import { getPowerBorderClass, getPowerBarFillClass } from '../utils/telemetry';
-import { NewAssignmentModal, NewStudyLogModal } from './Modals';
+import { NewAssignmentModal } from './Modals';
+import { QuickStudyModal } from './QuickStudyModal';
+import { Bookmark, FileText, Columns } from 'lucide-react';
 
 interface DashboardViewProps {
   profile: StudentProfile;
@@ -21,6 +25,8 @@ interface DashboardViewProps {
   assignments?: AssignmentItem[];
   quickNotes?: string;
   onUpdateQuickNotes?: (notes: string) => void;
+  resources?: ResourceLink[];
+  onUpdateResources?: (resources: ResourceLink[]) => void;
   onAddStudyLog: (log: Omit<StudyLog, 'id' | 'timestamp'>) => void;
   onDeleteStudyLog?: (id: string) => void;
   onOpenCourseDetail: (course: Course) => void;
@@ -43,6 +49,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   assignments = [],
   quickNotes = '',
   onUpdateQuickNotes,
+  resources = [],
+  onUpdateResources,
   onAddStudyLog,
   onDeleteStudyLog,
   onOpenCourseDetail,
@@ -67,6 +75,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       setLocalNotes(newNotes);
     }
   };
+
+  // Right Workstation Panel Tab Switcher ('resources' | 'notes' | 'split')
+  const [rightPanelTab, setRightPanelTab] = useState<'resources' | 'notes' | 'split'>(() => {
+    try {
+      const saved = localStorage.getItem('unisphere_right_panel_tab');
+      if (saved === 'notes' || saved === 'resources' || saved === 'split') return saved;
+    } catch {}
+    return 'resources';
+  });
   const [dashboardTab, setDashboardTab] = useState<'courses' | 'logs'>('courses');
   const [courseFilter, setCourseFilter] = useState<'all' | 'active' | 'completed' | 'planned'>('all');
   const [copiedMatricola, setCopiedMatricola] = useState(false);
@@ -83,6 +100,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [showQuickTaskModal, setShowQuickTaskModal] = useState(false);
   const [showQuickStudyModal, setShowQuickStudyModal] = useState(false);
   const [quickNotification, setQuickNotification] = useState<string | null>(null);
+
+  // Live Focus Timer State for Floating 'Quick Study' Action Button
+  const [isQuickTimerRunning, setIsQuickTimerRunning] = useState(false);
+  const [quickTimerSeconds, setQuickTimerSeconds] = useState(0);
+  const [quickTimerCourse, setQuickTimerCourse] = useState<string>(() => {
+    return courses.find((c) => c.status === 'active')?.title || courses[0]?.title || 'General Deep Work';
+  });
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (isQuickTimerRunning) {
+      timer = setInterval(() => {
+        setQuickTimerSeconds((prev) => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isQuickTimerRunning]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -106,8 +142,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const handleCreateQuickStudyLog = (log: Omit<StudyLog, 'id' | 'timestamp'>) => {
     onAddStudyLog(log);
-    setQuickNotification(`Study session logged: ${log.courseName} (${log.durationMinutes}m)`);
-    setTimeout(() => setQuickNotification(null), 3000);
+    const xp = Math.max(20, Math.round(log.durationMinutes * 2));
+    setQuickNotification(`Study session logged: ${log.courseName} (${log.durationMinutes}m) • +${xp} XP`);
+    setTimeout(() => setQuickNotification(null), 3500);
+  };
+
+  const handleInstantQuickStudyLog = (mins: number) => {
+    const activeCourse = courses.find((c) => c.status === 'active') || courses[0];
+    const cName = activeCourse ? (activeCourse.shortTitle || activeCourse.title) : 'General Deep Work';
+    const todayStr = new Date().toISOString().split('T')[0];
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    handleCreateQuickStudyLog({
+      courseName: cName,
+      courseId: activeCourse?.id,
+      durationMinutes: mins,
+      date: todayStr,
+      timeRange: `Today ${nowTime}`,
+      notes: `Quick Study session on ${cName}`,
+      rating: 5,
+      tag: 'Deep Work',
+    });
+    playFuturisticChime();
+    fireCelebrationConfetti();
+    setFabOpen(false);
   };
 
   const handleCopyMatricola = () => {
@@ -265,52 +323,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     <div className="flex-1 flex flex-col h-full min-h-0 bg-gray-50 dark:bg-zinc-950 p-2 sm:p-3.5 pb-24 xl:pb-3.5 gap-2.5 sm:gap-3 transition-colors overflow-y-auto xl:overflow-hidden select-none">
 
       {/* 1. DEGREE TELEMETRY & MILESTONE BANNER */}
-      <div className="shrink-0 border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-2.5 sm:p-3 text-xs shadow-xs">
+      <div className="shrink-0 border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md p-2.5 sm:p-3 text-xs shadow-xs">
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 sm:gap-3">
           {/* Degree, Student & Matricola Lockup */}
           <div className="py-0.5 space-y-1">
             <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap">
               <h1 className="font-extrabold text-sm sm:text-lg lg:text-xl text-neutral-900 dark:text-zinc-100 tracking-tight leading-tight">
-                {profile.degreeName || 'Mechanical Engineering'}
+                {profile.degreeName || 'Degree Workstation'}
               </h1>
-              <button
-                type="button"
-                onClick={handleCopyMatricola}
-                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100/80 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-mono text-[10px] sm:text-[11px] font-medium transition-colors shadow-2xs group cursor-pointer shrink-0"
-                title="Click to copy Matricola to clipboard"
-              >
-                <span className="font-sans text-[9.5px] sm:text-[10px] font-semibold tracking-wide text-blue-600 dark:text-blue-400">
-                  Matricola:
-                </span>
-                <span className="font-bold text-blue-900 dark:text-blue-100 tracking-wide">
-                  {profile.studentId || '665924'}
-                </span>
-                <span className="material-symbols-outlined text-[11px] text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-200 ml-0.5">
-                  {copiedMatricola ? 'check' : 'content_copy'}
-                </span>
-                {copiedMatricola && (
-                  <span className="text-[9px] font-sans font-semibold text-emerald-700 dark:text-emerald-400 ml-0.5">
-                    Copied!
+              {profile.studentId && (
+                <button
+                  type="button"
+                  onClick={handleCopyMatricola}
+                  className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100/80 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-mono text-[10px] sm:text-[11px] font-medium transition-colors shadow-2xs group cursor-pointer shrink-0"
+                  title="Click to copy Matricola to clipboard"
+                >
+                  <span className="font-sans text-[9.5px] sm:text-[10px] font-semibold tracking-wide text-blue-600 dark:text-blue-400">
+                    Matricola:
                   </span>
-                )}
-              </button>
+                  <span className="font-bold text-blue-900 dark:text-blue-100 tracking-wide">
+                    {profile.studentId}
+                  </span>
+                  <span className="material-symbols-outlined text-[11px] text-blue-400 group-hover:text-blue-700 dark:group-hover:text-blue-200 ml-0.5">
+                    {copiedMatricola ? 'check' : 'content_copy'}
+                  </span>
+                  {copiedMatricola && (
+                    <span className="text-[9px] font-sans font-semibold text-emerald-700 dark:text-emerald-400 ml-0.5">
+                      Copied!
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
 
             <div className="text-[10px] sm:text-[11px] text-neutral-600 dark:text-zinc-400 font-sans flex items-center gap-1.5 flex-wrap pt-0.5">
-              <span className="font-semibold text-neutral-800 dark:text-zinc-200">
-                {profile.institution || 'Università degli Studi Roma Tre'}
-              </span>
-              <span className="text-neutral-400 dark:text-zinc-600">-</span>
-              <span className="text-neutral-700 dark:text-zinc-300 font-medium">
-                {profile.degreeType || 'Laurea Triennale'}
-              </span>
+              {profile.institution && (
+                <span className="font-semibold text-neutral-800 dark:text-zinc-200">
+                  {profile.institution}
+                </span>
+              )}
+              {profile.institution && profile.degreeType && (
+                <span className="text-neutral-400 dark:text-zinc-600">-</span>
+              )}
+              {profile.degreeType && (
+                <span className="text-neutral-700 dark:text-zinc-300 font-medium">
+                  {profile.degreeType}
+                </span>
+              )}
+              {!profile.institution && !profile.degreeType && (
+                <span className="text-neutral-500 dark:text-zinc-400">
+                  {profile.name ? `${profile.name}'s Student Workspace` : 'Academic Workstation'}
+                </span>
+              )}
             </div>
           </div>
 
           {/* Key Metric Gauges: Compact 3-col grid on all screens so it never overflows */}
           <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-[10px] sm:text-[11px]">
             {/* Total CFU */}
-            <div className="bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2.5 rounded-xl shadow-2xs flex flex-col justify-between">
+            <div className="bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2.5 rounded-md shadow-2xs flex flex-col justify-between">
               <div className="text-neutral-600 dark:text-zinc-400 text-[9px] sm:text-[10px] font-bold truncate">
                 Total CFU
               </div>
@@ -331,7 +402,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {/* Completed courses */}
-            <div className="bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2.5 rounded-xl shadow-2xs flex flex-col justify-between">
+            <div className="bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2.5 rounded-md shadow-2xs flex flex-col justify-between">
               <div className="text-neutral-600 dark:text-zinc-400 text-[9px] sm:text-[10px] font-bold truncate">
                 Completed
               </div>
@@ -347,7 +418,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
 
             {/* Weekly Focus */}
-            <div className={`bg-slate-50/70 dark:bg-zinc-900/80 border p-1.5 sm:p-2.5 rounded-xl shadow-2xs flex flex-col justify-between ${powerBorderClass}`}>
+            <div className={`bg-slate-50/70 dark:bg-zinc-900/80 border p-1.5 sm:p-2.5 rounded-md shadow-2xs flex flex-col justify-between ${powerBorderClass}`}>
               <div className="text-neutral-600 dark:text-zinc-400 text-[9px] sm:text-[10px] font-bold truncate">
                 Weekly Focus
               </div>
@@ -377,13 +448,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex-1 min-h-0 flex flex-col xl:grid xl:grid-cols-12 gap-2.5 sm:gap-3 items-stretch">
         {/* LEFT COLUMN: Tabbed Panel [Courses] | [Sessions Logs] (8 cols on desktop) */}
         <div className="xl:col-span-8 flex flex-col min-h-[460px] xl:min-h-0 h-auto xl:h-full">
-          <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px] xl:min-h-0 h-full">
+          <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md shadow-xs overflow-hidden flex flex-col flex-1 min-h-[460px] xl:min-h-0 h-full">
             {/* Header: Clean responsive segmented control, filter pills, search & actions */}
             <div className="shrink-0 bg-slate-50/90 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-2.5 sm:px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               {/* Left group on desktop / Top row on mobile */}
               <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
                 {/* Segmented Control */}
-                <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-slate-300/80 dark:border-zinc-700">
+                <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-zinc-800/90 p-0.5 rounded-md border border-slate-300/80 dark:border-zinc-700">
                   <button
                     type="button"
                     onClick={() => {
@@ -426,7 +497,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 {/* Course Status Filter Scope Pills (Desktop View >= md) */}
                 {dashboardTab === 'courses' && (
-                  <div className="hidden md:flex items-center gap-1 py-0.5 bg-slate-200/80 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-slate-300/80 dark:border-zinc-700 text-[10.5px]">
+                  <div className="hidden md:flex items-center gap-1 py-0.5 bg-slate-200/80 dark:bg-zinc-800/90 p-0.5 rounded-md border border-slate-300/80 dark:border-zinc-700 text-[10.5px]">
                     <button
                       type="button"
                       onClick={() => setCourseFilter('all')}
@@ -534,7 +605,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5 w-full sm:w-auto">
                 {/* Mobile/Tablet Scope Filter Pills (Horizontally scrollable) */}
                 {dashboardTab === 'courses' && (
-                  <div className="flex md:hidden items-center gap-1 overflow-x-auto no-scrollbar py-0.5 bg-slate-200/80 dark:bg-zinc-800/90 p-0.5 rounded-lg border border-slate-300/80 dark:border-zinc-700 text-[10.5px]">
+                  <div className="flex md:hidden items-center gap-1 overflow-x-auto no-scrollbar py-0.5 bg-slate-200/80 dark:bg-zinc-800/90 p-0.5 rounded-md border border-slate-300/80 dark:border-zinc-700 text-[10.5px]">
                     <button
                       type="button"
                       onClick={() => setCourseFilter('all')}
@@ -695,7 +766,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <button
                         type="button"
                         onClick={() => setCourseFilter('all')}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <span className="material-symbols-outlined text-[14px]">visibility</span>
                         <span>Show All Courses ({courses.length})</span>
@@ -704,7 +775,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <button
                         type="button"
                         onClick={onOpenNewCourse}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <span className="material-symbols-outlined text-[14px]">add</span>
                         <span>Add Course</span>
@@ -713,7 +784,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <button
                         type="button"
                         onClick={onNavigateToCurriculum}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
                       >
                         <span className="material-symbols-outlined text-[14px]">open_in_new</span>
                         <span>Go to Curriculum</span>
@@ -1047,7 +1118,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
                 {/* Real Data Table for Study Logs */}
                 {studyLogs.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 dark:text-zinc-400 bg-slate-50/40 dark:bg-zinc-900/40 rounded-lg border border-dashed border-gray-200 dark:border-zinc-800 my-auto">
+                  <div className="p-8 text-center text-slate-500 dark:text-zinc-400 bg-slate-50/40 dark:bg-zinc-900/40 rounded-md border border-dashed border-gray-200 dark:border-zinc-800 my-auto">
                     <span className="material-symbols-outlined text-[36px] text-slate-300 dark:text-zinc-600 block mb-1">
                       history_edu
                     </span>
@@ -1056,7 +1127,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <button
                       type="button"
                       onClick={() => setShowQuickStudyModal(true)}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
                     >
                       <span className="material-symbols-outlined text-[14px]">add</span>
                       <span>Log First Session</span>
@@ -1218,7 +1289,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                                 </td>
                                 <td className={`border-b ${onDeleteStudyLog ? 'border-r' : ''} border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 text-[10.5px] text-zinc-700 dark:text-zinc-300 max-w-sm align-middle`} title={log.notes}>
                                   <div className="truncate font-sans leading-tight">
-                                    {log.notes || 'General syllabus review and problem sets'}
+                                    {log.notes || '—'}
                                   </div>
                                 </td>
                                 {onDeleteStudyLog && (
@@ -1258,19 +1329,118 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Quick Note taking - Clean & full height (4 cols) */}
-        <div className="xl:col-span-4 flex flex-col min-h-[320px] xl:min-h-0 h-auto xl:h-full">
-          <QuickNotesSection
-            notes={currentNotes}
-            onUpdateNotes={handleUpdateNotes}
-            className="flex-1 min-h-[320px] xl:min-h-0 h-full"
-          />
+        {/* RIGHT COLUMN: Workstation Hub - Resource Linker & Quick Notes (4 cols) */}
+        <div className="xl:col-span-4 flex flex-col min-h-[360px] xl:min-h-0 h-auto xl:h-full space-y-2">
+          {/* Workstation Panel Segmented Switcher */}
+          <div className="shrink-0 flex items-center justify-between bg-[#f5ede3] dark:bg-zinc-800/80 p-1 rounded-md border border-[#ecedef] dark:border-zinc-700/80 shadow-xs">
+            <div className="flex items-center gap-1 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  playClickBeep();
+                  setRightPanelTab('resources');
+                  try {
+                    localStorage.setItem('unisphere_right_panel_tab', 'resources');
+                  } catch {}
+                }}
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                  rightPanelTab === 'resources'
+                    ? 'bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 shadow-xs'
+                    : 'text-[#636b78] dark:text-zinc-400 hover:text-[#2d2f34] dark:hover:text-zinc-200'
+                }`}
+              >
+                <Bookmark size={13} className={rightPanelTab === 'resources' ? 'text-[#6366F1]' : ''} />
+                <span>Resource Linker</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-[#fdf9f4] dark:bg-zinc-800 text-[#3f434a] dark:text-zinc-300 border border-[#ecedef] dark:border-zinc-700">
+                  {resources.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  playClickBeep();
+                  setRightPanelTab('notes');
+                  try {
+                    localStorage.setItem('unisphere_right_panel_tab', 'notes');
+                  } catch {}
+                }}
+                className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                  rightPanelTab === 'notes'
+                    ? 'bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 shadow-xs'
+                    : 'text-[#636b78] dark:text-zinc-400 hover:text-[#2d2f34] dark:hover:text-zinc-200'
+                }`}
+              >
+                <FileText size={13} className={rightPanelTab === 'notes' ? 'text-amber-600 dark:text-amber-400' : ''} />
+                <span>Quick Notes</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                playClickBeep();
+                const nextTab = rightPanelTab === 'split' ? 'resources' : 'split';
+                setRightPanelTab(nextTab);
+                try {
+                  localStorage.setItem('unisphere_right_panel_tab', nextTab);
+                } catch {}
+              }}
+              title="Toggle split view (stacked both tools)"
+              className={`hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                rightPanelTab === 'split'
+                  ? 'bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 shadow-xs'
+                  : 'text-[#636b78] dark:text-zinc-400 hover:text-[#2d2f34] dark:hover:text-zinc-200'
+              }`}
+            >
+              <Columns size={12} />
+              <span>Split</span>
+            </button>
+          </div>
+
+          {/* Active Workstation Tool Content */}
+          {rightPanelTab === 'resources' && (
+            <ResourceLinkerSection
+              resources={resources}
+              courses={courses}
+              onUpdateResources={onUpdateResources}
+              className="flex-1 min-h-[360px] xl:min-h-0 h-full"
+            />
+          )}
+
+          {rightPanelTab === 'notes' && (
+            <QuickNotesSection
+              notes={currentNotes}
+              onUpdateNotes={handleUpdateNotes}
+              className="flex-1 min-h-[320px] xl:min-h-0 h-full"
+            />
+          )}
+
+          {rightPanelTab === 'split' && (
+            <div className="flex-1 flex flex-col gap-3 min-h-0 h-full overflow-y-auto pr-0.5">
+              <div className="h-[360px] xl:h-[52%] shrink-0 flex flex-col">
+                <ResourceLinkerSection
+                  resources={resources}
+                  courses={courses}
+                  onUpdateResources={onUpdateResources}
+                  className="flex-1 min-h-0 h-full"
+                />
+              </div>
+              <div className="h-[320px] xl:h-[48%] shrink-0 flex flex-col">
+                <QuickNotesSection
+                  notes={currentNotes}
+                  onUpdateNotes={handleUpdateNotes}
+                  className="flex-1 min-h-0 h-full"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Dynamic Floating Quick Actions Button (Shown ONLY in Mobile & Tablet views, Hidden on PC view) */}
-      <div className="xl:hidden fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-40">
-        {/* Backdrop click-away overlay when context menu is open */}
+      {/* Floating Quick Action Button in Bottom-Right Corner of Dashboard */}
+      <div className="fixed bottom-5 right-4 sm:bottom-6 sm:right-6 z-40 select-none">
+        {/* Speed-dial backdrop click-away overlay when context menu is open */}
         {fabOpen && (
           <div
             className="fixed inset-0 z-40 bg-black/25 dark:bg-black/60 backdrop-blur-[2px] transition-opacity"
@@ -1278,27 +1448,75 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           />
         )}
 
-        {/* Dynamic Context Menu Speed-Dial for Mobile/Tablet Quick Adds */}
+        {/* Quick Action Menu with Embedded Quick Study Functionality */}
         {fabOpen && (
           <div
             role="menu"
-            className="absolute bottom-14 right-0 w-64 max-w-[calc(100vw-2rem)] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-gray-200 dark:border-zinc-800 rounded-2xl shadow-2xl p-1.5 space-y-1 z-50 text-left select-none animate-in fade-in slide-in-from-bottom-3 duration-200"
+            className="absolute bottom-13 right-0 w-72 max-w-[calc(100vw-2rem)] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-gray-200 dark:border-zinc-800 rounded-md shadow-2xl p-2 space-y-2 z-50 text-left select-none animate-in fade-in slide-in-from-bottom-3 duration-200"
           >
-            <div className="px-3 py-1.5 flex items-center justify-between border-b border-gray-100 dark:border-zinc-800/80 mb-0.5">
-              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-zinc-400">
-                <span className="material-symbols-outlined text-[13px] text-indigo-500">bolt</span>
-                <span>Quick Actions</span>
-              </div>
+            <div className="px-2.5 py-1 flex items-center justify-between border-b border-gray-100 dark:border-zinc-800/80 mb-0.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-zinc-400">
+                Quick Actions
+              </span>
               <button
                 type="button"
                 onClick={() => setFabOpen(false)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer"
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer text-xs font-bold leading-none"
                 title="Close menu"
               >
-                <span className="material-symbols-outlined text-[14px]">close</span>
+                ✕
               </button>
             </div>
 
+            {/* Quick Study Section - Embedded directly inside Quick Action button (NO ICON) */}
+            <div className="p-2.5 rounded-md bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFabOpen(false);
+                    playClickBeep();
+                    setShowQuickStudyModal(true);
+                  }}
+                  className="text-left group cursor-pointer"
+                >
+                  <div className="font-bold text-xs text-indigo-950 dark:text-indigo-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    Quick Study
+                  </div>
+                  <div className="text-[10px] text-indigo-700/80 dark:text-indigo-300/80">
+                    Instantly record a study session
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFabOpen(false);
+                    playClickBeep();
+                    setShowQuickStudyModal(true);
+                  }}
+                  className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  Custom / Timer
+                </button>
+              </div>
+
+              {/* 1-Click Instant Presets: Log directly without opening full tracker */}
+              <div className="grid grid-cols-4 gap-1 pt-0.5">
+                {[25, 45, 60, 90].map((mins) => (
+                  <button
+                    key={mins}
+                    type="button"
+                    onClick={() => handleInstantQuickStudyLog(mins)}
+                    className="py-1 px-1 rounded-md bg-white dark:bg-zinc-900 border border-indigo-200/80 dark:border-indigo-800/80 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white text-indigo-900 dark:text-indigo-200 font-mono text-[11px] font-bold text-center transition-all cursor-pointer shadow-2xs active:scale-95"
+                    title={`Instant log ${mins}m to active course`}
+                  >
+                    {mins}m
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Other Actions in Quick Action Menu */}
             <button
               type="button"
               onClick={() => {
@@ -1306,33 +1524,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 playClickBeep();
                 setShowQuickTaskModal(true);
               }}
-              className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
+              className="w-full flex items-center justify-between p-2 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-800/60 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[18px]">add_task</span>
+              <div>
+                <div className="font-semibold text-xs group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
+                  New Task / Exam
+                </div>
+                <div className="text-[10px] text-neutral-500 dark:text-zinc-400">
+                  Add assignment, deadline or test
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-xs group-hover:text-emerald-700 dark:group-hover:text-emerald-300">New Task / Exam</div>
-                <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">Add assignment, deadline or test</div>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setFabOpen(false);
-                playClickBeep();
-                setShowQuickStudyModal(true);
-              }}
-              className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-blue-50 dark:hover:bg-blue-950/40 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
-            >
-              <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[18px]">history_edu</span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-xs group-hover:text-blue-700 dark:group-hover:text-blue-300">Log Study Session</div>
-                <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">Record study hours & topic review</div>
-              </div>
+              <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200">
+                +
+              </span>
             </button>
 
             <button
@@ -1343,41 +1547,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 if (onOpenNewCourse) onOpenNewCourse();
                 else onNavigateToCurriculum();
               }}
-              className="w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
+              className="w-full flex items-center justify-between p-2 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-800/60 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[18px]">school</span>
+              <div>
+                <div className="font-semibold text-xs group-hover:text-indigo-700 dark:group-hover:text-indigo-300">
+                  Add New Course
+                </div>
+                <div className="text-[10px] text-neutral-500 dark:text-zinc-400">
+                  Register syllabus &amp; CFUs
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-xs group-hover:text-indigo-700 dark:group-hover:text-indigo-300">Add New Course</div>
-                <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">Register syllabus & CFUs</div>
-              </div>
+              <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200">
+                +
+              </span>
             </button>
           </div>
         )}
 
-        {/* Dynamic Floating Action Button */}
+        {/* Floating Quick Action Button - Pure text, NO ICON, Restored Indigo Color, Squared edges */}
         <button
           type="button"
           onClick={() => {
             playClickBeep();
             setFabOpen((prev) => !prev);
           }}
-          aria-label="Quick Actions"
-          title="Quick Actions (Add Task, Study Log, or Course)"
-          className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-white shadow-lg transition-all duration-200 cursor-pointer ${
+          aria-label="Quick Action"
+          title="Quick Action"
+          className={`px-4 py-2.5 rounded-md font-bold text-xs sm:text-sm shadow-xl hover:shadow-2xl transition-all duration-200 cursor-pointer active:scale-95 ring-2 ${
             fabOpen
-              ? 'bg-zinc-800 dark:bg-zinc-700 rotate-45 scale-95 shadow-zinc-900/30'
-              : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 shadow-indigo-600/40 hover:shadow-indigo-600/60 ring-2 ring-indigo-400/30'
+              ? 'bg-zinc-800 text-white ring-zinc-600 shadow-zinc-900/40'
+              : isQuickTimerRunning
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white ring-emerald-400/50 shadow-emerald-600/30 animate-pulse'
+              : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white ring-indigo-400/30 shadow-indigo-600/40 hover:shadow-indigo-600/60'
           }`}
         >
-          <span className="material-symbols-outlined text-[24px]">add</span>
+          <span className="tracking-tight font-extrabold whitespace-nowrap">
+            {fabOpen
+              ? 'Close'
+              : isQuickTimerRunning
+              ? `${Math.floor(quickTimerSeconds / 60)}:${String(quickTimerSeconds % 60).padStart(2, '0')} • Quick Action`
+              : 'Quick Action'}
+          </span>
         </button>
       </div>
 
       {/* Dynamic Action Notification Toast */}
       {quickNotification && (
-        <div className="fixed bottom-20 right-5 sm:bottom-22 sm:right-6 z-50 bg-neutral-900 text-white px-3.5 py-2 rounded-xl text-xs shadow-xl flex items-center gap-2 border border-zinc-700 animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="fixed bottom-18 right-4 sm:bottom-20 sm:right-6 z-50 bg-neutral-900 text-white px-3.5 py-2 rounded-md text-xs shadow-xl flex items-center gap-2 border border-zinc-700 animate-in fade-in slide-in-from-bottom-2 duration-150">
           <span className="material-symbols-outlined text-[15px] text-emerald-400">check_circle</span>
           <span>{quickNotification}</span>
         </div>
@@ -1392,11 +1608,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         />
       )}
 
+      {/* Dedicated Floating 'Quick Study' Instant Record Modal */}
       {showQuickStudyModal && (
-        <NewStudyLogModal
+        <QuickStudyModal
           courses={courses}
+          isOpen={showQuickStudyModal}
           onClose={() => setShowQuickStudyModal(false)}
-          onAdd={handleCreateQuickStudyLog}
+          onAddStudyLog={handleCreateQuickStudyLog}
+          onSuccessNotification={(msg) => {
+            setQuickNotification(msg);
+            setTimeout(() => setQuickNotification(null), 3500);
+          }}
+          isTimerRunning={isQuickTimerRunning}
+          timerSeconds={quickTimerSeconds}
+          timerCourse={quickTimerCourse}
+          onToggleTimer={(cName) => {
+            setQuickTimerCourse(cName);
+            setIsQuickTimerRunning((prev) => !prev);
+          }}
+          onResetTimer={() => {
+            setIsQuickTimerRunning(false);
+            setQuickTimerSeconds(0);
+          }}
         />
       )}
     </div>

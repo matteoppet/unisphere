@@ -4,34 +4,34 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-xs font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer active:scale-[0.98]',
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-indigo-500 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer active:scale-[0.98]',
   {
     variants: {
       variant: {
         default:
-          'bg-indigo-600 text-white shadow-2xs hover:bg-indigo-700 active:bg-indigo-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 border border-indigo-700/30 dark:border-indigo-400/30 shadow-indigo-500/10 hover:shadow-indigo-500/25',
+          'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 shadow-xs border-0 font-medium',
         destructive:
-          'bg-rose-600 text-white shadow-2xs hover:bg-rose-700 active:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-500 border border-rose-700/30',
+          'bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 shadow-xs border-0',
         outline:
-          'border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 shadow-2xs hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 hover:text-zinc-900 dark:hover:text-zinc-100',
+          'border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-200 hover:bg-[#f9efe4] dark:hover:bg-zinc-800 hover:text-[#2d2f34] dark:hover:text-zinc-100',
         secondary:
-          'bg-zinc-100 text-zinc-800 hover:bg-zinc-200 active:bg-zinc-300 dark:bg-zinc-800/90 dark:text-zinc-200 dark:hover:bg-zinc-700 dark:hover:text-zinc-100 border border-transparent dark:border-zinc-700/50',
+          'bg-[#f9efe4] dark:bg-zinc-800 text-[#2d2f34] dark:text-zinc-200 hover:bg-[#ebdccf] dark:hover:bg-zinc-700 border-0',
         ghost:
-          'text-zinc-700 hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100',
+          'text-[#3f434a] hover:bg-[#f9efe4]/80 hover:text-[#2d2f34] dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100',
         link:
-          'text-indigo-600 underline-offset-4 hover:underline dark:text-indigo-400',
+          'text-indigo-600 dark:text-indigo-400 underline-offset-4 hover:underline',
         compact:
-          'border border-zinc-200/90 dark:border-zinc-800 bg-white/90 dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-200 shadow-2xs hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:bg-zinc-100 dark:active:bg-zinc-800',
+          'border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-200 hover:bg-[#f9efe4] dark:hover:bg-zinc-800',
         matte:
-          'border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800 shadow-2xs',
+          'border border-[#ecedef] dark:border-zinc-700 bg-[#fdf9f4] dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-800',
         accent:
-          'bg-zinc-800 text-zinc-100 dark:bg-zinc-200 dark:text-zinc-900 shadow-2xs hover:bg-zinc-700 dark:hover:bg-zinc-300 border border-zinc-700 dark:border-zinc-300 transition-colors',
+          'bg-[#2d2f34] text-white hover:bg-[#3f434a] dark:bg-zinc-200 dark:text-zinc-900 transition-colors',
       },
       size: {
-        default: 'h-8 px-3 py-1.5 text-xs',
+        default: 'h-8 px-3.5 py-1.5 text-xs rounded-md',
         sm: 'h-7 px-2.5 py-1 text-[11px] rounded-md',
-        lg: 'h-9 px-4 py-2 text-xs',
-        icon: 'h-7 w-7 p-0',
+        lg: 'h-9 px-4.5 py-2 text-xs rounded-md',
+        icon: 'h-7 w-7 p-0 rounded-md',
       },
     },
     defaultVariants: {

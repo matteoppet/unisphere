@@ -208,48 +208,48 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   const isFromPreviousDay = noteDate !== todayDateStr && notes.trim().length > 0;
 
   return (
-    <div className={`border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-xs overflow-hidden flex flex-col flex-1 min-h-0 h-full relative transition-colors ${className}`}>
-      {/* Widget Header with title matching sketch: Quick Note taking */}
-      <div className="shrink-0 bg-slate-50/80 dark:bg-zinc-900/90 border-b border-gray-200 dark:border-zinc-800 px-3 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 font-bold text-xs text-zinc-900 dark:text-zinc-100">
-          <span className="material-symbols-outlined text-[16px] text-amber-600 dark:text-amber-400">
+    <div className={`border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md slite-shadow overflow-hidden flex flex-col flex-1 min-h-0 h-full relative transition-colors ${className}`}>
+      {/* Widget Header with title matching Slite warm style: Quick Note taking */}
+      <div className="shrink-0 bg-[#fdf9f4] dark:bg-zinc-900/90 border-b border-[#ecedef] dark:border-zinc-800 px-3.5 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-1.5 font-bold text-xs text-[#2d2f34] dark:text-zinc-100">
+          <span className="material-symbols-outlined text-[16px] text-[#6366F1]">
             sticky_note_2
           </span>
           <span>Quick Note taking</span>
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-zinc-600 dark:text-zinc-400 font-mono">
-          <span className="material-symbols-outlined text-[12px] text-blue-700 dark:text-blue-400 transition-transform duration-200 group-hover:scale-110">
+        <div className="flex items-center gap-1 text-[10px] text-[#3f434a] dark:text-zinc-400 font-mono">
+          <span className="material-symbols-outlined text-[13px] text-[#6366F1]">
             today
           </span>
-          <span className="font-semibold text-zinc-700 dark:text-zinc-300">{formattedToday}</span>
+          <span className="font-semibold text-[#2d2f34] dark:text-zinc-300">{formattedToday}</span>
         </div>
       </div>
 
-      <div className="p-2.5 sm:p-3 text-xs flex flex-col flex-1 min-h-0">
+      <div className="p-3 text-xs flex flex-col flex-1 min-h-0">
         {/* Mode Tabs & Save Status */}
-        <div className="shrink-0 flex items-center justify-between pb-2 mb-2 border-b border-gray-100 dark:border-zinc-800 gap-1 flex-wrap">
-          <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
+        <div className="shrink-0 flex items-center justify-between pb-2.5 mb-2.5 border-b border-[#ecedef] dark:border-zinc-800 gap-1 flex-wrap">
+          <div className="flex items-center gap-1.5 text-[10px] text-[#3f434a]/80 dark:text-zinc-400 font-mono">
             <span>
               {lastSavedTime === 'Just now' ? 'Autosaved' : `Saved ${lastSavedTime}`}
             </span>
           </div>
 
           {/* View Mode Switcher */}
-          <div className="flex items-center gap-0.5 bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-lg border border-gray-200 dark:border-zinc-700">
+          <div className="flex items-center gap-1 bg-[#f9efe4] dark:bg-zinc-800 p-0.5 rounded-md border border-[#ecedef] dark:border-zinc-700">
             <button
               type="button"
               onClick={() => {
                 playClickBeep();
                 setActiveTab('scratchpad');
               }}
-              className={`px-2 py-0.5 text-[10px] rounded-md transition-all font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-0.5 text-[10.5px] rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer ${
                 activeTab === 'scratchpad'
-                  ? 'bg-white dark:bg-zinc-900 text-blue-800 dark:text-indigo-400 shadow-2xs font-semibold'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  ? 'bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 slite-shadow font-semibold'
+                  : 'text-[#3f434a] dark:text-zinc-400 hover:text-[#2d2f34] dark:hover:text-zinc-200'
               }`}
               title="Freeform text scratchpad"
             >
-              <span className="material-symbols-outlined text-[11px]">edit_note</span>
+              <span className="material-symbols-outlined text-[12px] text-[#6366F1]">edit_note</span>
               <span>Scratchpad</span>
             </button>
             <button
@@ -258,17 +258,17 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
                 playClickBeep();
                 setActiveTab('checklist');
               }}
-              className={`px-2 py-0.5 text-[10px] rounded-md transition-all font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-0.5 text-[10.5px] rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer ${
                 activeTab === 'checklist'
-                  ? 'bg-white dark:bg-zinc-900 text-blue-800 dark:text-indigo-400 shadow-2xs font-semibold'
-                  : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200'
+                  ? 'bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 slite-shadow font-semibold'
+                  : 'text-[#3f434a] dark:text-zinc-400 hover:text-[#2d2f34] dark:hover:text-zinc-200'
               }`}
               title="Interactive daily reminders checklist"
             >
-              <span className="material-symbols-outlined text-[11px]">checklist</span>
+              <span className="material-symbols-outlined text-[12px] text-[#6366F1]">checklist</span>
               <span>Checklist</span>
               {totalItemsCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.2 bg-slate-200 dark:bg-zinc-700 rounded-full text-[9px] font-mono">
+                <span className="ml-0.5 px-1.5 py-0.2 bg-[#f9efe4] dark:bg-zinc-700 rounded-md text-[9px] font-mono text-[#2d2f34]">
                   {completedCount}/{totalItemsCount}
                 </span>
               )}
@@ -278,7 +278,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
 
       {/* Previous day banner warning */}
       {isFromPreviousDay && (
-        <div className="mb-2 p-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 rounded-lg text-[10px] text-amber-900 dark:text-amber-200 flex items-center justify-between gap-1 shadow-2xs">
+        <div className="mb-2 p-2 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-900/60 rounded-md text-[10px] text-amber-900 dark:text-amber-200 flex items-center justify-between gap-1 shadow-2xs">
           <div className="flex items-center gap-1">
             <span className="material-symbols-outlined text-[13px] text-amber-700 dark:text-amber-400">
               history
@@ -321,13 +321,13 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
       {/* Content Area: Scratchpad Mode */}
       {activeTab === 'scratchpad' && (
         <div className="flex-1 min-h-[160px] flex flex-col space-y-1">
-          <div className="flex-1 min-h-[150px] relative border border-amber-200 dark:border-zinc-800 rounded-lg overflow-hidden bg-[#fffdf0] dark:bg-zinc-950 shadow-inner focus-within:border-amber-400 dark:focus-within:border-amber-500 focus-within:ring-1 focus-within:ring-amber-300/40 flex flex-col">
+          <div className="flex-1 min-h-[150px] relative border border-[#ecedef] dark:border-zinc-800 rounded-xl overflow-hidden bg-[#fdf9f4] dark:bg-zinc-950 focus-within:border-[#6366F1] focus-within:ring-1 focus-within:ring-[#6366F1]/30 flex flex-col">
             <textarea
               ref={textareaRef}
               value={notes}
               onChange={(e) => handleNotesChange(e.target.value)}
               placeholder="Jot down quick thoughts, room numbers, questions for office hours, library books, or ephemeral reminders for today..."
-              className="w-full flex-1 min-h-[140px] text-[11px] p-2.5 bg-transparent text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none resize-none font-sans leading-relaxed selection:bg-amber-200 dark:selection:bg-amber-900/60"
+              className="w-full flex-1 min-h-[140px] text-[11px] p-2.5 bg-transparent text-[#2d2f34] dark:text-zinc-100 placeholder:text-[#3f434a]/60 dark:placeholder:text-zinc-500 focus:outline-none resize-none font-sans leading-relaxed selection:bg-[#6366F1]/20"
             />
           </div>
         </div>
@@ -343,13 +343,13 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
               value={newChecklistText}
               onChange={(e) => setNewChecklistText(e.target.value)}
               placeholder="Add reminder..."
-              className="flex-1 text-[11px] py-1 px-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-slate-50/50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-950 focus:outline-none focus:border-blue-500 dark:focus:border-indigo-500 focus:ring-1 focus:ring-blue-500/20 transition-all placeholder:text-zinc-400 dark:placeholder:text-zinc-500"
+              className="flex-1 text-[11px] py-1 px-3 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4] dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-100 focus:bg-white dark:focus:bg-zinc-950 focus:outline-none focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]/20 transition-all placeholder:text-[#3f434a]/60 dark:placeholder:text-zinc-500"
             />
             <button
               type="submit"
-              className="group px-2.5 py-1 text-[11px] font-semibold rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer"
+              className="group px-3 py-1 text-[11px] font-medium rounded-md bg-[#6366F1] hover:bg-[#4F46E5] text-white active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[13px] text-blue-700 dark:text-blue-400 transition-transform duration-200 group-hover:scale-110">
+              <span className="material-symbols-outlined text-[13px]">
                 add
               </span>
               <span>Add</span>
@@ -357,7 +357,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
           </form>
 
           {/* Checklist Items Container */}
-          <div className="flex-1 min-h-[150px] border border-gray-200 dark:border-zinc-800 rounded-lg bg-slate-50/40 dark:bg-zinc-950/40 p-2 overflow-y-auto space-y-1">
+          <div className="flex-1 min-h-[150px] border border-gray-200 dark:border-zinc-800 rounded-md bg-slate-50/40 dark:bg-zinc-950/40 p-2 overflow-y-auto space-y-1">
             {checklistItems.length === 0 ? (
               <div className="py-4 text-center text-zinc-400 dark:text-zinc-500 text-[11px]">
                 <p>No active reminders for today.</p>
@@ -378,7 +378,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
                     type="checkbox"
                     checked={item.isCompleted}
                     onChange={() => {}} // Handled by container onClick
-                    className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 dark:border-zinc-700 text-blue-600 focus:ring-0 cursor-pointer"
+                    className="mt-0.5 h-3.5 w-3.5 rounded-md border-gray-300 dark:border-zinc-700 text-blue-600 focus:ring-0 cursor-pointer"
                   />
                   <span
                     className={`text-[11px] leading-tight select-text flex-1 break-words ${
@@ -424,40 +424,40 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
             type="checkbox"
             checked={autoResetDaily}
             onChange={handleToggleAutoReset}
-            className="rounded border-gray-300 dark:border-zinc-700 text-amber-600 focus:ring-0"
+            className="rounded-md border-gray-300 dark:border-zinc-700 text-amber-600 focus:ring-0"
           />
           <span>Auto-clear daily</span>
         </label>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={handleCopyToClipboard}
             disabled={!notes.trim()}
-            className="group px-2 py-0.5 text-[10px] rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer"
+            className="group px-3 py-0.5 text-[10px] rounded-md border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-200 hover:bg-[#f9efe4] dark:hover:bg-zinc-800 active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer"
             title="Copy notes to clipboard"
           >
-            <span className="material-symbols-outlined text-[12px] text-blue-700 dark:text-blue-400 transition-transform duration-200 group-hover:scale-110">
+            <span className="material-symbols-outlined text-[12px] text-[#6366F1]">
               {copied ? 'check' : 'content_copy'}
             </span>
             <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
 
           {showClearConfirm ? (
-            <div className="flex items-center gap-0.5 bg-red-50 dark:bg-red-950/60 p-0.5 rounded-md border border-red-200 dark:border-red-900/60">
-              <span className="text-[9px] text-red-800 dark:text-red-300 font-semibold px-0.5">Clear?</span>
+            <div className="flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 p-0.5 px-1.5 rounded-md border border-rose-200 dark:border-rose-900/60">
+              <span className="text-[9px] text-rose-800 dark:text-rose-300 font-semibold px-0.5">Clear?</span>
               <button
                 type="button"
                 onClick={handleClearNotes}
-                className="px-1.5 py-0.2 bg-red-600 text-white rounded text-[9px] font-bold hover:bg-red-700"
+                className="px-2 py-0.2 bg-rose-600 text-white rounded-md text-[9px] font-bold hover:bg-rose-700 cursor-pointer"
               >
                 Yes
               </button>
               <button
                 type="button"
                 onClick={() => setShowClearConfirm(false)}
-                className="px-1.5 py-0.2 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded text-[9px] hover:bg-zinc-300 dark:hover:bg-zinc-600"
+                className="px-2 py-0.2 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-md text-[9px] hover:bg-zinc-300 dark:hover:bg-zinc-600 cursor-pointer"
               >
                 No
               </button>
@@ -469,10 +469,10 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
                 if (notes.trim()) setShowClearConfirm(true);
               }}
               disabled={!notes.trim()}
-              className="group px-2 py-0.5 text-[10px] rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer"
+              className="group px-3 py-0.5 text-[10px] rounded-md border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer"
               title="Clear all ephemeral text"
             >
-              <span className="material-symbols-outlined text-[12px] text-red-600 dark:text-red-400 transition-transform duration-200 group-hover:scale-110">
+              <span className="material-symbols-outlined text-[12px] text-rose-500">
                 delete
               </span>
               <span>Clear</span>

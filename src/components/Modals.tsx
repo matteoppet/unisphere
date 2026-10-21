@@ -118,7 +118,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
           </div>
 
           {/* Appealing Interactive Status Picker */}
-          <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-50/70 dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800">
+          <div className="flex flex-col gap-1.5 p-3 rounded-md bg-slate-50/70 dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[15px] text-slate-600 dark:text-zinc-400">
@@ -136,7 +136,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, status: 'active' })}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-md border text-center transition-all cursor-pointer ${
                   formData.status === 'active'
                     ? 'bg-blue-50 dark:bg-blue-950/70 border-blue-500 dark:border-blue-600 text-blue-900 dark:text-blue-200 shadow-sm ring-1 ring-blue-500 font-bold'
                     : 'bg-white dark:bg-zinc-950 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
@@ -162,7 +162,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
                     progress: formData.progress < 100 ? 100 : formData.progress,
                   })
                 }
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-md border text-center transition-all cursor-pointer ${
                   formData.status === 'completed'
                     ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-500 dark:border-emerald-600 text-emerald-900 dark:text-emerald-200 shadow-sm ring-1 ring-emerald-500 font-bold'
                     : 'bg-white dark:bg-zinc-950 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
@@ -182,7 +182,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, status: 'planned' })}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-md border text-center transition-all cursor-pointer ${
                   formData.status === 'planned'
                     ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-500 dark:border-amber-600 text-amber-900 dark:text-amber-200 shadow-sm ring-1 ring-amber-500 font-bold'
                     : 'bg-white dark:bg-zinc-950 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
@@ -201,7 +201,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
           </div>
 
           {/* Syllabus Progress */}
-          <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-50/70 dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800">
+          <div className="flex flex-col gap-1.5 p-3 rounded-md bg-slate-50/70 dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[15px] text-indigo-600 dark:text-indigo-400">
@@ -261,7 +261,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
           </div>
 
           {/* Upcoming Exam / Deliverable with Delete Exam feature */}
-          <div className="p-3 rounded-xl border border-gray-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-900/60 space-y-2">
+          <div className="p-3 rounded-md border border-gray-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-900/60 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[15px] text-rose-500">
@@ -273,7 +273,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setFormData({ ...formData, nextDeliverable: undefined })}
-                  className="px-2 py-0.5 text-[10px] text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded border border-rose-200 dark:border-rose-900 flex items-center gap-1 cursor-pointer transition-colors"
+                  className="px-2 py-0.5 text-[10px] text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md border border-rose-200 dark:border-rose-900 flex items-center gap-1 cursor-pointer transition-colors"
                   title="Delete Exam / Remove deliverable"
                 >
                   <span className="material-symbols-outlined text-[12px]">delete</span>
@@ -283,7 +283,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
             </div>
 
             {formData.nextDeliverable ? (
-              <div className="p-2 rounded-lg bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 flex items-center justify-between gap-2">
+              <div className="p-2 rounded-md bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">
                     {formData.nextDeliverable.title}
@@ -292,7 +292,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
                     Type: {formData.nextDeliverable.type || 'Exam'} • Due: {formData.nextDeliverable.date || 'No date set'}
                   </div>
                 </div>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 font-semibold shrink-0">
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 font-semibold shrink-0">
                   Scheduled
                 </span>
               </div>
@@ -312,7 +312,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
                       },
                     })
                   }
-                  className="px-2 py-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded border border-indigo-200 dark:border-indigo-900 flex items-center gap-1 cursor-pointer"
+                  className="px-2 py-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-md border border-indigo-200 dark:border-indigo-900 flex items-center gap-1 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[13px]">add</span>
                   <span>Schedule Exam</span>
@@ -331,7 +331,7 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, notes: e.target.value })
               }
-              className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 resize-none focus:outline-none focus:border-indigo-500 text-xs"
+              className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 resize-none focus:outline-none focus:border-indigo-500 text-xs"
             />
           </div>
 
@@ -500,7 +500,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               <select
                 value={year}
                 onChange={(e) => setYear(parseInt(e.target.value))}
-                className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 text-xs"
+                className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 text-xs"
               >
                 <option value={1}>Year 1</option>
                 <option value={2}>Year 2</option>
@@ -514,7 +514,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               <select
                 value={semester}
                 onChange={(e) => setSemester(parseInt(e.target.value) as 1 | 2)}
-                className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 text-xs"
+                className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 text-xs"
               >
                 <option value={1}>Semester 1</option>
                 <option value={2}>Semester 2</option>
@@ -522,7 +522,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-slate-50/70 dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800">
+          <div className="flex flex-col gap-1.5 p-3 rounded-md bg-slate-50/70 dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800">
             <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center justify-between">
               <span>Initial Status</span>
               <span className="text-[10px] text-slate-500">Select course standing</span>
@@ -531,7 +531,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               <button
                 type="button"
                 onClick={() => setStatus('active')}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-md border text-center transition-all cursor-pointer ${
                   status === 'active'
                     ? 'bg-blue-50 dark:bg-blue-950/70 border-blue-500 dark:border-blue-600 text-blue-900 dark:text-blue-200 shadow-sm ring-1 ring-blue-500 font-bold'
                     : 'bg-white dark:bg-zinc-950 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
@@ -550,7 +550,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               <button
                 type="button"
                 onClick={() => setStatus('completed')}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-md border text-center transition-all cursor-pointer ${
                   status === 'completed'
                     ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-500 dark:border-emerald-600 text-emerald-900 dark:text-emerald-200 shadow-sm ring-1 ring-emerald-500 font-bold'
                     : 'bg-white dark:bg-zinc-950 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
@@ -569,7 +569,7 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               <button
                 type="button"
                 onClick={() => setStatus('planned')}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-md border text-center transition-all cursor-pointer ${
                   status === 'planned'
                     ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-500 dark:border-amber-600 text-amber-900 dark:text-amber-200 shadow-sm ring-1 ring-amber-500 font-bold'
                     : 'bg-white dark:bg-zinc-950 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
@@ -675,7 +675,7 @@ export const EmailGroupModal: React.FC<EmailGroupModalProps> = ({
                 {copied ? '✓ Copied Emails' : 'Copy All Addresses'}
               </button>
             </div>
-            <div className="p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-slate-50 dark:bg-zinc-950/70 font-mono text-[10px] text-zinc-800 dark:text-zinc-200 dark:text-zinc-200 break-all">
+            <div className="p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-slate-50 dark:bg-zinc-950/70 font-mono text-[10px] text-zinc-800 dark:text-zinc-200 dark:text-zinc-200 break-all">
               {recipientList}
             </div>
           </div>
@@ -699,7 +699,7 @@ export const EmailGroupModal: React.FC<EmailGroupModalProps> = ({
               rows={5}
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 placeholder:text-zinc-400 dark:text-zinc-500 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 font-sans text-xs"
+              className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 placeholder:text-zinc-400 dark:text-zinc-500 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 font-sans text-xs"
             />
           </div>
 
@@ -776,7 +776,7 @@ export const ColumnsModal: React.FC<ColumnsModalProps> = ({ onClose }) => {
             Visible Columns in Active Courses Data Grid:
           </div>
 
-          <div className="space-y-2 border border-gray-200 dark:border-zinc-800 p-2.5 rounded-lg bg-slate-50/50 dark:bg-zinc-950/50 shadow-2xs">
+          <div className="space-y-2 border border-gray-200 dark:border-zinc-800 p-2.5 rounded-md bg-slate-50/50 dark:bg-zinc-950/50 shadow-2xs">
             {[
               'Course Title',
               'CFU (Credits)',
@@ -788,7 +788,7 @@ export const ColumnsModal: React.FC<ColumnsModalProps> = ({ onClose }) => {
                 key={col}
                 className="flex items-center gap-2 cursor-pointer text-[11px] text-slate-700 dark:text-zinc-300 hover:text-zinc-900 dark:text-zinc-100 dark:hover:text-zinc-100"
               >
-                <input type="checkbox" defaultChecked className="rounded border-gray-300 text-indigo-600 focus:ring-0" />
+                <input type="checkbox" defaultChecked className="rounded-md border-gray-300 text-indigo-600 focus:ring-0" />
                 <span>{col}</span>
               </label>
             ))}
@@ -884,7 +884,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         </DialogHeader>
 
         <div className="p-4 space-y-3 overflow-y-auto flex-1">
-          <div className="p-3 border border-gray-200 dark:border-zinc-800 rounded-lg bg-slate-50/50 dark:bg-zinc-950/50 flex items-center justify-between shadow-2xs">
+          <div className="p-3 border border-gray-200 dark:border-zinc-800 rounded-md bg-slate-50/50 dark:bg-zinc-950/50 flex items-center justify-between shadow-2xs">
             <div>
               <div className="font-bold text-zinc-900 dark:text-zinc-100 dark:text-zinc-100">
                 Study Activity Audit Trail (CSV)
@@ -902,7 +902,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </Button>
           </div>
 
-          <div className="p-3 border border-gray-200 dark:border-zinc-800 rounded-lg bg-slate-50/50 dark:bg-zinc-950/50 flex items-center justify-between shadow-2xs">
+          <div className="p-3 border border-gray-200 dark:border-zinc-800 rounded-md bg-slate-50/50 dark:bg-zinc-950/50 flex items-center justify-between shadow-2xs">
             <div>
               <div className="font-bold text-zinc-900 dark:text-zinc-100 dark:text-zinc-100">
                 Curriculum Study Plan (CSV)
@@ -920,7 +920,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </Button>
           </div>
 
-          <div className="p-3 border border-gray-200 dark:border-zinc-800 rounded-lg bg-slate-50/50 dark:bg-zinc-950/50 flex items-center justify-between shadow-2xs">
+          <div className="p-3 border border-gray-200 dark:border-zinc-800 rounded-md bg-slate-50/50 dark:bg-zinc-950/50 flex items-center justify-between shadow-2xs">
             <div>
               <div className="font-bold text-zinc-900 dark:text-zinc-100 dark:text-zinc-100">
                 Full Workstation Snapshot (JSON)
@@ -974,7 +974,7 @@ export const AboutModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
         <div className="p-4 space-y-3 text-zinc-800 dark:text-zinc-200">
           <div className="flex items-center gap-3 border-b border-gray-100 dark:border-zinc-800 pb-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-xs">
+            <div className="w-10 h-10 rounded-md bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-xs">
               UNI
             </div>
             <div>
@@ -989,7 +989,7 @@ export const AboutModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             Academic workstation and degree organizer designed for university students, researchers, and degree candidates. Features real-time CFU telemetry and curriculum audit.
           </p>
 
-          <div className="p-2.5 bg-slate-50 border border-gray-200 rounded-lg font-mono text-[10px] space-y-1 text-slate-700 shadow-2xs">
+          <div className="p-2.5 bg-slate-50 border border-gray-200 rounded-md font-mono text-[10px] space-y-1 text-slate-700 shadow-2xs">
             <div>Degree: B.Sc. Computer Science &amp; Engineering</div>
             <div>Regulation: Laurea Triennale (DM 270/04)</div>
             <div>Target: 180 CFU</div>
@@ -1089,7 +1089,7 @@ export const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
               <select
                 value={courseName}
                 onChange={(e) => setCourseName(e.target.value)}
-                className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
               >
                 {courses.length > 0 ? (
                   courses.map((c) => (
@@ -1110,7 +1110,7 @@ export const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as AssignmentItem['type'])}
-                className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 font-medium focus:outline-none focus:border-indigo-500"
+                className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 font-medium focus:outline-none focus:border-indigo-500"
               >
                 <option value="Assignment">Assignment</option>
                 <option value="Midterm">Midterm</option>
@@ -1143,7 +1143,7 @@ export const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Chapters, requirements, submission portal..."
-              className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 resize-none font-sans"
+              className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 resize-none font-sans"
             />
           </div>
 
@@ -1235,7 +1235,7 @@ export const NewStudyLogModal: React.FC<NewStudyLogModalProps> = ({
             <select
               value={courseName}
               onChange={(e) => setCourseName(e.target.value)}
-              className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+              className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
             >
               {courses.length > 0 ? (
                 courses.map((c) => (
@@ -1269,7 +1269,7 @@ export const NewStudyLogModal: React.FC<NewStudyLogModalProps> = ({
               <select
                 value={tag}
                 onChange={(e) => setTag(e.target.value as StudyLog['tag'])}
-                className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 font-medium focus:outline-none focus:border-indigo-500"
+                className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 font-medium focus:outline-none focus:border-indigo-500"
               >
                 <option value="Deep Work">Deep Work</option>
                 <option value="Problem Solving">Problem Solving</option>
@@ -1305,7 +1305,7 @@ export const NewStudyLogModal: React.FC<NewStudyLogModalProps> = ({
                   key={mins}
                   type="button"
                   onClick={() => setDurationMinutes(mins)}
-                  className={`text-[10px] px-2 py-0.5 rounded border transition-colors cursor-pointer ${
+                  className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
                     durationMinutes === mins
                       ? 'bg-indigo-50 dark:bg-indigo-950/80 border-indigo-400 text-indigo-700 dark:text-indigo-300 font-bold'
                       : 'border-gray-200 dark:border-zinc-800 hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-600 dark:text-zinc-400'
@@ -1326,7 +1326,7 @@ export const NewStudyLogModal: React.FC<NewStudyLogModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Chapters covered, practice exercises, key takeaways..."
-              className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 resize-none font-sans"
+              className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 resize-none font-sans"
             />
           </div>
 

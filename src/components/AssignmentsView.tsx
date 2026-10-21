@@ -107,10 +107,10 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
   };
 
   return (
-    <div className="flex-1 bg-gray-50 dark:bg-zinc-950 overflow-y-auto p-2.5 sm:p-3.5 space-y-3 sm:space-y-3.5 select-none relative transition-colors">
+    <div className="flex-1 bg-[#fdf9f4] dark:bg-[#09090b] text-[#2d2f34] dark:text-zinc-100 overflow-y-auto p-2.5 sm:p-4 space-y-4 select-none relative transition-colors">
       {/* Top Banner */}
-      <fieldset className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl p-3 text-xs shadow-sm">
-        <legend className="font-semibold text-neutral-800 dark:text-zinc-200 px-2 py-0.5 flex items-center gap-1.5 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-md text-[11px] shadow-2xs">
+      <fieldset className="border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md p-3.5 text-xs slite-shadow">
+        <legend className="font-semibold text-[#2d2f34] dark:text-zinc-200 px-2.5 py-0.5 flex items-center gap-1.5 bg-[#f9efe4] dark:bg-zinc-800 border border-[#ecedef] dark:border-zinc-700 rounded-md text-[11px]">
           <span className="material-symbols-outlined text-[14px] text-emerald-600 dark:text-emerald-400">
             fact_check
           </span>
@@ -119,11 +119,11 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-semibold text-neutral-700 dark:text-zinc-300">Filter By Type:</span>
+            <span className="font-semibold text-[#3f434a] dark:text-zinc-300">Filter By Type:</span>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="text-[11px] py-1 px-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-800 dark:text-zinc-200 focus:outline-none focus:border-indigo-500"
+              className="text-[11px] py-1 px-2.5 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4] dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-200 focus:outline-none focus:border-[#6366F1]"
             >
               <option value="all">All Items</option>
               <option value="Assignment">Assignments Only</option>
@@ -136,11 +136,9 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
 
           <Button
             onClick={handleOpenAddModal}
-            variant="compact"
-            size="sm"
-            className="text-indigo-600 dark:text-indigo-400 font-semibold"
+            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-medium rounded-md text-xs h-7 px-3.5 shadow-xs cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[13px]">add</span>
+            <span className="material-symbols-outlined text-[14px]">add</span>
             <span>Add Item</span>
           </Button>
         </div>
@@ -149,15 +147,15 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
       {/* Centered Modal Dialog for Adding Assignment / Exam */}
       {showAddForm && (
         <Dialog open={true} onOpenChange={(open) => { if (!open) setShowAddForm(false); }}>
-          <DialogContent className="max-w-lg max-h-[90vh] flex flex-col text-xs overflow-hidden">
-            <DialogHeader>
+          <DialogContent className="max-w-lg max-h-[90vh] flex flex-col text-xs overflow-hidden bg-white dark:bg-zinc-900 border border-[#ecedef] dark:border-zinc-800 rounded-md slite-shadow">
+            <DialogHeader className="border-b border-[#ecedef] dark:border-zinc-800 pb-3">
               <div className="flex items-center gap-2 min-w-0 pr-2">
-                <span className="material-symbols-outlined text-[18px] text-indigo-600 dark:text-indigo-400 shrink-0">
+                <span className="material-symbols-outlined text-[18px] text-[#6366F1] shrink-0">
                   edit_calendar
                 </span>
                 <div>
-                  <DialogTitle>Add Assignment or Exam</DialogTitle>
-                  <p className="text-[10px] font-normal text-slate-500 dark:text-zinc-400">
+                  <DialogTitle className="text-sm font-semibold text-[#2d2f34] dark:text-zinc-100">Add Assignment or Exam</DialogTitle>
+                  <p className="text-[10px] font-normal text-[#3f434a] dark:text-zinc-400">
                     Schedule coursework, midterms, or exam sessions
                   </p>
                 </div>
@@ -167,7 +165,7 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="w-7 h-7 text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200"
+                  className="w-7 h-7 text-[#3f434a] hover:text-[#2d2f34] dark:hover:text-zinc-200 rounded-md"
                 >
                   ✕
                 </Button>
@@ -176,8 +174,8 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
 
             <form onSubmit={handleCreateAssignment} className="p-4 space-y-3.5 overflow-y-auto flex-1">
               <div>
-                <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-zinc-300 block mb-1">
-                  Title <span className="text-red-500">*</span>
+                <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
+                  Title <span className="text-[#6366F1]">*</span>
                 </label>
                 <Input
                   type="text"
@@ -186,18 +184,19 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                   placeholder="Enter assignment or exam title"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
+                  className="rounded-md border-[#ecedef] dark:border-zinc-800 bg-[#fdf9f4]/50 dark:bg-zinc-950 focus:border-[#6366F1]"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-zinc-300 block mb-1">
+                  <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
                     Course
                   </label>
                   <select
                     value={newCourse}
                     onChange={(e) => setNewCourse(e.target.value)}
-                    className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                    className="w-full text-xs p-2 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4]/50 dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-100 focus:outline-none focus:border-[#6366F1]"
                   >
                     {courses.map((c) => (
                       <option key={c.id} value={c.title}>
@@ -208,7 +207,7 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-zinc-300 block mb-1">
+                  <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
                     Type
                   </label>
                   <select
@@ -216,7 +215,7 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                     onChange={(e) =>
                       setNewType(e.target.value as AssignmentItem['type'])
                     }
-                    className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 font-medium focus:outline-none focus:border-indigo-500"
+                    className="w-full text-xs p-2 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4]/50 dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-100 font-medium focus:outline-none focus:border-[#6366F1]"
                   >
                     <option value="Assignment">Assignment</option>
                     <option value="Midterm">Midterm</option>
@@ -229,20 +228,20 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
               </div>
 
               <div>
-                <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-zinc-300 block mb-1">
-                  Due Date <span className="text-red-500">*</span>
+                <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
+                  Due Date <span className="text-[#6366F1]">*</span>
                 </label>
                 <Input
                   type="date"
                   required
                   value={newDueDate}
                   onChange={(e) => setNewDueDate(e.target.value)}
-                  className="font-mono"
+                  className="font-mono rounded-md border-[#ecedef] dark:border-zinc-800 bg-[#fdf9f4]/50 dark:bg-zinc-950 focus:border-[#6366F1]"
                 />
               </div>
 
               <div>
-                <label className="text-xs sm:text-sm font-medium text-gray-700 dark:text-zinc-300 block mb-1">
+                <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
                   Notes
                 </label>
                 <textarea
@@ -250,22 +249,23 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                   placeholder="Notes, deliverables, or syllabus requirements..."
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
-                  className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 placeholder:text-neutral-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 resize-none"
+                  className="w-full text-xs p-2 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4]/50 dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-100 placeholder:text-neutral-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-[#6366F1] resize-none"
                 />
               </div>
 
               {/* Modal Footer Actions */}
-              <div className="flex justify-end items-center gap-2 pt-2 border-t border-gray-100 dark:border-zinc-800">
+              <div className="flex justify-end items-center gap-2 pt-2 border-t border-[#ecedef] dark:border-zinc-800">
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => setShowAddForm(false)}
+                  className="rounded-md border-[#ecedef] dark:border-zinc-800"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  variant="default"
+                  className="bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-md font-medium"
                 >
                   Save Item
                 </Button>
@@ -277,55 +277,55 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
 
       {/* Assignments & Exams Cards Board */}
       {filteredAssignments.length === 0 ? (
-        <div className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl shadow-sm p-8 text-center text-slate-500 dark:text-zinc-400">
-          <span className="material-symbols-outlined text-[36px] text-slate-300 dark:text-zinc-600 block mb-1.5">
+        <div className="border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md slite-shadow p-8 text-center text-[#3f434a] dark:text-zinc-400">
+          <span className="material-symbols-outlined text-[36px] text-zinc-300 dark:text-zinc-600 block mb-1.5">
             fact_check
           </span>
-          <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">No deliverables or exams recorded</p>
-          <p className="text-[11px] text-slate-500 dark:text-zinc-400 mt-0.5 mb-3">Keep track of your midterms, oral exams, projects, and deadlines.</p>
+          <p className="text-xs font-semibold text-[#2d2f34] dark:text-zinc-200">No deliverables or exams recorded</p>
+          <p className="text-[11px] text-[#3f434a] dark:text-zinc-400 mt-0.5 mb-3">Keep track of your midterms, oral exams, projects, and deadlines.</p>
           <Button
             onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-1"
+            className="inline-flex items-center gap-1 bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-md font-medium"
           >
             <span className="material-symbols-outlined text-[14px]">add</span>
             <span>Add First Assignment</span>
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {filteredAssignments.map((item) => {
             const daysLeft = calculateDaysLeft(item.dueDate);
 
             // Urgency countdown styling based on deadline proximity
             let countdownBadge = {
               text: daysLeft > 0 ? `In ${daysLeft}d` : daysLeft === 0 ? 'Due Today' : 'Overdue',
-              className: 'bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 font-medium',
+              className: 'bg-[#f9efe4] dark:bg-zinc-800 text-[#2d2f34] dark:text-zinc-300 border border-[#ecedef] dark:border-zinc-700 font-medium',
             };
 
             if (item.status === 'completed') {
               countdownBadge = {
                 text: 'Completed',
-                className: 'bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 font-bold',
+                className: 'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold',
               };
             } else if (item.status === 'submitted') {
               countdownBadge = {
                 text: 'Submitted',
-                className: 'bg-blue-100 dark:bg-blue-950/70 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-800 font-bold',
+                className: 'bg-[#f9efe4] dark:bg-zinc-800 text-[#2d2f34] dark:text-zinc-200 border border-[#ecedef] dark:border-zinc-700 font-bold',
               };
             } else if (daysLeft <= 0) {
               countdownBadge = {
                 text: daysLeft === 0 ? 'Due Today' : 'Overdue',
-                className: 'bg-red-100 dark:bg-red-950/80 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800 font-bold animate-pulse',
+                className: 'bg-[#6366F1]/15 dark:bg-red-950/80 text-[#6366F1] dark:text-red-300 border border-[#6366F1]/30 dark:border-red-800 font-bold animate-pulse',
               };
             } else if (daysLeft <= 7) {
               countdownBadge = {
                 text: `In ${daysLeft}d`,
-                className: 'bg-red-100 dark:bg-red-950/70 text-red-800 dark:text-red-300 border-red-300 dark:border-red-800 font-bold',
+                className: 'bg-[#6366F1]/15 dark:bg-red-950/70 text-[#6366F1] dark:text-red-300 border border-[#6366F1]/30 dark:border-red-800 font-bold',
               };
             } else if (daysLeft <= 14) {
               countdownBadge = {
                 text: `In ${daysLeft}d`,
-                className: 'bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800 font-bold',
+                className: 'bg-amber-100/70 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 font-bold',
               };
             }
 
@@ -333,18 +333,18 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
               item.status === 'completed'
                 ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
                 : item.status === 'submitted'
-                ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                ? 'bg-[#f9efe4] dark:bg-zinc-800 text-[#2d2f34] dark:text-zinc-200 border-[#ecedef] dark:border-zinc-700'
                 : item.status === 'in-progress'
                 ? 'bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                : 'bg-slate-50 dark:bg-zinc-800/60 text-slate-700 dark:text-zinc-300 border-gray-200 dark:border-zinc-700';
+                : 'bg-[#fdf9f4] dark:bg-zinc-800/60 text-[#3f434a] dark:text-zinc-300 border-[#ecedef] dark:border-zinc-700';
 
             return (
               <div
                 key={item.id}
-                className="border border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-lg shadow-2xs p-3 text-xs flex flex-col justify-between hover:shadow-sm dark:hover:border-zinc-700 transition-all"
+                className="border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md slite-shadow p-3.5 text-xs flex flex-col justify-between hover:border-[#6366F1]/40 dark:hover:border-zinc-700 transition-all"
               >
                 <div>
-                  <div className="flex items-start justify-between gap-2 pb-1 border-b border-gray-100 dark:border-zinc-800">
+                  <div className="flex items-start justify-between gap-2 pb-1.5 border-b border-[#ecedef] dark:border-zinc-800">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <button
                         type="button"
@@ -365,37 +365,37 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                           <Circle size={16} />
                         )}
                       </button>
-                      <span className={`font-bold text-[11px] leading-tight line-clamp-1 ${
-                        item.status === 'completed' ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-neutral-900 dark:text-zinc-100'
+                      <span className={`font-semibold text-[11px] leading-tight line-clamp-1 ${
+                        item.status === 'completed' ? 'line-through text-zinc-400 dark:text-zinc-500' : 'text-[#2d2f34] dark:text-zinc-100'
                       }`}>
                         {item.title}
                       </span>
                     </div>
                     <span
-                      className={`px-1.5 py-0.5 rounded border font-mono text-[9px] uppercase tracking-wide shrink-0 ${countdownBadge.className}`}
+                      className={`px-2 py-0.5 rounded-md font-mono text-[9px] uppercase tracking-wide shrink-0 ${countdownBadge.className}`}
                     >
                       {countdownBadge.text}
                     </span>
                   </div>
 
-                  <div className="text-[10px] text-neutral-600 dark:text-zinc-400 font-medium mt-1 truncate">
+                  <div className="text-[10px] text-[#3f434a] dark:text-zinc-400 font-medium mt-1.5 truncate">
                     {item.courseName}
                   </div>
 
                   {item.notes && (
-                    <div className="text-[10px] text-neutral-500 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-2">
+                    <div className="text-[10px] text-[#3f434a]/80 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-2">
                       {item.notes}
                     </div>
                   )}
                 </div>
 
-                <div className="mt-2 pt-1.5 border-t border-gray-100 dark:border-zinc-800 flex items-center justify-between text-[10px]">
-                  <div className="font-mono text-neutral-600 dark:text-zinc-400 flex items-center gap-1.5">
-                    <Badge variant="secondary" className="text-[9px] py-0 px-1 font-bold">
+                <div className="mt-2.5 pt-2 border-t border-[#ecedef] dark:border-zinc-800 flex items-center justify-between text-[10px]">
+                  <div className="font-mono text-[#3f434a] dark:text-zinc-400 flex items-center gap-1.5">
+                    <Badge variant="secondary" className="text-[9px] py-0 px-2 font-bold rounded-md bg-[#f9efe4] text-[#2d2f34]">
                       {item.type}
                     </Badge>
                     <span>•</span>
-                    <span className="text-[10px] text-neutral-500 dark:text-zinc-400 font-mono">
+                    <span className="text-[10px] text-[#3f434a] dark:text-zinc-400 font-mono">
                       Due: {item.dueDate}
                     </span>
                   </div>
@@ -409,7 +409,7 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                           e.target.value as AssignmentItem['status']
                         )
                       }
-                      className={`py-0.5 px-1.5 border rounded text-[10px] font-semibold cursor-pointer focus:outline-none ${statusColor}`}
+                      className={`py-0.5 px-2 border rounded-md text-[10px] font-semibold cursor-pointer focus:outline-none ${statusColor}`}
                     >
                       <option value="todo">To Do</option>
                       <option value="in-progress">In Progress</option>
@@ -419,7 +419,7 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
 
                     <button
                       onClick={() => onDeleteAssignment(item.id)}
-                      className="px-2 py-0.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-red-600 dark:text-red-400 text-[10px] hover:bg-red-50 dark:hover:bg-red-950/40 hover:border-red-200 dark:hover:border-red-900 active:scale-[0.98] transition-all cursor-pointer"
+                      className="px-2 py-0.5 rounded-md border border-[#ecedef] dark:border-zinc-800 bg-[#fdf9f4] dark:bg-zinc-900 text-red-600 dark:text-red-400 text-[10px] hover:bg-red-50 dark:hover:bg-red-950/40 hover:border-red-200 dark:hover:border-red-900 active:scale-[0.98] transition-all cursor-pointer"
                       title="Delete item"
                     >
                       ✕

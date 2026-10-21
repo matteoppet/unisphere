@@ -69,33 +69,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const renderContent = () => (
-    <div className="flex flex-col h-full justify-between bg-white dark:bg-black text-zinc-900 dark:text-zinc-100 select-none">
+    <div className="flex flex-col h-full justify-between bg-[#fdf9f4] dark:bg-[#09090b] text-[#2d2f34] dark:text-zinc-100 select-none">
       <div className="flex flex-col overflow-y-auto">
-        {/* Brand Header matching sketch: Explorer */}
-        <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-900">
+        {/* Brand Header: Workspace Explorer */}
+        <div className="p-3.5 pb-2.5 flex items-center justify-between border-b border-[#ecedef] dark:border-zinc-900">
           <div className="min-w-0">
             {/* Mobile View */}
-            <div className="flex md:hidden items-center gap-2 min-w-0">
-              <div className="w-6 h-6 rounded-lg bg-[#3B77BC] text-white flex items-center justify-center shrink-0 shadow-2xs">
-                <span className="material-symbols-outlined text-[15px]">school</span>
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100 tracking-tight leading-none truncate">
-                  Explorer
-                </span>
-              </div>
+            <div className="flex md:hidden items-center min-w-0">
+              <span className="font-semibold text-xs text-[#2d2f34] dark:text-zinc-100 tracking-tight leading-none truncate">
+                Workspace Explorer
+              </span>
             </div>
 
             {/* Desktop View: Explorer */}
-            <div className="hidden md:block font-bold text-sm text-zinc-900 dark:text-zinc-100 tracking-tight leading-tight truncate">
-              Explorer
+            <div className="hidden md:flex items-center">
+              <span className="font-semibold text-xs text-[#3f434a] dark:text-zinc-400">
+                Workspace Explorer
+              </span>
             </div>
           </div>
 
           {onCloseMobile && (
             <button
               onClick={onCloseMobile}
-              className="md:hidden p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 rounded cursor-pointer transition-colors"
+              className="md:hidden p-1 text-[#3f434a] hover:text-[#2d2f34] dark:text-zinc-400 dark:hover:text-zinc-200 rounded cursor-pointer transition-colors"
               aria-label="Close drawer"
             >
               <span className="material-symbols-outlined text-[18px]">close</span>
@@ -103,8 +100,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Section 1: Main Components Navigation */}
-        <div className="p-2.5 space-y-1 font-sans">
+        {/* Section 1: Main Components Navigation with Slite Ghost Buttons */}
+        <div className="p-3 space-y-1 font-sans">
           {mainNavItems.map((item) => {
             const isActive =
               currentView === item.id ||
@@ -115,52 +112,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 key={item.id}
                 type="button"
                 onClick={() => handleNavClick(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 group cursor-pointer ${
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-all duration-150 group cursor-pointer ${
                   isActive
-                    ? 'bg-zinc-900 text-white dark:bg-zinc-800 dark:text-zinc-100 shadow-2xs border border-zinc-800 dark:border-zinc-700 font-semibold'
-                    : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900 dark:hover:border-zinc-800/80 border border-transparent active:scale-[0.99]'
+                    ? 'bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 border border-[#ecedef] dark:border-zinc-800 font-semibold slite-shadow'
+                    : 'text-[#3f434a] dark:text-zinc-400 hover:text-[#2d2f34] dark:hover:text-zinc-100 hover:bg-white/70 dark:hover:bg-zinc-900/60 border border-transparent'
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0 truncate">
                   <span
-                    className={`shrink-0 inline-flex items-center transition-transform duration-200 group-hover:scale-110 ${
-                      isActive ? item.activeColor : item.color
+                    className={`shrink-0 inline-flex items-center transition-colors duration-150 ${
+                      isActive ? 'text-[#6366F1]' : 'text-[#3f434a] dark:text-zinc-400 group-hover:text-[#2d2f34]'
                     }`}
                   >
-                    <IconComponent size={18} />
+                    <IconComponent size={16} />
                   </span>
                   <span className="truncate">{item.label}</span>
                 </div>
                 {isActive && (
-                  <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0 shadow-xs ring-2 ring-blue-500/20" title="Active View" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1] shrink-0" title="Active View" />
                 )}
               </button>
             );
           })}
 
-          {/* Separator before Settings as in sketch */}
-          <div className="pt-3 pb-1">
-            <div className="border-t border-zinc-200 dark:border-zinc-800" />
+          {/* Separator */}
+          <div className="pt-2 pb-1">
+            <div className="border-t border-[#ecedef] dark:border-zinc-800" />
           </div>
 
           {/* Settings Nav Item */}
           <button
             type="button"
             onClick={() => handleNavClick('settings')}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 group cursor-pointer ${
+            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-all duration-150 group cursor-pointer ${
               currentView === 'settings'
-                ? 'bg-zinc-900 text-white dark:bg-zinc-800 dark:text-zinc-100 shadow-2xs border border-zinc-800 dark:border-zinc-700 font-semibold'
-                : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900 dark:hover:border-zinc-800/80 border border-transparent active:scale-[0.99]'
+                ? 'bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 border border-[#ecedef] dark:border-zinc-800 font-semibold slite-shadow'
+                : 'text-[#3f434a] dark:text-zinc-400 hover:text-[#2d2f34] dark:hover:text-zinc-100 hover:bg-white/70 dark:hover:bg-zinc-900/60 border border-transparent'
             }`}
           >
             <div className="flex items-center gap-2.5 min-w-0 truncate">
-              <span className={`shrink-0 inline-flex items-center transition-transform duration-200 group-hover:scale-110 ${currentView === 'settings' ? 'text-[#8CA3BA]' : 'text-[#5A738E]'}`}>
-                <SettingsIcon size={18} />
+              <span className={`shrink-0 inline-flex items-center transition-colors duration-150 ${currentView === 'settings' ? 'text-[#6366F1]' : 'text-[#3f434a] dark:text-zinc-400 group-hover:text-[#2d2f34]'}`}>
+                <SettingsIcon size={16} />
               </span>
               <span className="truncate">Settings</span>
             </div>
             {currentView === 'settings' && (
-              <span className="w-2 h-2 rounded-full bg-blue-600 dark:bg-blue-400 shrink-0 shadow-xs ring-2 ring-blue-500/20" title="Active View" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1] shrink-0" title="Active View" />
             )}
           </button>
         </div>
@@ -171,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden md:flex w-64 border-r border-zinc-200 dark:border-zinc-800/80 flex-col shrink-0 h-full">
+      <aside className="hidden md:flex w-60 border-r border-[#ecedef] dark:border-zinc-800/80 flex-col shrink-0 h-full bg-[#fdf9f4] dark:bg-[#09090b]">
         {renderContent()}
       </aside>
 
@@ -179,11 +176,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden flex">
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobile}
             aria-hidden="true"
           />
-          <div className="relative w-64 max-w-[85vw] h-full shadow-2xl z-10 border-r border-zinc-200 dark:border-zinc-800 animate-slide-right">
+          <div className="relative w-64 max-w-[85vw] h-full slite-shadow z-10 border-r border-[#ecedef] dark:border-zinc-800 animate-slide-right bg-[#fdf9f4]">
             {renderContent()}
           </div>
         </div>

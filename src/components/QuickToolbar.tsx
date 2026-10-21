@@ -2,8 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Course, AssignmentItem, StudyLog, NavView, StudentProfile } from '../types';
 import { Button } from './ui/button';
 import { playClickBeep, isAudioMuted, toggleAudioMuted } from '../utils/audio';
-import { calculateLevel } from '../utils/telemetry';
-import { Volume2, VolumeX, Flame, Zap } from 'lucide-react';
+import { Volume2, VolumeX, Flame } from 'lucide-react';
 
 interface QuickToolbarProps {
   profile?: StudentProfile;
@@ -59,8 +58,6 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
       playClickBeep();
     }
   };
-
-  const levelInfo = calculateLevel(profile?.xp || 0);
 
   // Global hotkey: Ctrl+K or Cmd+K focuses search
   useEffect(() => {
@@ -161,7 +158,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
   };
 
   return (
-    <header className="bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border-b border-zinc-200/90 dark:border-zinc-800 px-3 sm:px-4 py-2 flex items-center justify-between gap-3 select-none shadow-2xs z-30 transition-colors">
+    <header className="bg-[#fdf9f4] dark:bg-[#09090b] border-b border-[#ecedef] dark:border-zinc-800 px-3 sm:px-4 py-2 flex items-center justify-between gap-3 select-none z-30 transition-colors">
       {/* Left side: Light/Dark Toggle & Navigation actions */}
       <div className="flex items-center gap-2 shrink-0">
         {onToggleMobileMenu && (
@@ -169,7 +166,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
             variant="ghost"
             size="icon"
             onClick={onToggleMobileMenu}
-            className="md:hidden p-1.5 -ml-1 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-lg"
+            className="md:hidden p-1.5 -ml-1 text-[#3f434a] hover:text-[#2d2f34] dark:text-zinc-300 dark:hover:text-zinc-100 rounded-md"
             title="Open navigation menu"
             aria-label="Open navigation menu"
           >
@@ -177,17 +174,17 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
           </Button>
         )}
 
-        {/* Light/Dark Theme Switcher as shown on top-left of sketch (sm+ only, mobile has icon button) */}
+        {/* Light/Dark Theme Switcher */}
         {onToggleTheme && (
           <Button
             variant="outline"
             size="sm"
             onClick={onToggleTheme}
-            title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+            title={isDark ? 'Switch to Light Slite Theme' : 'Switch to Dark Obsidian Theme'}
             aria-label="Toggle theme"
-            className="hidden sm:inline-flex gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer transition-all shadow-2xs group"
+            className="hidden sm:inline-flex gap-1.5 px-3 py-1 text-xs font-semibold rounded-md border-[#ecedef] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-200 hover:bg-[#f9efe4] dark:hover:bg-zinc-800 cursor-pointer transition-all slite-shadow group"
           >
-            <span className="material-symbols-outlined text-[15px] text-amber-500 dark:text-amber-400 transition-transform duration-300 group-hover:rotate-45">
+            <span className="material-symbols-outlined text-[15px] text-[#6366F1] transition-transform duration-300 group-hover:rotate-45">
               {isDark ? 'light_mode' : 'dark_mode'}
             </span>
             <span>{isDark ? 'Light' : 'Dark'}</span>
@@ -200,9 +197,9 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
           size="sm"
           onClick={onExport}
           title="Export CSV / JSON Report"
-          className="hidden lg:inline-flex gap-1.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 text-xs font-medium"
+          className="hidden lg:inline-flex gap-1.5 text-[#3f434a] hover:text-[#2d2f34] dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-[#f9efe4] text-xs font-medium rounded-md px-3"
         >
-          <span className="material-symbols-outlined text-[15px] text-amber-600 dark:text-amber-400">
+          <span className="material-symbols-outlined text-[15px] text-[#6366F1]">
             save
           </span>
           <span>Export</span>
@@ -212,7 +209,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
       {/* Center: Global Search Bar */}
       <div ref={containerRef} className="flex-1 sm:max-w-md lg:max-w-lg mx-1 sm:mx-3 relative">
         <div className="relative flex items-center">
-          <span className="material-symbols-outlined text-[15px] text-zinc-400 dark:text-zinc-500 absolute left-2.5 pointer-events-none">
+          <span className="material-symbols-outlined text-[15px] text-[#3f434a]/60 dark:text-zinc-500 absolute left-3 pointer-events-none">
             search
           </span>
           <input
@@ -225,7 +222,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
             }}
             onFocus={() => setIsOpen(true)}
             placeholder={window.innerWidth < 640 ? "Search..." : "Search courses, tasks, study logs..."}
-            className="w-full h-7.5 sm:h-8 pl-7 sm:pl-8 pr-6 sm:pr-8 text-[11px] sm:text-xs rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/90 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:bg-white dark:focus:bg-zinc-900 focus:ring-1 focus:ring-indigo-500/20 transition-all"
+            className="w-full h-8 pl-8.5 pr-7 text-[11px] sm:text-xs rounded-md border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 placeholder:text-[#3f434a]/60 dark:placeholder:text-zinc-500 focus:outline-none focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]/30 transition-all slite-shadow"
           />
           {query && (
             <button
@@ -234,7 +231,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
                 setQuery('');
                 searchInputRef.current?.focus();
               }}
-              className="absolute right-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer"
+              className="absolute right-2.5 text-[#3f434a] hover:text-[#2d2f34] dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer"
               title="Clear search"
             >
               <span className="material-symbols-outlined text-[14px]">close</span>
@@ -244,16 +241,16 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
 
         {/* Global Search Results Dropdown */}
         {isOpen && (
-          <div className="absolute top-full left-0 right-0 mt-1.5 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden text-xs max-h-[75vh] flex flex-col animate-in fade-in slide-in-from-top-1 duration-150">
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-zinc-900 border border-[#ecedef] dark:border-zinc-800 rounded-md slite-shadow z-50 overflow-hidden text-xs max-h-[75vh] flex flex-col animate-in fade-in duration-150">
             {/* Filter Pills Header */}
-            <div className="p-2 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/70 dark:bg-zinc-900/70 flex items-center gap-1 overflow-x-auto text-[11px] shrink-0">
+            <div className="p-2 border-b border-[#ecedef] dark:border-zinc-800/80 bg-[#fdf9f4] dark:bg-zinc-900 flex items-center gap-1.5 overflow-x-auto text-[11px] shrink-0">
               <button
                 type="button"
                 onClick={() => setCategoryFilter('all')}
-                className={`px-2 py-0.5 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap text-xs ${
                   categoryFilter === 'all'
-                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-2xs'
-                    : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800'
+                    ? 'bg-[#6366F1] text-white font-semibold'
+                    : 'bg-[#f9efe4] dark:bg-zinc-800 text-[#2d2f34] dark:text-zinc-300 hover:bg-[#ebdccf]'
                 }`}
               >
                 All ({filteredCourses.length + filteredAssignments.length + filteredLogs.length})
@@ -261,10 +258,10 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
               <button
                 type="button"
                 onClick={() => setCategoryFilter('courses')}
-                className={`px-2 py-0.5 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 text-xs ${
                   categoryFilter === 'courses'
-                    ? 'bg-blue-600 text-white font-semibold shadow-2xs'
-                    : 'text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
+                    ? 'bg-[#6366F1] text-white font-semibold'
+                    : 'bg-[#f9efe4] dark:bg-zinc-800 text-[#2d2f34] dark:text-zinc-300 hover:bg-[#ebdccf]'
                 }`}
               >
                 <span>Courses</span>
@@ -273,10 +270,10 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
               <button
                 type="button"
                 onClick={() => setCategoryFilter('assignments')}
-                className={`px-2 py-0.5 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 text-xs ${
                   categoryFilter === 'assignments'
-                    ? 'bg-emerald-600 text-white font-semibold shadow-2xs'
-                    : 'text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
+                    ? 'bg-[#6366F1] text-white font-semibold'
+                    : 'bg-[#f9efe4] dark:bg-zinc-800 text-[#2d2f34] dark:text-zinc-300 hover:bg-[#ebdccf]'
                 }`}
               >
                 <span>Assignments</span>
@@ -285,10 +282,10 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
               <button
                 type="button"
                 onClick={() => setCategoryFilter('logs')}
-                className={`px-2 py-0.5 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 ${
+                className={`px-3 py-1 rounded-md font-medium transition-colors cursor-pointer whitespace-nowrap flex items-center gap-1 text-xs ${
                   categoryFilter === 'logs'
-                    ? 'bg-amber-600 text-white font-semibold shadow-2xs'
-                    : 'text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                    ? 'bg-[#6366F1] text-white font-semibold'
+                    : 'bg-[#f9efe4] dark:bg-zinc-800 text-[#2d2f34] dark:text-zinc-300 hover:bg-[#ebdccf]'
                 }`}
               >
                 <span>Study Logs</span>
@@ -327,7 +324,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
                           <div
                             key={c.id}
                             onClick={() => handleSelectCourse(c)}
-                            className="p-2 rounded-lg hover:bg-blue-50/70 dark:hover:bg-blue-950/30 border border-transparent hover:border-blue-200/60 dark:hover:border-blue-900/50 flex items-center justify-between gap-2 transition-all cursor-pointer group"
+                            className="p-2 rounded-md hover:bg-blue-50/70 dark:hover:bg-blue-950/30 border border-transparent hover:border-blue-200/60 dark:hover:border-blue-900/50 flex items-center justify-between gap-2 transition-all cursor-pointer group"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className="w-7 h-7 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
@@ -383,7 +380,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
                           <div
                             key={a.id}
                             onClick={() => handleSelectAssignment(a)}
-                            className="p-2 rounded-lg hover:bg-emerald-50/70 dark:hover:bg-emerald-950/30 border border-transparent hover:border-emerald-200/60 dark:hover:border-emerald-900/50 flex items-center justify-between gap-2 transition-all cursor-pointer group"
+                            className="p-2 rounded-md hover:bg-emerald-50/70 dark:hover:bg-emerald-950/30 border border-transparent hover:border-emerald-200/60 dark:hover:border-emerald-900/50 flex items-center justify-between gap-2 transition-all cursor-pointer group"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className="w-7 h-7 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
@@ -431,7 +428,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
                           <div
                             key={l.id}
                             onClick={() => handleSelectLog(l)}
-                            className="p-2 rounded-lg hover:bg-amber-50/70 dark:hover:bg-amber-950/30 border border-transparent hover:border-amber-200/60 dark:hover:border-amber-900/50 flex items-center justify-between gap-2 transition-all cursor-pointer group"
+                            className="p-2 rounded-md hover:bg-amber-50/70 dark:hover:bg-amber-950/30 border border-transparent hover:border-amber-200/60 dark:hover:border-amber-900/50 flex items-center justify-between gap-2 transition-all cursor-pointer group"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <div className="w-7 h-7 rounded-md bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -477,59 +474,56 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
 
       {/* Right side: Mobile Quick Buttons & Desktop User / Sign Out */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* Academic Telemetry Level & XP Indicator */}
-        <div 
-          className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-700 dark:text-zinc-300 select-none cursor-default"
-          title={`Academic Level ${levelInfo.level} • ${levelInfo.safeXp} XP (${levelInfo.progressPercent}% towards Level ${levelInfo.level + 1})`}
-        >
-          <Zap size={13} className="text-amber-500 fill-amber-500 shrink-0" />
-          <span className="font-semibold font-mono text-[11px] tracking-tight text-zinc-900 dark:text-zinc-100">
-            Lv.{levelInfo.level}
-          </span>
-          {typeof profile?.currentStreak === 'number' && profile.currentStreak > 0 && (
-            <span className="flex items-center gap-0.5 text-orange-500 font-mono text-[11px] font-semibold pl-1 border-l border-zinc-300 dark:border-zinc-700">
-              <Flame size={12} className="fill-orange-500 shrink-0" />
-              <span>{profile.currentStreak}d</span>
+        {/* Streak indicator if active */}
+        {typeof profile?.currentStreak === 'number' && profile.currentStreak > 0 && (
+          <div 
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#f9efe4] dark:bg-zinc-900 border border-[#ecedef] dark:border-zinc-800 text-xs select-none cursor-default"
+            title={`${profile.currentStreak} Day Study Streak`}
+          >
+            <Flame size={13} className="fill-[#6366F1] text-[#6366F1] shrink-0" />
+            <span className="font-semibold font-mono text-[11px] text-[#2d2f34] dark:text-zinc-100">
+              {profile.currentStreak}d streak
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Audio Sensory Toggle */}
         <button
           type="button"
           onClick={handleToggleAudio}
-          className={`h-7 w-7 rounded-md flex items-center justify-center transition-colors cursor-pointer border ${
+          className={`h-7.5 w-7.5 rounded-md flex items-center justify-center transition-colors cursor-pointer border ${
             audioMuted
-              ? 'bg-zinc-100 dark:bg-zinc-900 text-zinc-400 dark:text-zinc-500 border-zinc-200 dark:border-zinc-800 hover:text-zinc-700 dark:hover:text-zinc-300'
-              : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 shadow-2xs'
+              ? 'bg-white dark:bg-zinc-900 text-[#3f434a]/60 dark:text-zinc-500 border-[#ecedef] dark:border-zinc-800 hover:text-[#2d2f34]'
+              : 'bg-[#f9efe4] dark:bg-zinc-800 text-[#6366F1] border-[#ecedef] dark:border-zinc-700 hover:bg-[#ebdccf]'
           }`}
           title={audioMuted ? 'Tactile Audio Muted. Click to enable sound effects.' : 'Tactile Audio Active. Click to mute.'}
           aria-label={audioMuted ? 'Unmute sensory audio' : 'Mute sensory audio'}
         >
           {audioMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
         </button>
+
         {onToggleTheme && (
           <Button
             variant="ghost"
             size="icon"
             onClick={onToggleTheme}
-            className="sm:hidden h-7 w-7 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center justify-center p-0 rounded-md"
+            className="sm:hidden h-7.5 w-7.5 text-[#3f434a] hover:text-[#2d2f34] dark:text-zinc-300 dark:hover:text-zinc-100 flex items-center justify-center p-0 rounded-md"
             title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
             aria-label="Toggle theme"
           >
-            <span className="material-symbols-outlined text-[17px] text-amber-500 dark:text-amber-400">
+            <span className="material-symbols-outlined text-[17px] text-[#6366F1]">
               {isDark ? 'light_mode' : 'dark_mode'}
             </span>
           </Button>
         )}
 
-        {/* Log-Out Button matching sketch - icon-only on small mobile to prevent right clipping */}
+        {/* Log-Out Button */}
         {onSignOut && (
           <Button
             variant="outline"
             size="sm"
             onClick={onSignOut}
-            className="h-7 w-7 sm:w-auto sm:h-8 p-0 sm:px-3 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-700 dark:hover:text-rose-300 border-rose-200 dark:border-rose-900/60 text-xs font-semibold sm:gap-1.5 cursor-pointer shadow-2xs shrink-0"
+            className="h-7.5 sm:h-8 p-0 sm:px-3.5 flex items-center justify-center text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-900/60 text-xs font-semibold sm:gap-1.5 cursor-pointer rounded-md shrink-0"
             title="Sign Out / Switch Student Account"
             aria-label="Log-Out"
           >

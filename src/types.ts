@@ -221,6 +221,28 @@ export interface LootDropReward {
   description: string;
 }
 
+export type ResourceCategory =
+  | 'Portal'
+  | 'Course Material'
+  | 'Library'
+  | 'Drive'
+  | 'Schedule'
+  | 'Tools'
+  | 'Other';
+
+export interface ResourceLink {
+  id: string;
+  title: string;
+  url: string;
+  category: ResourceCategory;
+  courseName?: string;
+  notes?: string;
+  isPinned?: boolean;
+  createdAt: number;
+}
+
+export const INITIAL_RESOURCE_LINKS: ResourceLink[] = [];
+
 export const INITIAL_COURSES: Course[] = [];
 export const INITIAL_STUDY_LOGS: StudyLog[] = [];
 export const INITIAL_SCHEDULE_EVENTS: ScheduleEvent[] = [];
