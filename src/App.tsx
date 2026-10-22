@@ -19,8 +19,9 @@ import {
 } from './types';
 import { playClickBeep } from './utils/audio';
 import { auth, db } from './lib/firebase';
-import { signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getEmailDocId } from './lib/authService';
 
 import { QuickToolbar } from './components/QuickToolbar';
 import { Sidebar } from './components/Sidebar';
@@ -154,6 +155,14 @@ export default function App() {
   const [showExportModal, setShowExportModal] = useState(false);
 
   // --- Authentication Session State ---
+  const [sessionEmail, setSessionEmail] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(`${STORAGE_KEY}_session_email`);
+    } catch {
+      return null;
+    }
+  });
+
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
       return Boolean(localStorage.getItem(`${STORAGE_KEY}_session_email`));
@@ -162,56 +171,179 @@ export default function App() {
     }
   });
 
-  // Restore & sync session from Firestore on startup
-  useEffect(() => {
-    let activeEmail: string | null = null;
-    try {
-      activeEmail = localStorage.getItem(`${STORAGE_KEY}_session_email`);
-    } catch {}
+  // Track remote update execution and local write timestamp to eliminate infinite echo loops
+  const isApplyingRemoteUpdateRef = useRef(false);
+  const lastLocalSaveTimestampRef = useRef<number>(0);
 
-    if (activeEmail) {
-      setIsAuthenticated(true);
-      const docId = activeEmail.trim().toLowerCase().replace(/\//g, '_');
-      getDoc(doc(db, 'users', docId))
-        .then((userSnap) => {
-          if (userSnap.exists()) {
-            const data = userSnap.data();
-            if (data) {
-              setProfile((prev) => ({
-                ...prev,
-                name: data.name || prev.name,
-                studentId: data.studentId || prev.studentId,
-                email: data.email || prev.email,
-                degreeLevel: data.degreeLevel || prev.degreeLevel,
-                degreeName: data.degreeName || prev.degreeName,
-                degreeType: data.degreeType || prev.degreeType,
-                totalTargetCFU: data.totalTargetCFU || prev.totalTargetCFU,
-                enrolledYear: data.enrolledYear || prev.enrolledYear,
-                academicYear: data.academicYear || prev.academicYear,
-                institution: data.institution || prev.institution,
-                status: data.status || prev.status,
-                activeSquadId: data.activeSquadId || prev.activeSquadId,
-                squadIds: Array.isArray(data.squadIds) ? data.squadIds : prev.squadIds,
-              }));
+  // Sync session with Firebase Auth state
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user?.email) {
+        const cleanEmail = user.email.trim().toLowerCase();
+        setSessionEmail(cleanEmail);
+        setIsAuthenticated(true);
+        try {
+          localStorage.setItem(`${STORAGE_KEY}_session_email`, cleanEmail);
+        } catch {}
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Real-time bidirectional synchronization with Firestore across all devices
+  useEffect(() => {
+    const targetEmail = sessionEmail || profile.email;
+    if (!isAuthenticated || !targetEmail) return;
+
+    const docId = getEmailDocId(targetEmail);
+    const userRef = doc(db, 'users', docId);
+
+    const unsubscribe = onSnapshot(
+      userRef,
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        // Skip optimistic local writes that haven't been committed by the server yet
+        if (snapshot.metadata.hasPendingWrites) {
+          return;
+        }
+
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          if (!data) return;
+
+          // Check if this update originated from our own client write or is older
+          const remoteTime =
+            typeof data.updatedAt === 'number'
+              ? data.updatedAt
+              : data.updatedAt
+              ? new Date(data.updatedAt).getTime()
+              : 0;
+
+          if (
+            remoteTime &&
+            lastLocalSaveTimestampRef.current &&
+            remoteTime <= lastLocalSaveTimestampRef.current
+          ) {
+            return;
+          }
+
+          // Mark that we are applying remote updates to prevent triggering the auto-save loop
+          isApplyingRemoteUpdateRef.current = true;
+
+          setProfile((prev) => ({
+            ...prev,
+            name: data.name ?? prev.name,
+            studentId: data.studentId ?? prev.studentId,
+            email: data.email ?? prev.email,
+            degreeLevel: data.degreeLevel ?? prev.degreeLevel,
+            degreeName: data.degreeName ?? prev.degreeName,
+            degreeType: data.degreeType ?? prev.degreeType,
+            totalTargetCFU: data.totalTargetCFU ?? prev.totalTargetCFU,
+            enrolledYear: data.enrolledYear ?? prev.enrolledYear,
+            academicYear: data.academicYear ?? prev.academicYear,
+            institution: data.institution ?? prev.institution,
+            status: data.status ?? prev.status,
+            activeSquadId: data.activeSquadId ?? prev.activeSquadId,
+            squadIds: Array.isArray(data.squadIds) ? data.squadIds : prev.squadIds,
+            xp: typeof data.xp === 'number' ? data.xp : prev.xp,
+            currentStreak: typeof data.currentStreak === 'number' ? data.currentStreak : prev.currentStreak,
+            minutesStudiedThisWeek:
+              typeof data.minutesStudiedThisWeek === 'number'
+                ? data.minutesStudiedThisWeek
+                : prev.minutesStudiedThisWeek,
+            tasksCompletedThisWeek:
+              typeof data.tasksCompletedThisWeek === 'number'
+                ? data.tasksCompletedThisWeek
+                : prev.tasksCompletedThisWeek,
+            lastActiveDate: data.lastActiveDate ?? prev.lastActiveDate,
+          }));
+
+          if (Array.isArray(data.courses)) setCourses(data.courses);
+          if (Array.isArray(data.studyLogs)) setStudyLogs(data.studyLogs);
+          if (Array.isArray(data.assignments)) setAssignments(data.assignments);
+          if (typeof data.quickNotes === 'string') setQuickNotes(data.quickNotes);
+          if (Array.isArray(data.resourceLinks)) {
+            const cleaned = data.resourceLinks.filter(
+              (r: ResourceLink) =>
+                !['res-1', 'res-2', 'res-3', 'res-4'].includes(r.id) &&
+                !r.url?.includes('unirand.it')
+            );
+            setResourceLinks(cleaned);
+          }
+
+          // Release the lock after state flushes
+          setTimeout(() => {
+            isApplyingRemoteUpdateRef.current = false;
+          }, 150);
+        }
+      },
+      (err) => {
+        console.warn('Real-time sync listener notice:', err);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [sessionEmail, profile.email, isAuthenticated]);
+
+  // Handle mobile and tablet wake-up / tab return to ensure instant state sync
+  useEffect(() => {
+    const handleWakeUp = () => {
+      if (document.visibilityState === 'visible' && isAuthenticated) {
+        const targetEmail = sessionEmail || profile.email;
+        if (!targetEmail) return;
+        const docId = getEmailDocId(targetEmail);
+        getDoc(doc(db, 'users', docId))
+          .then((snap) => {
+            if (snap.exists()) {
+              const data = snap.data();
+              if (!data) return;
+              const remoteTime =
+                typeof data.updatedAt === 'number'
+                  ? data.updatedAt
+                  : data.updatedAt
+                  ? new Date(data.updatedAt).getTime()
+                  : 0;
+
+              if (
+                remoteTime &&
+                lastLocalSaveTimestampRef.current &&
+                remoteTime <= lastLocalSaveTimestampRef.current
+              ) {
+                return;
+              }
+
+              isApplyingRemoteUpdateRef.current = true;
               if (Array.isArray(data.courses)) setCourses(data.courses);
               if (Array.isArray(data.studyLogs)) setStudyLogs(data.studyLogs);
               if (Array.isArray(data.assignments)) setAssignments(data.assignments);
+              if (typeof data.quickNotes === 'string') setQuickNotes(data.quickNotes);
               if (Array.isArray(data.resourceLinks)) {
-                const cleaned = data.resourceLinks.filter(
-                  (r: ResourceLink) =>
-                    !['res-1', 'res-2', 'res-3', 'res-4'].includes(r.id) &&
-                    !r.url?.includes('unirand.it')
+                setResourceLinks(
+                  data.resourceLinks.filter(
+                    (r: ResourceLink) =>
+                      !['res-1', 'res-2', 'res-3', 'res-4'].includes(r.id) &&
+                      !r.url?.includes('unirand.it')
+                  )
                 );
-                setResourceLinks(cleaned);
               }
+              setTimeout(() => {
+                isApplyingRemoteUpdateRef.current = false;
+              }, 150);
             }
-          }
-        })
-        .catch((err) => {
-          console.warn('Initial multi-device sync notice', err);
-        });
-    }
-  }, []);
+          })
+          .catch((err) => console.warn('Wake-up catchup sync notice:', err));
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleWakeUp);
+    window.addEventListener('focus', handleWakeUp);
+    return () => {
+      document.removeEventListener('visibilitychange', handleWakeUp);
+      window.removeEventListener('focus', handleWakeUp);
+    };
+  }, [sessionEmail, profile.email, isAuthenticated]);
 
   // Ensure target CFU is synced to 180 if current session is set to legacy 120
   useEffect(() => {
@@ -239,6 +371,13 @@ export default function App() {
       resourceLinks?: ResourceLink[];
     }
   ) => {
+    const email = newProfile.email?.toLowerCase().trim() || null;
+    if (email) {
+      setSessionEmail(email);
+      try {
+        localStorage.setItem(`${STORAGE_KEY}_session_email`, email);
+      } catch {}
+    }
     setProfile(newProfile);
     if (cloudData) {
       if (Array.isArray(cloudData.courses)) setCourses(cloudData.courses);
@@ -256,9 +395,6 @@ export default function App() {
     }
     setIsAuthenticated(true);
     try {
-      if (newProfile.email) {
-        localStorage.setItem(`${STORAGE_KEY}_session_email`, newProfile.email.toLowerCase().trim());
-      }
       localStorage.setItem(`${STORAGE_KEY}_profile`, JSON.stringify(newProfile));
       if (cloudData?.courses) localStorage.setItem(`${STORAGE_KEY}_courses`, JSON.stringify(cloudData.courses));
       if (cloudData?.studyLogs) localStorage.setItem(`${STORAGE_KEY}_logs`, JSON.stringify(cloudData.studyLogs));
@@ -280,6 +416,7 @@ export default function App() {
     try {
       localStorage.removeItem(`${STORAGE_KEY}_session_email`);
     } catch {}
+    setSessionEmail(null);
     setIsAuthenticated(false);
     setStatusMessage('Session terminated');
   };
@@ -298,47 +435,79 @@ export default function App() {
     }
   }, [profile, courses, studyLogs, assignments, quickNotes, resourceLinks]);
 
-  // Synchronize student workstation changes to Firestore for multi-device sync
-  useEffect(() => {
-    if (!isAuthenticated || !profile.email) return;
-    const currentEmail = profile.email;
+  // Fast direct push helper to broadcast changes to Firestore instantly
+  const pushWorkstationToCloud = async (overrides?: {
+    courses?: Course[];
+    studyLogs?: StudyLog[];
+    assignments?: AssignmentItem[];
+    quickNotes?: string;
+    resourceLinks?: ResourceLink[];
+    profile?: StudentProfile;
+  }) => {
+    const targetEmail = sessionEmail || profile.email;
+    if (!isAuthenticated || !targetEmail) return;
 
-    const timer = setTimeout(async () => {
-      try {
-        const docId = currentEmail.toLowerCase().trim().replace(/\//g, '_');
-        const userRef = doc(db, 'users', docId);
-        await setDoc(
-          userRef,
-          {
-            name: profile.name,
-            studentId: profile.studentId,
-            email: currentEmail.toLowerCase().trim(),
-            degreeLevel: profile.degreeLevel,
-            degreeName: profile.degreeName,
-            degreeType: profile.degreeType,
-            totalTargetCFU: profile.totalTargetCFU,
-            enrolledYear: profile.enrolledYear,
-            academicYear: profile.academicYear,
-            institution: profile.institution,
-            status: profile.status,
-            courses,
-            studyLogs,
-            assignments,
-            quickNotes,
-            resourceLinks,
-            activeSquadId: profile.activeSquadId || null,
-            squadIds: profile.squadIds || [],
-            updatedAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-      } catch (err) {
-        console.warn('Multi-device cloud sync notice', err);
-      }
-    }, 1000);
+    const docId = getEmailDocId(targetEmail);
+    const now = Date.now();
+    lastLocalSaveTimestampRef.current = now;
+
+    const currentProfile = overrides?.profile || profile;
+    const currentCourses = overrides?.courses || courses;
+    const currentStudyLogs = overrides?.studyLogs || studyLogs;
+    const currentAssignments = overrides?.assignments || assignments;
+    const currentQuickNotes = overrides?.quickNotes !== undefined ? overrides.quickNotes : quickNotes;
+    const currentResourceLinks = overrides?.resourceLinks || resourceLinks;
+
+    try {
+      const userRef = doc(db, 'users', docId);
+      await setDoc(
+        userRef,
+        {
+          name: currentProfile.name,
+          studentId: currentProfile.studentId,
+          email: targetEmail.toLowerCase().trim(),
+          degreeLevel: currentProfile.degreeLevel,
+          degreeName: currentProfile.degreeName,
+          degreeType: currentProfile.degreeType,
+          totalTargetCFU: currentProfile.totalTargetCFU,
+          enrolledYear: currentProfile.enrolledYear,
+          academicYear: currentProfile.academicYear,
+          institution: currentProfile.institution,
+          status: currentProfile.status,
+          courses: currentCourses,
+          studyLogs: currentStudyLogs,
+          assignments: currentAssignments,
+          quickNotes: currentQuickNotes,
+          resourceLinks: currentResourceLinks,
+          activeSquadId: currentProfile.activeSquadId || null,
+          squadIds: currentProfile.squadIds || [],
+          xp: currentProfile.xp ?? 0,
+          currentStreak: currentProfile.currentStreak ?? 0,
+          minutesStudiedThisWeek: currentProfile.minutesStudiedThisWeek ?? 0,
+          tasksCompletedThisWeek: currentProfile.tasksCompletedThisWeek ?? 0,
+          lastActiveDate: currentProfile.lastActiveDate ?? null,
+          updatedAt: now,
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Multi-device cloud sync notice', err);
+    }
+  };
+
+  // Synchronize student workstation changes to Firestore (safety net for quickNotes typing)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (isApplyingRemoteUpdateRef.current) return;
+    const targetEmail = sessionEmail || profile.email;
+    if (!targetEmail) return;
+
+    const timer = setTimeout(() => {
+      pushWorkstationToCloud();
+    }, 200);
 
     return () => clearTimeout(timer);
-  }, [isAuthenticated, profile, courses, studyLogs, assignments, quickNotes, resourceLinks]);
+  }, [isAuthenticated, sessionEmail, profile, courses, studyLogs, assignments, quickNotes, resourceLinks]);
 
   // Keyboard Shortcuts: Ctrl+S / Ctrl+E / Ctrl+N
   useEffect(() => {
@@ -374,46 +543,59 @@ export default function App() {
       id: `log-${Date.now()}`,
       timestamp: Date.now(),
     };
-    setStudyLogs((prev) => [newLog, ...prev]);
+    const nextLogs = [newLog, ...studyLogs];
+    setStudyLogs(nextLogs);
 
     // Academic Telemetry: XP & Streak progression
     const xpGained = Math.max(20, Math.round(logData.durationMinutes * 2));
     const { streak, today } = updateStreak(profile.currentStreak || 0, profile.lastActiveDate);
 
-    setProfile((prev) => ({
-      ...prev,
-      xp: (prev.xp || 0) + xpGained,
+    const nextProfile: StudentProfile = {
+      ...profile,
+      xp: (profile.xp || 0) + xpGained,
       currentStreak: streak,
-      minutesStudiedThisWeek: (prev.minutesStudiedThisWeek || 0) + logData.durationMinutes,
+      minutesStudiedThisWeek: (profile.minutesStudiedThisWeek || 0) + logData.durationMinutes,
       lastActiveDate: today,
-    }));
+    };
+    setProfile(nextProfile);
+
+    // Immediate multi-device cloud push
+    pushWorkstationToCloud({ studyLogs: nextLogs, profile: nextProfile });
 
     setStatusMessage(`Saved Study Record: ${logData.courseName} (+${xpGained} XP)`);
     setTimeout(() => setStatusMessage('Ready'), 3000);
   };
 
   const handleDeleteStudyLog = (id: string) => {
-    setStudyLogs((prev) => prev.filter((l) => l.id !== id));
+    const nextLogs = studyLogs.filter((l) => l.id !== id);
+    setStudyLogs(nextLogs);
+    pushWorkstationToCloud({ studyLogs: nextLogs });
     setStatusMessage('Deleted Study Record');
     setTimeout(() => setStatusMessage('Ready'), 2000);
   };
 
   const handleUpdateCourse = (updated: Course) => {
-    setCourses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    const nextCourses = courses.map((c) => (c.id === updated.id ? updated : c));
+    setCourses(nextCourses);
+    pushWorkstationToCloud({ courses: nextCourses });
     setStatusMessage(`Updated Course: ${updated.title}`);
     setTimeout(() => setStatusMessage('Ready'), 2500);
   };
 
   const handleDeleteCourse = (courseId: string) => {
     const target = courses.find((c) => c.id === courseId);
-    setCourses((prev) => prev.filter((c) => c.id !== courseId));
+    const nextCourses = courses.filter((c) => c.id !== courseId);
+    setCourses(nextCourses);
     setInspectCourse(null);
+    pushWorkstationToCloud({ courses: nextCourses });
     setStatusMessage(`Deleted Course: ${target?.title || courseId}`);
     setTimeout(() => setStatusMessage('Ready'), 2500);
   };
 
   const handleAddCourse = (newCourse: Course) => {
-    setCourses((prev) => [newCourse, ...prev]);
+    const nextCourses = [newCourse, ...courses];
+    setCourses(nextCourses);
+    pushWorkstationToCloud({ courses: nextCourses });
     setStatusMessage(`Added Course: ${newCourse.title}`);
     setTimeout(() => setStatusMessage('Ready'), 2500);
   };
@@ -423,7 +605,9 @@ export default function App() {
       ...asgData,
       id: `asg-${Date.now()}`,
     };
-    setAssignments((prev) => [newAsg, ...prev]);
+    const nextAssignments = [newAsg, ...assignments];
+    setAssignments(nextAssignments);
+    pushWorkstationToCloud({ assignments: nextAssignments });
     setStatusMessage(`Added Exam/Assignment: ${asgData.title}`);
     setTimeout(() => setStatusMessage('Ready'), 2500);
   };
@@ -435,28 +619,49 @@ export default function App() {
     const existing = assignments.find((a) => a.id === id);
     const isNowCompleted = status === 'completed' && existing?.status !== 'completed';
 
-    setAssignments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, status, completedAt: status === 'completed' ? Date.now() : a.completedAt } : a))
+    const nextAssignments = assignments.map((a) =>
+      a.id === id ? { ...a, status, completedAt: status === 'completed' ? Date.now() : a.completedAt } : a
     );
+    setAssignments(nextAssignments);
 
+    let nextProfile = profile;
     if (isNowCompleted) {
       const { streak, today } = updateStreak(profile.currentStreak || 0, profile.lastActiveDate);
-      setProfile((prev) => ({
-        ...prev,
-        xp: (prev.xp || 0) + 25,
-        tasksCompletedThisWeek: (prev.tasksCompletedThisWeek || 0) + 1,
+      nextProfile = {
+        ...profile,
+        xp: (profile.xp || 0) + 25,
+        tasksCompletedThisWeek: (profile.tasksCompletedThisWeek || 0) + 1,
         currentStreak: streak,
         lastActiveDate: today,
-      }));
+      };
+      setProfile(nextProfile);
       setStatusMessage('Task Completed (+25 XP)');
       setTimeout(() => setStatusMessage('Ready'), 2500);
     }
+
+    pushWorkstationToCloud({ assignments: nextAssignments, profile: nextProfile });
   };
 
   const handleDeleteAssignment = (id: string) => {
-    setAssignments((prev) => prev.filter((a) => a.id !== id));
+    const nextAssignments = assignments.filter((a) => a.id !== id);
+    setAssignments(nextAssignments);
+    pushWorkstationToCloud({ assignments: nextAssignments });
   };
 
+  const handleUpdateResources = (updated: ResourceLink[]) => {
+    setResourceLinks(updated);
+    pushWorkstationToCloud({ resourceLinks: updated });
+  };
+
+  const handleUpdateProfile = (
+    updater: StudentProfile | ((prev: StudentProfile) => StudentProfile)
+  ) => {
+    setProfile((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      pushWorkstationToCloud({ profile: next });
+      return next;
+    });
+  };
 
   const handleResetData = () => {
     setProfile(INITIAL_PROFILE);
@@ -464,13 +669,23 @@ export default function App() {
     setStudyLogs([]);
     setAssignments([]);
     setQuickNotes('');
+    setResourceLinks([]);
     try {
       localStorage.removeItem(`${STORAGE_KEY}_profile`);
       localStorage.removeItem(`${STORAGE_KEY}_courses`);
       localStorage.removeItem(`${STORAGE_KEY}_logs`);
       localStorage.removeItem(`${STORAGE_KEY}_assignments`);
       localStorage.removeItem(`${STORAGE_KEY}_quick_notes`);
+      localStorage.removeItem(`${STORAGE_KEY}_resource_links`);
     } catch {}
+    pushWorkstationToCloud({
+      profile: INITIAL_PROFILE,
+      courses: [],
+      studyLogs: [],
+      assignments: [],
+      quickNotes: '',
+      resourceLinks: [],
+    });
     setStatusMessage('Data Cleared');
     setTimeout(() => setStatusMessage('Ready'), 2500);
   };
@@ -506,6 +721,14 @@ export default function App() {
       if (parsed.assignments) setAssignments(parsed.assignments);
       if (typeof parsed.quickNotes === 'string') setQuickNotes(parsed.quickNotes);
       if (Array.isArray(parsed.resourceLinks)) setResourceLinks(parsed.resourceLinks);
+      pushWorkstationToCloud({
+        profile: parsed.profile,
+        courses: parsed.courses,
+        studyLogs: parsed.studyLogs,
+        assignments: parsed.assignments,
+        quickNotes: parsed.quickNotes,
+        resourceLinks: parsed.resourceLinks,
+      });
       setStatusMessage('Workstation Restored from JSON');
     } catch (e) {
       alert('Failed to parse backup JSON file.');
@@ -567,7 +790,7 @@ export default function App() {
             quickNotes={quickNotes}
             onUpdateQuickNotes={setQuickNotes}
             resources={resourceLinks}
-            onUpdateResources={setResourceLinks}
+            onUpdateResources={handleUpdateResources}
             onAddStudyLog={handleAddStudyLog}
             onDeleteStudyLog={handleDeleteStudyLog}
             onOpenCourseDetail={setInspectCourse}
@@ -623,7 +846,7 @@ export default function App() {
             assignments={assignments}
             onAddStudyLog={handleAddStudyLog}
             onUpdateProfileTelemetry={(telemetry) => {
-              setProfile((prev) => ({ ...prev, ...telemetry }));
+              handleUpdateProfile((prev) => ({ ...prev, ...telemetry }));
             }}
           />
         )}
@@ -631,7 +854,7 @@ export default function App() {
         {currentView === 'settings' && (
           <SettingsView
             profile={profile}
-            onUpdateProfile={setProfile}
+            onUpdateProfile={handleUpdateProfile}
             onResetData={handleResetData}
             onExportJson={handleExportJson}
             onImportJson={handleImportJson}
