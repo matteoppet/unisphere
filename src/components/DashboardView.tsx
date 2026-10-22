@@ -149,7 +149,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   const handleInstantQuickStudyLog = (mins: number) => {
     const activeCourse = courses.find((c) => c.status === 'active') || courses[0];
-    const cName = activeCourse ? (activeCourse.shortTitle || activeCourse.title) : 'General Deep Work';
+    const cName = activeCourse ? activeCourse.title : 'General Deep Work';
     const todayStr = new Date().toISOString().split('T')[0];
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 

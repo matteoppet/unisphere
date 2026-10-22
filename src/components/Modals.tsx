@@ -3,6 +3,8 @@ import { Course, StudyLog, AssignmentItem } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { playClickBeep, playFuturisticChime } from '../utils/audio';
+import { fireCelebrationConfetti } from '../utils/confetti';
 import {
   Dialog,
   DialogContent,
@@ -159,7 +161,6 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
                   setFormData({
                     ...formData,
                     status: 'completed',
-                    progress: formData.progress < 100 ? 100 : formData.progress,
                   })
                 }
                 className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-md border text-center transition-all cursor-pointer ${
@@ -200,54 +201,8 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Syllabus Progress */}
-          <div className="flex flex-col gap-1.5 p-3 rounded-md bg-slate-50/70 dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[15px] text-indigo-600 dark:text-indigo-400">
-                  trending_up
-                </span>
-                <span>Syllabus Completion</span>
-              </label>
-              <span className="font-mono font-bold text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded">
-                {formData.progress}%
-              </span>
-            </div>
-
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={formData.progress}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  progress: parseInt(e.target.value) || 0,
-                })
-              }
-              className="w-full h-1.5 bg-slate-200 dark:bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-indigo-600 mt-1"
-            />
-
-            <div className="flex items-center justify-between gap-1 pt-1">
-              {[0, 25, 50, 75, 100].map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, progress: pct })}
-                  className={`px-2 py-0.5 rounded text-[9.5px] font-mono transition-colors cursor-pointer ${
-                    formData.progress === pct
-                      ? 'bg-indigo-600 text-white font-bold'
-                      : 'bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800'
-                  }`}
-                >
-                  {pct}%
-                </button>
-              ))}
-            </div>
-          </div>
-
           <div>
-            <label className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 dark:text-zinc-300 uppercase block mb-1">
+            <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
               Office Hours &amp; Location
             </label>
             <Input
@@ -260,70 +215,9 @@ export const CourseDetailModal: React.FC<CourseDetailModalProps> = ({
             />
           </div>
 
-          {/* Upcoming Exam / Deliverable with Delete Exam feature */}
-          <div className="p-3 rounded-md border border-gray-200 dark:border-zinc-800 bg-slate-50/60 dark:bg-zinc-900/60 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[15px] text-rose-500">
-                  event_note
-                </span>
-                <span>Upcoming Exam / Deliverable</span>
-              </span>
-              {formData.nextDeliverable && (
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, nextDeliverable: undefined })}
-                  className="px-2 py-0.5 text-[10px] text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md border border-rose-200 dark:border-rose-900 flex items-center gap-1 cursor-pointer transition-colors"
-                  title="Delete Exam / Remove deliverable"
-                >
-                  <span className="material-symbols-outlined text-[12px]">delete</span>
-                  <span>Delete Exam</span>
-                </button>
-              )}
-            </div>
-
-            {formData.nextDeliverable ? (
-              <div className="p-2 rounded-md bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate">
-                    {formData.nextDeliverable.title}
-                  </div>
-                  <div className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
-                    Type: {formData.nextDeliverable.type || 'Exam'} • Due: {formData.nextDeliverable.date || 'No date set'}
-                  </div>
-                </div>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-900 text-rose-700 dark:text-rose-300 font-semibold shrink-0">
-                  Scheduled
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-500 dark:text-zinc-400 py-1">
-                <span>No incoming exam scheduled for this course.</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData({
-                      ...formData,
-                      nextDeliverable: {
-                        title: 'Final Exam',
-                        date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                        type: 'Exam',
-                        badgeColor: 'red',
-                      },
-                    })
-                  }
-                  className="px-2 py-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 rounded-md border border-indigo-200 dark:border-indigo-900 flex items-center gap-1 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[13px]">add</span>
-                  <span>Schedule Exam</span>
-                </button>
-              </div>
-            )}
-          </div>
-
           <div>
-            <label className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 dark:text-zinc-300 uppercase block mb-1">
-              Syllabus Study Notes &amp; Exam Requirements
+            <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
+              Syllabus Study Notes &amp; Course Details
             </label>
             <textarea
               rows={3}
@@ -404,57 +298,60 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
   const [title, setTitle] = useState('');
   const [email, setEmail] = useState('');
   const [cfu, setCfu] = useState(6);
-  const [year, setYear] = useState(2);
+  const [year, setYear] = useState(1);
   const [semester, setSemester] = useState<1 | 2>(1);
   const [status, setStatus] = useState<Course['status']>('active');
-  const [color, setColor] = useState('#3B77BC');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title) return;
+    if (!title.trim()) return;
 
     onAdd({
       id: `course-${Date.now()}`,
-      title,
-      shortTitle: title.split(' ')[0] || title,
+      title: title.trim(),
+      shortTitle: title.trim().split(' ')[0] || title.trim(),
       code: '',
-      email: email || 'faculty@uni.edu',
+      email: email.trim() || 'faculty@uni.edu',
       cfu: Number(cfu),
       year: Number(year),
       semester,
       status,
-      progress: status === 'completed' ? 100 : 30,
-      color: color || '#3B77BC',
+      progress: status === 'completed' ? 100 : 0,
+      color: '#3B77BC',
     });
+
+    playFuturisticChime();
+    fireCelebrationConfetti();
     onClose();
   };
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-md max-h-[90vh] flex flex-col text-[11px] overflow-hidden">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px] text-indigo-600">
-              library_add
-            </span>
-            <DialogTitle>Add Course to Curriculum</DialogTitle>
+      <DialogContent className="max-w-md w-[calc(100vw-2rem)] p-0 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        {/* Header Bar matching QuickStudyModal */}
+        <div className="bg-gradient-to-r from-[#4F46E5]/10 via-[#4F46E5]/5 to-transparent dark:from-[#4F46E5]/20 dark:via-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 py-3 flex items-center justify-between">
+          <div>
+            <DialogTitle className="text-sm font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+              <span>Add Course to Curriculum</span>
+            </DialogTitle>
           </div>
           <DialogClose asChild>
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="icon"
-              className="w-7 h-7 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              onClick={onClose}
+              className="p-1 rounded-md text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer text-sm font-bold leading-none"
             >
               ✕
-            </Button>
+            </button>
           </DialogClose>
-        </DialogHeader>
+        </div>
 
-        <form onSubmit={handleSubmit} className="p-4 space-y-3 overflow-y-auto flex-1">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs sm:text-sm font-medium text-gray-700">
-              Course Title <span className="text-red-500">*</span>
+        {/* Body Content */}
+        <form onSubmit={handleSubmit} className="p-4 space-y-3.5 max-h-[75vh] overflow-y-auto">
+          {/* Course Title */}
+          <div>
+            <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
+              Course Title <span className="text-[#4F46E5]">*</span>
             </label>
             <Input
               type="text"
@@ -462,59 +359,65 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Operating Systems & Algorithms"
+              className="w-full text-xs font-semibold p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#4F46E5]"
             />
           </div>
 
+          {/* Professor Email & Credits */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs sm:text-sm font-medium text-gray-700">
-                Professor / Contact Email
+            <div>
+              <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
+                Professor Email
               </label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="faculty@unibo.it"
+                placeholder="faculty@uni.edu"
+                className="w-full text-xs font-semibold p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#4F46E5]"
               />
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs sm:text-sm font-medium text-gray-700">
-                CFU (Credits)
+            <div>
+              <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
+                Credits (CFU)
               </label>
               <Input
                 type="number"
                 min="1"
-                max="24"
+                max="30"
                 value={cfu}
                 onChange={(e) => setCfu(parseInt(e.target.value) || 6)}
-                className="font-mono tabular-nums"
+                className="w-full text-xs font-semibold p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:ring-1 focus:ring-[#4F46E5]"
               />
             </div>
           </div>
 
+          {/* Year & Semester */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs sm:text-sm font-medium text-gray-700">
-                Year
+            <div>
+              <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
+                Academic Year
               </label>
               <select
                 value={year}
                 onChange={(e) => setYear(parseInt(e.target.value))}
-                className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 text-xs"
+                className="w-full text-xs font-semibold p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#4F46E5]"
               >
                 <option value={1}>Year 1</option>
                 <option value={2}>Year 2</option>
                 <option value={3}>Year 3</option>
+                <option value={4}>Year 4</option>
+                <option value={5}>Year 5</option>
               </select>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs sm:text-sm font-medium text-gray-700">
+            <div>
+              <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
                 Semester
               </label>
               <select
                 value={semester}
                 onChange={(e) => setSemester(parseInt(e.target.value) as 1 | 2)}
-                className="w-full p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500 text-xs"
+                className="w-full text-xs font-semibold p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#4F46E5]"
               >
                 <option value={1}>Semester 1</option>
                 <option value={2}>Semester 2</option>
@@ -522,85 +425,100 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5 p-3 rounded-md bg-slate-50/70 dark:bg-zinc-900/90 border border-slate-200/80 dark:border-zinc-800">
-            <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center justify-between">
-              <span>Initial Status</span>
-              <span className="text-[10px] text-slate-500">Select course standing</span>
-            </label>
-            <div className="grid grid-cols-3 gap-2 pt-1">
+          {/* Initial Status Selector matching QuickStudyModal cards */}
+          <div className="bg-zinc-50 dark:bg-zinc-900/50 p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                Course Status
+              </span>
+              <span className="text-[10px] text-zinc-400 font-sans">Current academic standing</span>
+            </div>
+            <div className="grid grid-cols-3 gap-1.5">
               <button
                 type="button"
-                onClick={() => setStatus('active')}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-md border text-center transition-all cursor-pointer ${
+                onClick={() => {
+                  playClickBeep();
+                  setStatus('active');
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md border text-center transition-all cursor-pointer ${
                   status === 'active'
-                    ? 'bg-blue-50 dark:bg-blue-950/70 border-blue-500 dark:border-blue-600 text-blue-900 dark:text-blue-200 shadow-sm ring-1 ring-blue-500 font-bold'
-                    : 'bg-white dark:bg-zinc-950 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
+                    ? 'bg-[#4F46E5]/10 border-[#4F46E5] text-[#4F46E5] dark:text-[#818CF8] shadow-2xs font-extrabold ring-1 ring-[#4F46E5]/40'
+                    : 'bg-zinc-50 dark:bg-black border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
                 }`}
               >
                 <span
-                  className={`w-2.5 h-2.5 rounded-full shrink-0 transition-colors ${
+                  className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
                     status === 'active'
-                      ? 'bg-blue-600 dark:bg-blue-400 ring-2 ring-blue-400/40'
-                      : 'bg-gray-300 dark:bg-zinc-600'
+                      ? 'bg-[#4F46E5] ring-2 ring-[#4F46E5]/30'
+                      : 'bg-zinc-300 dark:bg-zinc-700'
                   }`}
                 />
-                <span className="text-xs font-bold">Active</span>
+                <span className="text-xs font-bold leading-none">Active</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setStatus('completed')}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-md border text-center transition-all cursor-pointer ${
+                onClick={() => {
+                  playClickBeep();
+                  setStatus('completed');
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md border text-center transition-all cursor-pointer ${
                   status === 'completed'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/70 border-emerald-500 dark:border-emerald-600 text-emerald-900 dark:text-emerald-200 shadow-sm ring-1 ring-emerald-500 font-bold'
-                    : 'bg-white dark:bg-zinc-950 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
+                    ? 'bg-emerald-500/10 border-emerald-500 text-emerald-700 dark:text-emerald-400 shadow-2xs font-extrabold ring-1 ring-emerald-500/40'
+                    : 'bg-zinc-50 dark:bg-black border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
                 }`}
               >
                 <span
-                  className={`w-2.5 h-2.5 rounded-full shrink-0 transition-colors ${
+                  className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
                     status === 'completed'
-                      ? 'bg-emerald-600 dark:bg-emerald-400 ring-2 ring-emerald-400/40'
-                      : 'bg-gray-300 dark:bg-zinc-600'
+                      ? 'bg-emerald-500 ring-2 ring-emerald-500/30'
+                      : 'bg-zinc-300 dark:bg-zinc-700'
                   }`}
                 />
-                <span className="text-xs font-bold">Passed</span>
+                <span className="text-xs font-bold leading-none">Passed</span>
               </button>
 
               <button
                 type="button"
-                onClick={() => setStatus('planned')}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-md border text-center transition-all cursor-pointer ${
+                onClick={() => {
+                  playClickBeep();
+                  setStatus('planned');
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md border text-center transition-all cursor-pointer ${
                   status === 'planned'
-                    ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-500 dark:border-amber-600 text-amber-900 dark:text-amber-200 shadow-sm ring-1 ring-amber-500 font-bold'
-                    : 'bg-white dark:bg-zinc-950 border-gray-200 dark:border-zinc-800 text-gray-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700'
+                    ? 'bg-amber-500/10 border-amber-500 text-amber-700 dark:text-amber-400 shadow-2xs font-extrabold ring-1 ring-amber-500/40'
+                    : 'bg-zinc-50 dark:bg-black border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:border-zinc-300 dark:hover:border-zinc-700'
                 }`}
               >
                 <span
-                  className={`w-2.5 h-2.5 rounded-full shrink-0 transition-colors ${
+                  className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
                     status === 'planned'
-                      ? 'bg-amber-600 dark:bg-amber-400 ring-2 ring-amber-400/40'
-                      : 'bg-gray-300 dark:bg-zinc-600'
+                      ? 'bg-amber-500 ring-2 ring-amber-500/30'
+                      : 'bg-zinc-300 dark:bg-zinc-700'
                   }`}
                 />
-                <span className="text-xs font-bold">Planned</span>
+                <span className="text-xs font-bold leading-none">Planned</span>
               </button>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 dark:border-zinc-800">
+          {/* Submit & Cancel Footer Buttons matching QuickStudyModal */}
+          <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-2">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
               size="sm"
               onClick={onClose}
+              className="text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 cursor-pointer"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               size="sm"
+              className="bg-[#4F46E5] hover:bg-[#4338CA] text-white font-bold text-xs h-9 px-5 rounded-md shadow-md hover:shadow-lg transition-all cursor-pointer"
             >
-              Add to Study Plan
+              Add Course to Curriculum
             </Button>
           </div>
         </form>
@@ -1177,8 +1095,11 @@ export const NewStudyLogModal: React.FC<NewStudyLogModalProps> = ({
   onClose,
   onAdd,
 }) => {
+  const activeCourses = courses.filter((c) => c.status === 'active');
+  const selectableCourses = activeCourses.length > 0 ? activeCourses : courses;
+
   const [courseName, setCourseName] = useState(
-    courses.find((c) => c.status === 'active')?.title || courses[0]?.title || 'General'
+    activeCourses[0]?.title || courses[0]?.title || 'General'
   );
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [durationMinutes, setDurationMinutes] = useState(60);
@@ -1193,7 +1114,7 @@ export const NewStudyLogModal: React.FC<NewStudyLogModalProps> = ({
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     onAdd({
-      courseName: matched ? matched.shortTitle : courseName,
+      courseName: matched ? matched.title : courseName,
       courseId: matched?.id,
       durationMinutes: Number(durationMinutes),
       date,
@@ -1237,8 +1158,8 @@ export const NewStudyLogModal: React.FC<NewStudyLogModalProps> = ({
               onChange={(e) => setCourseName(e.target.value)}
               className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
             >
-              {courses.length > 0 ? (
-                courses.map((c) => (
+              {selectableCourses.length > 0 ? (
+                selectableCourses.map((c) => (
                   <option key={c.id} value={c.title}>
                     {c.title}
                   </option>

@@ -52,9 +52,13 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'log' | 'timer'>(isTimerRunning ? 'timer' : 'log');
   
+  // Show only active courses in Log Session
+  const activeCourses = courses.filter((c) => c.status === 'active');
+  const selectableCourses = activeCourses.length > 0 ? activeCourses : courses;
+
   // Quick Log Form State
   const [selectedCourse, setSelectedCourse] = useState<string>(() => {
-    return timerCourse || courses.find((c) => c.status === 'active')?.title || courses[0]?.title || 'General Deep Work';
+    return timerCourse || activeCourses[0]?.title || courses[0]?.title || 'General Deep Work';
   });
   const [durationMinutes, setDurationMinutes] = useState<number>(45);
   const [tag, setTag] = useState<StudyTag>('Deep Work');
@@ -113,7 +117,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     const finalDuration = Math.max(5, duration);
-    const finalCourseName = matched ? matched.shortTitle : cName;
+    const finalCourseName = matched ? matched.title : cName;
 
     onAddStudyLog({
       courseName: finalCourseName,
@@ -167,13 +171,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
           <div>
             <DialogTitle className="text-sm font-bold tracking-tight text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
               <span>Quick Study</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-md bg-[#4F46E5]/15 text-[#4F46E5] dark:text-[#818CF8] font-bold">
-                Instant Record
-              </span>
             </DialogTitle>
-            <p className="text-[10.5px] text-zinc-500 dark:text-zinc-400">
-              Instantly log focus minutes without leaving the Dashboard
-            </p>
           </div>
           <DialogClose asChild>
             <button
@@ -229,22 +227,19 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
             {/* Course Selector */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
+                <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
                   Course
                 </label>
-                <span className="text-[10px] text-zinc-400 font-mono">
-                  {courses.length} courses enrolled
-                </span>
               </div>
               <select
                 value={selectedCourse}
                 onChange={(e) => setSelectedCourse(e.target.value)}
                 className="w-full text-xs font-semibold p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#4F46E5]"
               >
-                {courses.length > 0 ? (
-                  courses.map((c) => (
+                {selectableCourses.length > 0 ? (
+                  selectableCourses.map((c) => (
                     <option key={c.id} value={c.title}>
-                      {c.shortTitle || c.title} {c.status === 'active' ? '(Active)' : ''}
+                      {c.title}
                     </option>
                   ))
                 ) : (
@@ -256,7 +251,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
             {/* 1-Click Duration Presets Bar */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[11px] font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
+                <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
                   Quick Presets
                 </label>
                 <span className="text-[11px] font-mono font-bold text-[#4F46E5] dark:text-[#818CF8]">
@@ -291,7 +286,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
             {/* Custom Duration & Steppers */}
             <div className="bg-zinc-50 dark:bg-zinc-900/50 p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-zinc-700 dark:text-zinc-300">
+                <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
                   Custom Focus Duration
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -328,7 +323,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
             {/* Focus Tag & Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block mb-1">
+                <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
                   Focus Tag
                 </label>
                 <select
@@ -345,7 +340,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block mb-1">
+                <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
                   Session Date
                 </label>
                 <Input
@@ -360,7 +355,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
             {/* Optional Topic / Quick Note */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider">
+                <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
                   Session Notes (Optional)
                 </label>
                 <span className="text-[9.5px] text-zinc-400">What did you work on?</span>
@@ -412,7 +407,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
           <div className="p-5 space-y-4 text-center">
             {/* Course Selector for Timer */}
             <div className="text-left">
-              <label className="text-[10px] font-bold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider block mb-1">
+              <label className="text-xs font-bold text-zinc-800 dark:text-zinc-200 block mb-1">
                 Course to Focus On
               </label>
               <select
@@ -421,10 +416,10 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
                 onChange={(e) => setSelectedCourse(e.target.value)}
                 className="w-full text-xs font-semibold p-2.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-black text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#4F46E5] disabled:opacity-60"
               >
-                {courses.length > 0 ? (
-                  courses.map((c) => (
+                {selectableCourses.length > 0 ? (
+                  selectableCourses.map((c) => (
                     <option key={c.id} value={c.title}>
-                      {c.shortTitle || c.title}
+                      {c.title}
                     </option>
                   ))
                 ) : (

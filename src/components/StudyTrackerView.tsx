@@ -28,8 +28,11 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
   // Modal State for delete confirmation
   const [deleteConfirmLog, setDeleteConfirmLog] = useState<StudyLog | null>(null);
 
+  const activeCourses = courses.filter((c) => c.status === 'active');
+  const selectableCourses = activeCourses.length > 0 ? activeCourses : courses;
+
   const [selectedCourse, setSelectedCourse] = useState(
-    courses[0]?.shortTitle || courses[0]?.title || ''
+    activeCourses[0]?.title || courses[0]?.title || ''
   );
   const [sessionDate, setSessionDate] = useState(() =>
     new Date().toISOString().split('T')[0]
@@ -56,7 +59,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
   const handleOpenAddModal = () => {
     const active = courses.find((c) => c.status === 'active') || courses[0];
     if (active) {
-      setSelectedCourse(active.shortTitle || active.title);
+      setSelectedCourse(active.title);
     }
     setSessionDate(new Date().toISOString().split('T')[0]);
     setDurationMinutes(60);
@@ -81,7 +84,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
     });
 
     onAddStudyLog({
-      courseName: matchedCourse ? matchedCourse.shortTitle : selectedCourse,
+      courseName: matchedCourse ? matchedCourse.title : selectedCourse,
       courseId: matchedCourse?.id,
       durationMinutes: Number(durationMinutes),
       date: sessionDate,
@@ -598,12 +601,12 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                 <select
                   value={selectedCourse}
                   onChange={(e) => setSelectedCourse(e.target.value)}
-                  className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
                   required
                 >
-                  {courses.map((c) => (
-                    <option key={c.id} value={c.shortTitle || c.title}>
-                      {c.shortTitle || c.title} ({c.cfu} CFU)
+                  {selectableCourses.map((c) => (
+                    <option key={c.id} value={c.title}>
+                      {c.title}
                     </option>
                   ))}
                 </select>
