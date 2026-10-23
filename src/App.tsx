@@ -173,7 +173,10 @@ export default function App() {
 
   // Track remote update execution and local write timestamp to eliminate infinite echo loops
   const isApplyingRemoteUpdateRef = useRef(false);
-  const lastLocalSaveTimestampRef = useRef<number>(0);
+  const syncClientIdRef = useRef<string>(
+    `client-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+  const hasInitialServerSnapshotRef = useRef(false);
 
   // Sync session with Firebase Auth state
   useEffect(() => {
@@ -197,6 +200,7 @@ export default function App() {
 
     const docId = getEmailDocId(targetEmail);
     const userRef = doc(db, 'users', docId);
+    hasInitialServerSnapshotRef.current = false;
 
     const unsubscribe = onSnapshot(
       userRef,
@@ -207,23 +211,20 @@ export default function App() {
           return;
         }
 
+        // Hydrate from the server before allowing this device's local state to autosave.
+        // This prevents stale localStorage data from overwriting another device's changes.
+        if (snapshot.metadata.fromCache && !hasInitialServerSnapshotRef.current) {
+          return;
+        }
+        hasInitialServerSnapshotRef.current = true;
+
         if (snapshot.exists()) {
           const data = snapshot.data();
           if (!data) return;
 
-          // Check if this update originated from our own client write or is older
-          const remoteTime =
-            typeof data.updatedAt === 'number'
-              ? data.updatedAt
-              : data.updatedAt
-              ? new Date(data.updatedAt).getTime()
-              : 0;
-
-          if (
-            remoteTime &&
-            lastLocalSaveTimestampRef.current &&
-            remoteTime <= lastLocalSaveTimestampRef.current
-          ) {
+          // Ignore only this client's acknowledged write. Do not compare wall-clock
+          // timestamps across devices because tablet/mobile clocks may differ.
+          if (data.updatedBy === syncClientIdRef.current) {
             return;
           }
 
@@ -299,18 +300,7 @@ export default function App() {
             if (snap.exists()) {
               const data = snap.data();
               if (!data) return;
-              const remoteTime =
-                typeof data.updatedAt === 'number'
-                  ? data.updatedAt
-                  : data.updatedAt
-                  ? new Date(data.updatedAt).getTime()
-                  : 0;
-
-              if (
-                remoteTime &&
-                lastLocalSaveTimestampRef.current &&
-                remoteTime <= lastLocalSaveTimestampRef.current
-              ) {
+              if (data.updatedBy === syncClientIdRef.current) {
                 return;
               }
 
@@ -448,8 +438,6 @@ export default function App() {
     if (!isAuthenticated || !targetEmail) return;
 
     const docId = getEmailDocId(targetEmail);
-    const now = Date.now();
-    lastLocalSaveTimestampRef.current = now;
 
     const currentProfile = overrides?.profile || profile;
     const currentCourses = overrides?.courses || courses;
@@ -474,6 +462,11 @@ export default function App() {
           academicYear: currentProfile.academicYear,
           institution: currentProfile.institution,
           status: currentProfile.status,
+          currentSession: currentProfile.currentSession,
+          weeklyGoalHours: currentProfile.weeklyGoalHours,
+          avatarUrl: currentProfile.avatarUrl,
+          logoUrl: currentProfile.logoUrl,
+          thesisPointsExpected: currentProfile.thesisPointsExpected,
           courses: currentCourses,
           studyLogs: currentStudyLogs,
           assignments: currentAssignments,
@@ -486,7 +479,8 @@ export default function App() {
           minutesStudiedThisWeek: currentProfile.minutesStudiedThisWeek ?? 0,
           tasksCompletedThisWeek: currentProfile.tasksCompletedThisWeek ?? 0,
           lastActiveDate: currentProfile.lastActiveDate ?? null,
-          updatedAt: now,
+          updatedAt: Date.now(),
+          updatedBy: syncClientIdRef.current,
         },
         { merge: true }
       );
@@ -499,6 +493,7 @@ export default function App() {
   useEffect(() => {
     if (!isAuthenticated) return;
     if (isApplyingRemoteUpdateRef.current) return;
+    if (!hasInitialServerSnapshotRef.current) return;
     const targetEmail = sessionEmail || profile.email;
     if (!targetEmail) return;
 
