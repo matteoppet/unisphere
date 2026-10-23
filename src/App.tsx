@@ -121,7 +121,7 @@ export default function App() {
   // --- Status Message ---
   const [statusMessage, setStatusMessage] = useState<string>('Ready');
 
-  // --- Theme State (Warm Slite default with Obsidian Dark fallback) ---
+  // --- Theme State (warm light default with dark fallback) ---
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_theme`);
@@ -643,6 +643,14 @@ export default function App() {
     pushWorkstationToCloud({ assignments: nextAssignments });
   };
 
+  const handleUpdateAssignment = (updated: AssignmentItem) => {
+    const nextAssignments = assignments.map((assignment) =>
+      assignment.id === updated.id ? updated : assignment
+    );
+    setAssignments(nextAssignments);
+    pushWorkstationToCloud({ assignments: nextAssignments });
+  };
+
   const handleUpdateResources = (updated: ResourceLink[]) => {
     setResourceLinks(updated);
     pushWorkstationToCloud({ resourceLinks: updated });
@@ -829,6 +837,7 @@ export default function App() {
             courses={courses}
             onAddAssignment={handleAddAssignment}
             onUpdateAssignmentStatus={handleUpdateAssignmentStatus}
+            onUpdateAssignment={handleUpdateAssignment}
             onDeleteAssignment={handleDeleteAssignment}
           />
         )}

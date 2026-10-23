@@ -1,13 +1,13 @@
 # Implementation Plan: Slite-Inspired Warm Minimalist UI Refactor
 
-Transition UniSphere from the dark Obsidian theme to a warm, minimalist aesthetic inspired by Slite, with warm cream canvas (`#fdf9f4`), dust cream surfaces (`#f9efe4`), charcoal typography (`#2d2f34` / `#3f434a`), ember orange primary accents (`#f67748`), hairline silver borders (`#ecedef`), pill buttons, and dust chips, while retaining full functionality and maintaining a compact, data-primary layout.
+Transition UniSphere from the dark theme to a warm, minimalist aesthetic inspired by Slite, with warm cream canvas (`#fdf9f4`), dust cream surfaces (`#f9efe4`), charcoal typography (`#2d2f34` / `#3f434a`), ember orange primary accents (`#f67748`), hairline silver borders (`#ecedef`), pill buttons, and dust chips, while retaining full functionality and maintaining a compact, data-primary layout.
 
 ---
 
 ## User Review Required
 
 > [!IMPORTANT]
-> - **Theme Default & Toggle**: As selected, Warm Slite will be the default theme for all users (`#fdf9f4` canvas), with the dark Obsidian mode kept available via the QuickToolbar/Settings theme toggle.
+> - **Theme Default & Toggle**: As selected, Warm Slite will be the default theme for all users (`#fdf9f4` canvas), with the dark mode kept available via the QuickToolbar/Settings theme toggle.
 > - **Data Density Balance**: Section margins will provide distinct visual breathing room (`gap-8` to `gap-12`) without wasting vertical space, preserving UniSphere's high-efficiency academic workstation feel.
 > - **Zero Logic Alterations**: All Firestore sync hooks, telemetry, exam boss math, timers, ghost races, and audio systems remain 100% untouched.
 
@@ -26,7 +26,7 @@ Transition UniSphere from the dark Obsidian theme to a warm, minimalist aestheti
   - `--border-silver`: `#ecedef` (Hairline crisp borders)
   - Soft diffuse shadow utility: `box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)`
 - Configure `html, body` base background to `#fdf9f4` and text to `#2d2f34`.
-- Ensure dark mode (`.dark`) continues to provide the Obsidian fallback cleanly without breaking when toggled.
+- Ensure dark mode (`.dark`) continues to provide a clean fallback without breaking when toggled.
 - Update `index.html` theme color meta tag to `#f67748` and canvas background to `#fdf9f4`.
 
 ### 2. Workspace Explorer Sidebar (`src/components/Sidebar.tsx`)
@@ -62,7 +62,7 @@ Transition UniSphere from the dark Obsidian theme to a warm, minimalist aestheti
 - Refactor Weekly Sprint Podium & Ranked Leaderboard:
   - Surfaces in pure white with dust cream secondary highlights.
   - Rank tags and ELO badges converted to dust chips (`bg-[#f9efe4] text-[#2d2f34] rounded-full`).
-  - Podium cards with warm amber and ember accents instead of obsidian neon rings.
+  - Podium cards with warm amber and ember accents instead of neon rings.
 - Refactor GitHub-style Study Contribution Heatmap:
   - Cells tinted in warm amber/ember palette scale (cream `#f9efe4` -> warm sand -> terracotta -> ember `#f67748`).
 - Refactor Live Squad Feed & Ghost Racing Hub:
@@ -84,7 +84,7 @@ Transition UniSphere from the dark Obsidian theme to a warm, minimalist aestheti
 
 ### Visual & Functional Checks
 1. **Initial Page Load**: Verify UniSphere loads with the warm cream background (`#fdf9f4`), crisp charcoal typography, and ember orange accents.
-2. **Theme Switcher**: Click the theme toggle in QuickToolbar to verify seamless transition between Warm Slite and dark Obsidian mode.
+2. **Theme Switcher**: Click the theme toggle in QuickToolbar to verify seamless transition between Warm Slite and dark mode.
 3. **Workspace Explorer**: Verify sidebar items are ghost buttons on flat background, active item highlights with ember accent, and navigation between views works smoothly.
 4. **Dashboard Bento Cards**: Confirm cards are pure white with hairline silver borders, rounded-2xl corners, dust chips for tags, and full pill primary buttons.
 5. **Squads/Friends Page**: Test Live Study Lobby lock-in toggle, online presence cards, podium, contribution heatmap, and ghost race cards.

@@ -66,7 +66,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   };
 
   return (
-    <div className="flex-1 bg-zinc-50 dark:bg-zinc-950 overflow-y-auto p-2.5 sm:p-3.5 space-y-3 sm:space-y-3.5 select-none transition-colors">
+    <div className="flex-1 bg-[#fdf9f4] dark:bg-[#09090b] overflow-y-auto p-2.5 sm:p-3.5 space-y-3 sm:space-y-3.5 select-none transition-colors">
       {/* 1. Theme & Appearance Card */}
       <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md shadow-xs overflow-hidden flex flex-col transition-all">
         <div className="bg-zinc-50/80 dark:bg-zinc-900/90 border-b border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-between">
@@ -77,7 +77,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span>Theme &amp; Appearance</span>
           </div>
           <span className="text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
-            ObsidianUI System
+            UniSphere System
           </span>
         </div>
 
@@ -89,10 +89,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 <span className="material-symbols-outlined text-[16px] text-indigo-600 dark:text-indigo-400 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110">
                   {isDark ? 'dark_mode' : 'light_mode'}
                 </span>
-                <span>Active Theme: {isDark ? 'Dark Theme (Obsidian)' : 'Light Theme'}</span>
+                <span>Active Theme: {isDark ? 'Dark Theme' : 'Light Theme'}</span>
               </div>
               <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
-                Toggle between pure Obsidian dark workstation mode and clean daylight paper mode.
+                Toggle between the dark workstation mode and the clean daylight paper mode.
               </p>
             </div>
 

@@ -76,6 +76,12 @@ export interface AssignmentItem {
   status: 'todo' | 'in-progress' | 'submitted' | 'completed';
   notes?: string;
   completedAt?: number;
+  examParts?: ExamPart[];
+}
+
+export interface ExamPart {
+  label: 'Esonero 1' | 'Esonero 2';
+  grade?: number;
 }
 
 export interface StudentProfile {
@@ -125,7 +131,7 @@ export const COLOR_PALETTE: PaletteColor[] = [
   { id: 'palm-red', name: 'Palm Red', hex: '#DE482B', bgClass: 'bg-[#DE482B]', textClass: 'text-[#DE482B] dark:text-[#F37055]', borderClass: 'border-[#DE482B]/50' },
   { id: 'slate-blue', name: 'Slate Blue', hex: '#5A738E', bgClass: 'bg-[#5A738E]', textClass: 'text-[#5A738E] dark:text-[#8CA3BA]', borderClass: 'border-[#5A738E]/50' },
   { id: 'emerald', name: 'Emerald', hex: '#10B981', bgClass: 'bg-[#10B981]', textClass: 'text-[#10B981]', borderClass: 'border-[#10B981]/50' },
-  { id: 'indigo', name: 'Obsidian Indigo', hex: '#6366F1', bgClass: 'bg-[#6366F1]', textClass: 'text-[#6366F1]', borderClass: 'border-[#6366F1]/50' },
+  { id: 'indigo', name: 'Indigo', hex: '#6366F1', bgClass: 'bg-[#6366F1]', textClass: 'text-[#6366F1]', borderClass: 'border-[#6366F1]/50' },
   { id: 'rose', name: 'Crimson Rose', hex: '#F43F5E', bgClass: 'bg-[#F43F5E]', textClass: 'text-[#F43F5E]', borderClass: 'border-[#F43F5E]/50' },
 ];
 
