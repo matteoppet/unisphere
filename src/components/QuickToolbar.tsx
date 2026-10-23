@@ -180,7 +180,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
             variant="outline"
             size="sm"
             onClick={onToggleTheme}
-            title={isDark ? 'Switch to Light Slite Theme' : 'Switch to Dark Obsidian Theme'}
+            title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
             aria-label="Toggle theme"
             className="hidden sm:inline-flex gap-1.5 px-3 py-1 text-xs font-semibold rounded-md border-[#ecedef] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-200 hover:bg-[#f9efe4] dark:hover:bg-zinc-800 cursor-pointer transition-all slite-shadow group"
           >

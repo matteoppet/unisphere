@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AssignmentItem, Course } from '../types';
+import { AssignmentItem, Course, ExamPart } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
@@ -19,6 +19,7 @@ interface AssignmentsViewProps {
   courses: Course[];
   onAddAssignment: (assignment: Omit<AssignmentItem, 'id'>) => void;
   onUpdateAssignmentStatus: (id: string, status: AssignmentItem['status']) => void;
+  onUpdateAssignment: (assignment: AssignmentItem) => void;
   onDeleteAssignment: (id: string) => void;
 }
 
@@ -27,6 +28,7 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
   courses,
   onAddAssignment,
   onUpdateAssignmentStatus,
+  onUpdateAssignment,
   onDeleteAssignment,
 }) => {
   const [filterType, setFilterType] = useState('all');
@@ -38,6 +40,7 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
   const [newType, setNewType] = useState<AssignmentItem['type']>('Assignment');
   const [newDueDate, setNewDueDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newNotes, setNewNotes] = useState('');
+  const [newExamMode, setNewExamMode] = useState<'single' | 'split'>('single');
 
   // Close modal on Escape key
   useEffect(() => {
@@ -78,11 +81,46 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
       dueDate: newDueDate,
       status: 'todo',
       notes: newNotes.trim(),
+      examParts: newExamMode === 'split'
+        ? [
+            { label: 'Esonero 1' },
+            { label: 'Esonero 2' },
+          ]
+        : undefined,
     });
 
     setNewTitle('');
     setNewNotes('');
+    setNewExamMode('single');
     setShowAddForm(false);
+  };
+
+  const getExamResult = (parts?: ExamPart[]) => {
+    if (!parts || parts.length !== 2 || parts.some((part) => typeof part.grade !== 'number')) {
+      return null;
+    }
+    const grades = parts.map((part) => part.grade as number);
+    if (grades.some((grade) => grade < 18)) return null;
+    return Math.round(((grades[0] + grades[1]) / 2) * 10) / 10;
+  };
+
+  const handleExamGradeChange = (item: AssignmentItem, index: number, value: string) => {
+    if (!item.examParts) return;
+    const parsedGrade = Number(value);
+    const grade =
+      value === '' || !Number.isFinite(parsedGrade)
+        ? undefined
+        : Math.min(30, Math.max(0, parsedGrade));
+    const examParts = item.examParts.map((part, partIndex) =>
+      partIndex === index ? { ...part, grade } : part
+    );
+    const finalGrade = getExamResult(examParts);
+    onUpdateAssignment({
+      ...item,
+      examParts,
+      status: finalGrade !== null ? 'completed' : item.status === 'completed' ? 'todo' : item.status,
+      completedAt: finalGrade !== null ? item.completedAt || Date.now() : item.completedAt,
+    });
   };
 
   const filteredAssignments = assignments.filter((a) => {
@@ -212,9 +250,13 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                   </label>
                   <select
                     value={newType}
-                    onChange={(e) =>
-                      setNewType(e.target.value as AssignmentItem['type'])
-                    }
+                    onChange={(e) => {
+                      const type = e.target.value as AssignmentItem['type'];
+                      setNewType(type);
+                      if (!['Midterm', 'Exam', 'Final', 'Oral'].includes(type)) {
+                        setNewExamMode('single');
+                      }
+                    }}
                     className="w-full text-xs p-2 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4]/50 dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-100 font-medium focus:outline-none focus:border-[#6366F1]"
                   >
                     <option value="Assignment">Assignment</option>
@@ -226,6 +268,27 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                   </select>
                 </div>
               </div>
+
+              {['Midterm', 'Exam', 'Final', 'Oral'].includes(newType) && (
+              <div>
+                <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
+                  Exam format
+                </label>
+                <select
+                  value={newExamMode}
+                  onChange={(e) => setNewExamMode(e.target.value as 'single' | 'split')}
+                  className="w-full text-xs p-2 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4]/50 dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-100 font-medium focus:outline-none focus:border-[#6366F1]"
+                >
+                  <option value="single">Single exam</option>
+                  <option value="split">Two parts: Esonero 1 + Esonero 2</option>
+                </select>
+                {newExamMode === 'split' && (
+                  <p className="text-[10px] text-[#3f434a] dark:text-zinc-400 mt-1">
+                    Pass both parts to calculate the final grade as their arithmetic average.
+                  </p>
+                )}
+              </div>
+              )}
 
               <div>
                 <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
@@ -295,6 +358,7 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {filteredAssignments.map((item) => {
             const daysLeft = calculateDaysLeft(item.dueDate);
+            const finalExamGrade = getExamResult(item.examParts);
 
             // Urgency countdown styling based on deadline proximity
             let countdownBadge = {
@@ -385,6 +449,40 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                   {item.notes && (
                     <div className="text-[10px] text-[#3f434a]/80 dark:text-zinc-400 mt-0.5 leading-snug line-clamp-2">
                       {item.notes}
+                    </div>
+                  )}
+
+                  {item.examParts && item.examParts.length === 2 && (
+                    <div className="mt-2 rounded-md border border-indigo-200/80 dark:border-indigo-900/70 bg-indigo-50/70 dark:bg-indigo-950/30 p-2.5">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="font-semibold text-[10px] text-indigo-900 dark:text-indigo-100">
+                          Esame diviso in due prove
+                        </span>
+                        <span className={`text-[10px] font-bold ${finalExamGrade !== null ? 'text-emerald-700 dark:text-emerald-300' : 'text-indigo-700 dark:text-indigo-300'}`}>
+                          {finalExamGrade !== null ? `Media: ${finalExamGrade}/30` : 'Passa entrambe le prove'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {item.examParts.map((part, partIndex) => (
+                          <label key={part.label} className="text-[10px] font-medium text-indigo-900/80 dark:text-indigo-200/80">
+                            {part.label}
+                            <input
+                              type="number"
+                              min="0"
+                              max="30"
+                              step="1"
+                              value={part.grade ?? ''}
+                              onChange={(e) => handleExamGradeChange(item, partIndex, e.target.value)}
+                              placeholder="—"
+                              aria-label={`${part.label} grade`}
+                              className="mt-1 w-full rounded-md border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 px-2 py-1 text-xs font-mono text-[#2d2f34] dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[9px] text-indigo-800/80 dark:text-indigo-200/80">
+                        In the Italian system, each part is passed with at least 18/30.
+                      </p>
                     </div>
                   )}
                 </div>

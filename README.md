@@ -14,7 +14,7 @@
   <p>
     <img src="https://img.shields.io/badge/React-Vite-61DAFB?style=flat-square&logo=react" alt="React Vite" />
     <img src="https://img.shields.io/badge/TypeScript-Ready-3178C6?style=flat-square&logo=typescript" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/Tailwind_CSS-ObsidianUI-06B6D4?style=flat-square&logo=tailwindcss" alt="Tailwind & ObsidianUI" />
+    <img src="https://img.shields.io/badge/Tailwind_CSS-Ready-06B6D4?style=flat-square&logo=tailwindcss" alt="Tailwind CSS Ready" />
     <img src="https://img.shields.io/badge/Firebase-Firestore_&_Auth-FFCA28?style=flat-square&logo=firebase" alt="Firebase" />
     <img src="https://img.shields.io/badge/Vercel-Serverless-000000?style=flat-square&logo=vercel" alt="Vercel" />
   </p>
@@ -69,5 +69,4 @@ This project was initially **vibe-coded**, then iteratively engineered into a fu
 
 ## License
 Distributed under the MIT License. Built by students, for students.
-
 
