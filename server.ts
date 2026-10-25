@@ -29,9 +29,9 @@ function generateEmailHtml(code: string, email: string): string {
     <!-- Content -->
     <tr>
       <td style="padding: 32px;">
-        <h2 style="margin: 0 0 12px 0; color: #0f172a; font-size: 18px; font-weight: 600;">Student Verification Code</h2>
+        <h2 style="margin: 0 0 12px 0; color: #0f172a; font-size: 18px; font-weight: 600;">Verification Code</h2>
         <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.5; color: #475569;">
-          You requested a verification code for your university account (<strong>${email}</strong>). Use the 6-digit confirmation code below to complete your authentication:
+          You requested a verification code for your account (<strong>${email}</strong>). Use the 6-digit confirmation code below to complete your authentication:
         </p>
         
         <!-- Code Display Box -->
@@ -53,7 +53,7 @@ function generateEmailHtml(code: string, email: string): string {
     <tr>
       <td style="background-color: #f1f5f9; padding: 16px 32px; text-align: center; border-top: 1px solid #e2e8f0;">
         <p style="margin: 0; font-size: 11px; color: #94a3b8;">
-          UniSphere Campus Identity Protocol &bull; Institutional Single Sign-On Gateway
+          UniSphere Campus Identity Protocol &bull; Single Sign-On Gateway
         </p>
       </td>
     </tr>
@@ -89,7 +89,7 @@ async function startServer() {
     const normalizedEmail = email.trim().toLowerCase();
     const cleanCode = code.trim();
     const htmlContent = generateEmailHtml(cleanCode, normalizedEmail);
-    const textContent = `Your UniSphere student verification code is: ${cleanCode}\nThis code will expire in 15 minutes.`;
+    const textContent = `Your UniSphere verification code is: ${cleanCode}\nThis code will expire in 15 minutes.`;
 
     // 1. Try Resend API if RESEND_API_KEY is configured
     if (process.env.RESEND_API_KEY) {

@@ -1,5 +1,5 @@
 /**
- * Institutional Authentication & Multi-Device Synchronization Service
+ * Authentication & Multi-Device Synchronization Service
  * Backed by Firestore document persistence with standard SHA-256 password hashing.
  */
 
@@ -137,7 +137,7 @@ export function generateVerificationCode(): string {
 }
 
 /**
- * Dispatches and records a 6-digit email verification code for a student email.
+ * Dispatches and records a 6-digit email verification code for an email.
  * Stored in Firestore with a 15-minute expiration timestamp.
  */
 export interface DispatchCodeResult {
@@ -149,10 +149,10 @@ export interface DispatchCodeResult {
 }
 
 /**
- * Dispatches and records a 6-digit email verification code for a student email.
+ * Dispatches and records a 6-digit email verification code for an email.
  * - Stored securely in Firestore emailVerifications collection with 15-minute expiration
  * - Queued in Firestore mail collection (for Firebase Trigger Email Extension)
- * - Dispatched in real time via server-side /api/send-verification-email (Resend / SMTP)
+ * - Dispatched in real time via server-side /api/send-email (Resend / SMTP)
  * Note: The OTP code is never returned to the client UI to maintain strict authentication security.
  */
 export async function dispatchVerificationCode(
@@ -184,8 +184,8 @@ export async function dispatchVerificationCode(
         to: [normalized],
         message: {
           subject: `Your UniSphere Verification Code: ${code}`,
-          text: `Your UniSphere student verification code is: ${code}\nThis code will expire in 15 minutes.`,
-          html: `<div style="font-family: sans-serif; padding: 20px;"><h2 style="color: #4338ca;">UniSphere Student Verification Code</h2><p>Here is your 6-digit verification code to confirm your institutional email (<strong>${normalized}</strong>):</p><div style="font-size: 32px; letter-spacing: 6px; font-weight: bold; background: #eef2ff; border: 2px dashed #6366f1; padding: 16px; text-align: center; border-radius: 8px; color: #4338ca; margin: 20px 0;">${code}</div><p style="color: #64748b; font-size: 13px;">This code will expire in 15 minutes.</p></div>`,
+          text: `Your UniSphere verification code is: ${code}\nThis code will expire in 15 minutes.`,
+          html: `<div style="font-family: sans-serif; padding: 20px;"><h2 style="color: #4338ca;">UniSphere Verification Code</h2><p>Here is your 6-digit verification code to confirm your email (<strong>${normalized}</strong>):</p><div style="font-size: 32px; letter-spacing: 6px; font-weight: bold; background: #eef2ff; border: 2px dashed #6366f1; padding: 16px; text-align: center; border-radius: 8px; color: #4338ca; margin: 20px 0;">${code}</div><p style="color: #64748b; font-size: 13px;">This code will expire in 15 minutes.</p></div>`,
         },
         createdAt: serverTimestamp(),
       });
@@ -274,7 +274,7 @@ export async function verifyEmailCode(
     if (data.code !== cleanCode) {
       return {
         success: false,
-        error: 'Incorrect verification code. Please check your student email and try again.',
+        error: 'Incorrect verification code. Please check your email and try again.',
       };
     }
 

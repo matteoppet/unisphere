@@ -122,61 +122,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const [ssoStudentEmail, setSsoStudentEmail] = useState('');
   const [ssoStudentName, setSsoStudentName] = useState('');
 
-  // Helper to test if email looks like a genuine educational/student domain
-  // Explicitly rejects personal consumer webmails (gmail.com, hotmail.com, etc.)
-  const isEducationalEmail = (mail: string): boolean => {
-    if (!mail || !mail.includes('@')) return false;
-    const lower = mail.trim().toLowerCase();
-    const parts = lower.split('@');
-    if (parts.length !== 2) return false;
-    const domain = parts[1];
-
-    // Explicit consumer personal email domains (NOT student emails)
-    const personalConsumerDomains = [
-      'gmail.com',
-      'googlemail.com',
-      'yahoo.com',
-      'yahoo.it',
-      'ymail.com',
-      'hotmail.com',
-      'hotmail.it',
-      'outlook.com',
-      'outlook.it',
-      'live.com',
-      'live.it',
-      'msn.com',
-      'icloud.com',
-      'me.com',
-      'aol.com',
-      'mail.com',
-      'proton.me',
-      'protonmail.com',
-      'gmx.com',
-      'zoho.com',
-    ];
-
-    if (personalConsumerDomains.includes(domain)) {
-      return false;
-    }
-
-    // Check for student / academic institutional indicators
-    return (
-      domain.endsWith('.edu') ||
-      domain.includes('.edu.') ||
-      domain.includes('.ac.') ||
-      domain.includes('stud') ||
-      domain.includes('student') ||
-      domain.includes('uni') ||
-      domain.includes('campus') ||
-      domain.includes('college') ||
-      domain.includes('school') ||
-      domain.includes('academy') ||
-      domain.includes('polimi.') ||
-      domain.includes('polito.') ||
-      domain.includes('unibo.') ||
-      domain.includes('uniroma') ||
-      domain.endsWith('.it')
-    );
+  // Helper to validate email format (accepts institutional, educational, work, or personal emails)
+  const isValidEmail = (mail: string): boolean => {
+    if (!mail || typeof mail !== 'string') return false;
+    const trimmed = mail.trim().toLowerCase();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed);
   };
 
   const handleDegreeLevelChange = (levelId: string) => {
@@ -230,7 +180,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }, 300);
   };
 
-  // Sign In Handler with Student Email & Password
+  // Sign In Handler with Email & Password
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -239,26 +189,26 @@ export const AuthView: React.FC<AuthViewProps> = ({
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!normalizedEmail || !password) {
-      setErrorMessage('Please provide both your student email and password.');
+      setErrorMessage('Please provide both your email and password.');
       return;
     }
 
-    if (!isEducationalEmail(normalizedEmail)) {
+    if (!isValidEmail(normalizedEmail)) {
       setErrorMessage(
-        'Please enter your official institutional student email (e.g., student@stud.* or .edu). Personal emails are not permitted.'
+        'Please enter a valid email address.'
       );
       return;
     }
 
     setLoading(true);
     try {
-      // 1. Fetch student account from Firestore
+      // 1. Fetch account from Firestore
       const docId = getEmailDocId(normalizedEmail);
       const userDocRef = doc(db, 'users', docId);
       const docSnap = await getDoc(userDocRef);
 
       if (!docSnap.exists()) {
-        setErrorMessage('No student account found with this email. Please click "Register" or sign in via Google Workspace directly.');
+        setErrorMessage('No account found with this email. Please click "Register" or sign in via Google directly.');
         setLoading(false);
         return;
       }
@@ -269,7 +219,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       // 2. Validate password
       if (data.passwordHash) {
         if (data.passwordHash !== enteredHash) {
-          setErrorMessage('Invalid password. Please verify your student credentials.');
+          setErrorMessage('Invalid password. Please verify your credentials.');
           setLoading(false);
           return;
         }
@@ -296,19 +246,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
   };
 
-  // Student Email Verification via Email Code (Registration)
+  // Email Verification via Email Code (Registration)
   const handleSendVerificationCode = async () => {
     const normalized = email.trim().toLowerCase();
     setErrorMessage(null);
     setSuccessMessage(null);
 
     if (!normalized) {
-      setErrorMessage('Please enter your student email first.');
+      setErrorMessage('Please enter your email first.');
       return;
     }
-    if (!isEducationalEmail(normalized)) {
+    if (!isValidEmail(normalized)) {
       setErrorMessage(
-        'Email domain is not recognized as an institutional student domain. Please use your official university student email (e.g., @stud.*, .edu).'
+        'Please enter a valid email address.'
       );
       return;
     }
@@ -319,7 +269,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       if (res.success) {
         setVerificationCodeSent(true);
         setSuccessMessage(
-          `Verification code sent to ${normalized}. Please check your student inbox (and spam/junk folder) and enter the 6-digit code below.`
+          `Verification code sent to ${normalized}. Please check your inbox (and spam/junk folder) and enter the 6-digit code below.`
         );
       } else {
         setErrorMessage(res.error || 'Failed to dispatch verification code. Please try again.');
@@ -346,7 +296,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       const res = await verifyEmailCode(normalized, inputVerificationCode, db);
       if (res.success) {
         setIsEmailVerified(true);
-        setSuccessMessage('✓ Student email successfully verified! You may now proceed.');
+        setSuccessMessage('✓ Email successfully verified! You may now proceed.');
       } else {
         setErrorMessage(res.error || 'Invalid or expired verification code.');
       }
@@ -357,19 +307,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
   };
 
-  // Student Email Verification via Email Code (Login / Passwordless)
+  // Email Verification via Email Code (Login / Passwordless)
   const handleSendLoginCode = async () => {
     const normalized = email.trim().toLowerCase();
     setErrorMessage(null);
     setSuccessMessage(null);
 
     if (!normalized) {
-      setErrorMessage('Please enter your student email first.');
+      setErrorMessage('Please enter your email first.');
       return;
     }
-    if (!isEducationalEmail(normalized)) {
+    if (!isValidEmail(normalized)) {
       setErrorMessage(
-        'Email is not an institutional student address. Please use your official university student email.'
+        'Please enter a valid email address.'
       );
       return;
     }
@@ -379,7 +329,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       const res = await dispatchVerificationCode(normalized, db);
       if (res.success) {
         setLoginVerificationSent(true);
-        setSuccessMessage(`Login verification code sent to ${normalized}. Please check your student inbox.`);
+        setSuccessMessage(`Login verification code sent to ${normalized}. Please check your inbox.`);
       } else {
         setErrorMessage(res.error || 'Could not send verification code.');
       }
@@ -397,7 +347,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
     const normalized = email.trim().toLowerCase();
     if (!normalized || !loginInputCode.trim()) {
-      setErrorMessage('Please enter your student email and the 6-digit verification code.');
+      setErrorMessage('Please enter your email and the 6-digit verification code.');
       return;
     }
 
@@ -417,7 +367,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
       if (!docSnap.exists()) {
         setErrorMessage(
-          'Email verified, but no student workstation profile was found for this address. Please click Register to create your student account.'
+          'Email verified, but no workstation profile was found for this address. Please click Register to create your account.'
         );
         setLoading(false);
         return;
@@ -432,7 +382,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
   };
 
-  // Direct SSO Login with Google (Strictly Google Workspace for Education)
+  // Direct SSO Login with Google (Institutional or Personal)
   const handleGoogleSso = async () => {
     setErrorMessage(null);
     setSuccessMessage(null);
@@ -450,11 +400,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
         throw new Error('No email returned from Google.');
       }
 
-      // Strict enforcement: MUST be a student email
-      if (!isEducationalEmail(userMail)) {
-        setErrorMessage(
-          `Access Denied: Only institutional student emails are permitted. "${userMail}" is a personal Google account. Please sign in with your campus Google Workspace for Education account.`
-        );
+      if (!isValidEmail(userMail)) {
+        setErrorMessage(`Invalid email address received from Google: "${userMail}".`);
         setLoading(false);
         return;
       }
@@ -469,6 +416,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
       } else {
         // Create student account on first Google SSO login
         const studentDisplayName = result.user.displayName || userMail.split('@')[0];
+        const domain = userMail.split('@')[1] || '';
+        const isPersonalDomain = [
+          'gmail.com',
+          'googlemail.com',
+          'yahoo.com',
+          'yahoo.it',
+          'hotmail.com',
+          'outlook.com',
+          'icloud.com',
+        ].includes(domain);
+        const institutionName = isPersonalDomain
+          ? 'University'
+          : (domain.split('.')[0].toUpperCase() || 'University');
+
         const newRecord = {
           uid: docId,
           email: userMail,
@@ -482,7 +443,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           totalTargetCFU: 180,
           academicYear: 'Year 1',
           enrolledYear: 'AY 2024/25',
-          institution: 'University',
+          institution: institutionName,
           status: 'Enrolled',
           courses: [],
           studyLogs: [],
@@ -495,8 +456,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
         completeLoginWithStudentDoc(newRecord, userMail);
       }
     } catch (popupErr: any) {
-      console.warn('Google popup notice / opening Google Workspace modal fallback:', popupErr);
-      // Fallback to Google Workspace direct modal
+      console.warn('Google popup notice / opening Google sign-in modal fallback:', popupErr);
+      // Fallback to Google direct modal
       setLoading(false);
       setShowGoogleSsoModal(true);
       setSsoStudentEmail(email || '');
@@ -504,20 +465,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
   };
 
-  // Google Workspace Modal Fallback Submit Handler
+  // Google Sign In Modal Fallback Submit Handler
   const handleCampusGoogleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     const normalized = ssoStudentEmail.trim().toLowerCase();
 
     if (!normalized) {
-      setErrorMessage('Please enter your university student email.');
+      setErrorMessage('Please enter your email address.');
       return;
     }
 
-    if (!isEducationalEmail(normalized)) {
+    if (!isValidEmail(normalized)) {
       setErrorMessage(
-        'Access Denied: Personal email addresses (@gmail.com, @outlook.com, etc.) are strictly prohibited. Please provide your institutional student email (e.g. @stud.*, .edu).'
+        'Please provide a valid email address (e.g. name@gmail.com or student@uni.edu).'
       );
       return;
     }
@@ -533,6 +494,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
         completeLoginWithStudentDoc(docSnap.data(), normalized);
       } else {
         const studentName = ssoStudentName.trim() || normalized.split('@')[0];
+        const domain = normalized.split('@')[1] || '';
+        const isPersonalDomain = [
+          'gmail.com',
+          'googlemail.com',
+          'yahoo.com',
+          'yahoo.it',
+          'hotmail.com',
+          'outlook.com',
+          'icloud.com',
+        ].includes(domain);
+        const institutionName = isPersonalDomain
+          ? 'University'
+          : (domain.split('.')[0].toUpperCase() || 'University');
+
         const newRecord = {
           uid: docId,
           email: normalized,
@@ -546,7 +521,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           totalTargetCFU: 180,
           academicYear: 'Year 1',
           enrolledYear: 'AY 2024/25',
-          institution: normalized.split('@')[1]?.replace('.it', '').replace('.edu', '').toUpperCase() || 'University',
+          institution: institutionName,
           status: 'Enrolled',
           courses: [],
           studyLogs: [],
@@ -560,8 +535,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
         completeLoginWithStudentDoc(newRecord, normalized);
       }
     } catch (err: any) {
-      console.error('Google Workspace login error:', err);
-      setErrorMessage(err.message || 'Google Workspace authentication error.');
+      console.error('Google login error:', err);
+      setErrorMessage(err.message || 'Google authentication error.');
     } finally {
       setLoading(false);
     }
@@ -575,12 +550,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
     const normalizedEmail = email.trim();
 
     if (!normalizedEmail) {
-      setErrorMessage('Please enter your student email.');
+      setErrorMessage('Please enter your email.');
       return;
     }
 
-    if (!normalizedEmail.includes('@')) {
-      setErrorMessage('Please provide a valid student email address format.');
+    if (!isValidEmail(normalizedEmail)) {
+      setErrorMessage('Please provide a valid email address format.');
       return;
     }
 
@@ -600,7 +575,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
 
     if (!isEmailVerified) {
-      setErrorMessage('Please verify your student email using the 6-digit verification code before proceeding.');
+      setErrorMessage('Please verify your email using the 6-digit verification code before proceeding.');
       return;
     }
 
@@ -660,7 +635,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       // Check if student already registered
       const existingDoc = await getDoc(userDocRef);
       if (existingDoc.exists()) {
-        setErrorMessage('An account with this student email is already registered. Please sign in instead.');
+        setErrorMessage('An account with this email is already registered. Please sign in instead.');
         setLoading(false);
         return;
       }
@@ -764,7 +739,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
             <div>
               <h2 className="font-semibold text-xs text-slate-900 dark:text-zinc-100 leading-none">
                 {authMode === 'login'
-                  ? 'Student Sign-In'
+                  ? 'Sign In'
                   : regStep === 1
                   ? 'Account Registration — Step 1 of 2'
                   : 'Degree & Master Setup — Step 2 of 2'}
@@ -827,14 +802,14 @@ export const AuthView: React.FC<AuthViewProps> = ({
         {/* ======================= LOGIN VIEW ======================= */}
         {authMode === 'login' && (
           <form onSubmit={handleLoginSubmit} className="p-4 space-y-3.5">
-            {/* Direct Student Google SSO */}
+            {/* Direct Google SSO */}
             <div>
               <button
                 type="button"
                 onClick={handleGoogleSso}
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 hover:border-gray-400 dark:hover:border-zinc-600 hover:bg-slate-50 dark:hover:bg-zinc-750 text-slate-800 dark:text-zinc-200 text-xs font-semibold rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-60"
-                title="Sign in directly using your campus Google Workspace for Education account"
+                title="Sign in directly using your Google account (institutional or personal)"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -854,13 +829,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
                     d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
                   />
                 </svg>
-                <span>Sign In with Google Workspace (Student)</span>
+                <span>Sign In with Google</span>
               </button>
             </div>
 
             <div className="flex items-center gap-2 my-1">
               <div className="flex-1 h-px bg-gray-200 dark:bg-zinc-800"></div>
-              <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">Or with Student Email</span>
+              <span className="text-[10px] text-slate-400 dark:text-zinc-500 uppercase font-semibold">Or with Email</span>
               <div className="flex-1 h-px bg-gray-200 dark:bg-zinc-800"></div>
             </div>
 
@@ -870,7 +845,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   <span className="material-symbols-outlined text-[15px] text-indigo-600 dark:text-indigo-400">
                     alternate_email
                   </span>
-                  <span>Student Email Authentication</span>
+                  <span>Email Authentication</span>
                 </div>
                 {/* Method selector toggle */}
                 <div className="flex items-center gap-1 bg-slate-200/70 dark:bg-zinc-800 p-0.5 rounded-md text-[10px]">
@@ -907,30 +882,30 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                  Student Email
+                  Email
                 </label>
                 <div className="relative">
                   <input
                     type="email"
                     required
-                    placeholder="e.g. s123456@stud.uniroma3.it"
+                    placeholder="e.g. alex@example.com or student@uni.edu"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 px-3 py-2 text-xs rounded-lg text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-sans transition-all"
                   />
-                  {email && isEducationalEmail(email) && (
+                  {email && isValidEmail(email) && (
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-emerald-700 dark:text-emerald-300 font-mono bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded-md">
-                      ✓ Edu Domain
+                      ✓ Valid Email
                     </span>
                   )}
                 </div>
-                {email && !isEducationalEmail(email) ? (
+                {email && !isValidEmail(email) ? (
                   <span className="text-[10px] text-rose-600 dark:text-rose-400 mt-1 block">
-                    ⚠️ Non-institutional email. Personal domains (@gmail.com, @outlook.com) are rejected. Please use your student email.
+                    Please enter a valid email address.
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1 block">
-                    Official student email (.edu, @stud.*, or university domain).
+                    Institutional, student, or personal email address.
                   </span>
                 )}
               </div>
@@ -984,7 +959,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   />
 
                   <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-tight">
-                    Check your university student inbox for the 6-digit verification code.
+                    Check your inbox for the 6-digit verification code.
                   </p>
                 </div>
               )}
@@ -1039,14 +1014,14 @@ export const AuthView: React.FC<AuthViewProps> = ({
         {/* ======================= REGISTRATION: STEP 1 ======================= */}
         {authMode === 'register' && regStep === 1 && (
           <form onSubmit={handleProceedToStep2} className="p-4 space-y-3.5">
-            {/* Quick Register with Student Google SSO */}
+            {/* Quick Register with Google */}
             <div>
               <button
                 type="button"
                 onClick={handleGoogleSso}
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2.5 px-3 py-2.5 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 hover:border-gray-400 dark:hover:border-zinc-600 hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 text-xs font-semibold rounded-lg shadow-2xs transition-all cursor-pointer disabled:opacity-60"
-                title="Register directly with your Google Workspace student email"
+                title="Register directly with your Google account (institutional or personal)"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -1066,7 +1041,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                     d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
                   />
                 </svg>
-                <span>Register with Google Workspace (Student)</span>
+                <span>Register with Google</span>
               </button>
             </div>
 
@@ -1081,7 +1056,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <span className="material-symbols-outlined text-[15px] text-indigo-600">
                   person_add
                 </span>
-                <span>Student Identity &amp; Educational Email</span>
+                <span>Account Identity &amp; Email</span>
               </div>
 
               {/* Full Name & Student ID */}
@@ -1114,16 +1089,16 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 </div>
               </div>
 
-              {/* Student Email */}
+              {/* Email */}
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                  Student Email <span className="text-rose-500">*</span>
+                  Email Address <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <input
                     type="email"
                     required
-                    placeholder="e.g. s123456@stud.uniroma3.it"
+                    placeholder="e.g. alex@example.com or student@uni.edu"
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value);
@@ -1132,31 +1107,31 @@ export const AuthView: React.FC<AuthViewProps> = ({
                     }}
                     className="w-full bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 px-3 py-2 text-xs rounded-lg text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-sans transition-all"
                   />
-                  {email && isEducationalEmail(email) && (
+                  {email && isValidEmail(email) && (
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-emerald-700 dark:text-emerald-300 font-mono bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded-md">
-                      ✓ Institutional Domain
+                      ✓ Valid Email
                     </span>
                   )}
                 </div>
-                {email && !isEducationalEmail(email) ? (
+                {email && !isValidEmail(email) ? (
                   <span className="text-[10px] text-rose-600 dark:text-rose-400 mt-1 block">
-                    ⚠️ Non-student address. Consumer personal accounts (@gmail.com, @outlook.com) are rejected. Please use your official university student email.
+                    Please enter a valid email address.
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1 block">
-                    Must be your registered institutional or university student address.
+                    Institutional, university, or personal email address.
                   </span>
                 )}
               </div>
 
-              {/* Student Email Verification via Code */}
+              {/* Email Verification via Code */}
               <div className="p-3 bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-lg space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
                     <span className="material-symbols-outlined text-[15px] text-indigo-600 dark:text-indigo-400">
                       mark_email_read
                     </span>
-                    <span>Student Email Code Verification</span>
+                    <span>Email Code Verification</span>
                   </div>
                   {isEmailVerified ? (
                     <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 px-2 py-0.5 rounded-md flex items-center gap-1">
@@ -1167,7 +1142,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
                     <button
                       type="button"
                       onClick={handleSendVerificationCode}
-                      disabled={sendingCode || !email}
+                      disabled={sendingCode || !email || !isValidEmail(email)}
                       className="text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 hover:text-indigo-900 dark:hover:text-indigo-200 bg-white dark:bg-zinc-900 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 rounded-md shadow-2xs hover:bg-indigo-50 dark:hover:bg-indigo-950/60 cursor-pointer disabled:opacity-50 transition-all flex items-center gap-1"
                     >
                       <span className="material-symbols-outlined text-[13px]">send</span>
@@ -1198,13 +1173,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
                     </div>
 
                     <p className="text-[10px] text-slate-500 dark:text-zinc-400 leading-tight">
-                      A 6-digit one-time code has been dispatched to your official student email. Please check your inbox and junk/spam folder.
+                      A 6-digit one-time code has been dispatched to your email. Please check your inbox and junk/spam folder.
                     </p>
                   </div>
                 ) : (
                   <p className="text-[10.5px] text-emerald-800 dark:text-emerald-300 flex items-center gap-1 pt-0.5">
                     <span className="material-symbols-outlined text-[15px] text-emerald-600 dark:text-emerald-400">verified</span>
-                    Official university student email confirmed: <strong>{email}</strong>
+                    Email confirmed: <strong>{email}</strong>
                   </p>
                 )}
               </div>
@@ -1485,10 +1460,10 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 </svg>
                 <div>
                   <h3 className="font-bold text-slate-900 dark:text-zinc-100 text-xs leading-tight">
-                    Google Workspace for Education
+                    Google Sign In
                   </h3>
                   <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-normal">
-                    Institutional Student Authentication
+                    Institutional or Personal Google Account
                   </p>
                 </div>
               </div>
@@ -1508,43 +1483,43 @@ export const AuthView: React.FC<AuthViewProps> = ({
                   verified_user
                 </span>
                 <span>
-                  <strong>Student accounts only:</strong> Enter your university-issued student Google account (e.g. <code>@stud.*</code>, <code>.edu</code>, or university domain). Personal accounts are rejected.
+                  Sign in with your Google account email (e.g. <code>@gmail.com</code>, <code>.edu</code>, or university domain).
                 </span>
               </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                  Institutional Student Email <span className="text-rose-500">*</span>
+                  Email Address <span className="text-rose-500">*</span>
                 </label>
                 <div className="relative">
                   <input
                     type="email"
                     required
-                    placeholder="e.g. s123456@stud.uniroma3.it or name@harvard.edu"
+                    placeholder="e.g. name@gmail.com or student@uni.edu"
                     value={ssoStudentEmail}
                     onChange={(e) => setSsoStudentEmail(e.target.value)}
                     className="w-full bg-white dark:bg-zinc-950 border border-gray-200 dark:border-zinc-800 px-3 py-2 text-xs rounded-lg text-slate-800 dark:text-zinc-100 placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-sans transition-all"
                   />
-                  {ssoStudentEmail && isEducationalEmail(ssoStudentEmail) && (
+                  {ssoStudentEmail && isValidEmail(ssoStudentEmail) && (
                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-emerald-700 dark:text-emerald-300 font-mono bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.5 rounded-md">
-                      ✓ Valid Student Domain
+                      ✓ Valid Email
                     </span>
                   )}
                 </div>
-                {ssoStudentEmail && !isEducationalEmail(ssoStudentEmail) ? (
+                {ssoStudentEmail && !isValidEmail(ssoStudentEmail) ? (
                   <span className="text-[10px] text-rose-600 dark:text-rose-400 mt-1 block">
-                    ⚠️ Personal email address detected. Only official university student emails are allowed.
+                    Please enter a valid email address.
                   </span>
                 ) : (
                   <span className="text-[10px] text-slate-500 dark:text-zinc-400 mt-1 block">
-                    Verified through Google Workspace for Education Directory.
+                    Sign in with any institutional or personal Google account.
                   </span>
                 )}
               </div>
 
               <div>
                 <label className="block text-[11px] font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                  Student Name <span className="text-slate-400 dark:text-zinc-500 font-normal">(Optional)</span>
+                  Full Name <span className="text-slate-400 dark:text-zinc-500 font-normal">(Optional)</span>
                 </label>
                 <input
                   type="text"
@@ -1565,13 +1540,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || (Boolean(ssoStudentEmail) && !isEducationalEmail(ssoStudentEmail))}
+                  disabled={loading || (Boolean(ssoStudentEmail) && !isValidEmail(ssoStudentEmail))}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors disabled:opacity-50"
                 >
                   <span className="material-symbols-outlined text-[15px]">
                     lock_open
                   </span>
-                  <span>{loading ? 'Verifying...' : 'Sign In with Student Account'}</span>
+                  <span>{loading ? 'Verifying...' : 'Sign In with Google Account'}</span>
                 </button>
               </div>
             </form>

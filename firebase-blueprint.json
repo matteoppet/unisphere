@@ -9,7 +9,7 @@
         "email": { "type": "string", "format": "email" },
         "name": { "type": "string" },
         "studentId": { "type": "string" },
-        "passwordHash": { "type": "string", "description": "SHA-256 password hash for multi-device institutional authentication" },
+        "passwordHash": { "type": "string", "description": "SHA-256 password hash for multi-device authentication" },
         "degreeLevel": { "type": "string" },
         "degreeName": { "type": "string" },
         "degreeType": { "type": "string" },

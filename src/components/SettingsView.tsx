@@ -234,7 +234,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
                 <div>
                   <label className="text-[10px] font-semibold text-zinc-700 dark:text-zinc-300 uppercase block">
-                    Educational Email
+                    Email Address
                   </label>
                   <input
                     type="email"
@@ -243,7 +243,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       setFormData({ ...formData, email: e.target.value })
                     }
                     className="w-full text-[11px] p-1.5 border border-zinc-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 font-mono focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-1 focus:ring-indigo-500/20 transition-all"
-                    placeholder="student@institution.edu"
+                    placeholder="student@example.com"
                   />
                 </div>
 
