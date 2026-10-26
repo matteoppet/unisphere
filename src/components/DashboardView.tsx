@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Course,
   StudyLog,
@@ -13,6 +13,7 @@ import { Button } from './ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 import { fireTaskConfetti, fireCelebrationConfetti } from '../utils/confetti';
 import { getPowerBorderClass, getPowerBarFillClass } from '../utils/telemetry';
+import { calculateMediaGrades } from '../utils/grades';
 import { NewAssignmentModal } from './Modals';
 import { QuickStudyModal } from './QuickStudyModal';
 import { Bookmark, FileText, Columns } from 'lucide-react';
@@ -86,6 +87,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [dashboardTab, setDashboardTab] = useState<'courses' | 'logs'>('courses');
   const [courseFilter, setCourseFilter] = useState<'all' | 'active' | 'completed' | 'planned'>('all');
   const [copiedMatricola, setCopiedMatricola] = useState(false);
+  const [mediaMode, setMediaMode] = useState<'weighted' | 'arithmetic'>('weighted');
+
+  const gradeSummary = useMemo(() => {
+    return calculateMediaGrades(assignments, courses);
+  }, [assignments, courses]);
+
+  const currentAverage =
+    mediaMode === 'weighted'
+      ? gradeSummary.weightedAverage
+      : gradeSummary.arithmeticAverage;
+
+  const gradePercent =
+    currentAverage !== null
+      ? Math.min(100, Math.max(0, Math.round((currentAverage / 30) * 100)))
+      : 0;
 
   // Data Table Search & Sorting States
   const [tableSearch, setTableSearch] = useState('');
@@ -398,19 +414,70 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
 
-            {/* Completed courses */}
-            <div className="bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2.5 rounded-md shadow-2xs flex flex-col justify-between">
-              <div className="text-neutral-600 dark:text-zinc-400 text-[9px] sm:text-[10px] font-bold truncate">
-                Completed
+            {/* Grade Media (Media Voti) */}
+            <div
+              className={`bg-slate-50/70 dark:bg-zinc-900/80 border border-gray-200 dark:border-zinc-800 p-1.5 sm:p-2.5 rounded-md shadow-2xs flex flex-col justify-between ${
+                onNavigateToAssignments ? 'cursor-pointer hover:border-indigo-400/50 dark:hover:border-indigo-500/50 transition-all' : ''
+              }`}
+              onClick={onNavigateToAssignments}
+              title={
+                onNavigateToAssignments
+                  ? 'Click to open Assignments & Exams Registry'
+                  : undefined
+              }
+            >
+              <div className="flex items-center justify-between text-neutral-600 dark:text-zinc-400 text-[9px] sm:text-[10px] font-bold">
+                <span className="truncate">Grade Media</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMediaMode((prev) => (prev === 'weighted' ? 'arithmetic' : 'weighted'));
+                  }}
+                  title={`Switch to ${mediaMode === 'weighted' ? 'arithmetic' : 'CFU-weighted'} average`}
+                  className="text-[8px] sm:text-[8.5px] px-1 py-0.5 rounded border border-gray-200 dark:border-zinc-700 font-mono text-neutral-600 dark:text-zinc-300 hover:text-indigo-600 dark:hover:text-indigo-400 bg-white dark:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+                >
+                  {mediaMode === 'weighted' ? 'Wtd' : 'Arith'}
+                </button>
               </div>
+
               <div className="flex items-baseline gap-0.5 sm:gap-1 my-0.5">
                 <span className="font-bold text-xs sm:text-base lg:text-lg text-neutral-900 dark:text-zinc-100 font-mono">
-                  {completedCourses.length}
+                  {currentAverage !== null ? currentAverage.toFixed(1) : '—'}
                 </span>
-                <span className="text-neutral-500 dark:text-zinc-400 text-[8.5px] sm:text-[10px]">Passed</span>
+                <span className="text-neutral-500 dark:text-zinc-400 text-[8.5px] sm:text-[10px]">
+                  /30
+                </span>
+                {gradeSummary.laureaBase !== null && (
+                  <span
+                    className="ml-auto text-[8px] sm:text-[9.5px] text-indigo-600 dark:text-indigo-400 font-mono font-semibold truncate"
+                    title="Estimated graduation grade base (out of 110)"
+                  >
+                    {gradeSummary.laureaBase.toFixed(1)}/110
+                  </span>
+                )}
               </div>
-              <div className="text-[8.5px] sm:text-[10px] text-neutral-500 dark:text-zinc-400 font-mono truncate">
-                {activeCourses.length} active
+
+              <div className="w-full bg-slate-200 dark:bg-zinc-800 h-1 sm:h-1.5 rounded-full overflow-hidden mt-0.5">
+                <div
+                  className="bg-indigo-600 dark:bg-indigo-500 h-full transition-all duration-500 rounded-full"
+                  style={{ width: `${gradePercent}%` }}
+                />
+              </div>
+
+              <div className="text-[8.5px] sm:text-[10px] text-neutral-500 dark:text-zinc-400 font-mono mt-0.5 flex items-center justify-between truncate">
+                <span className="truncate">
+                  {gradeSummary.gradedExamsCount > 0
+                    ? `${gradeSummary.gradedExamsCount} ${
+                        gradeSummary.gradedExamsCount === 1 ? 'exam' : 'exams'
+                      } graded`
+                    : 'No exams graded'}
+                </span>
+                {gradeSummary.gradedExamsCount > 0 && (
+                  <span className="text-[8px] text-neutral-400 dark:text-zinc-500 truncate ml-1">
+                    {mediaMode === 'weighted' ? `${gradeSummary.totalGradedCFU} CFU` : 'mean'}
+                  </span>
+                )}
               </div>
             </div>
 
