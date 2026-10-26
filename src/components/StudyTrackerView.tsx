@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { StudyLog, Course, StudyTag } from '../types';
 import { fireCelebrationConfetti } from '../utils/confetti';
+import {
+  getLocalDateString,
+  formatStudyDuration,
+  getWeekDaysSummary,
+} from '../utils/telemetry';
 
 interface StudyTrackerViewProps {
   studyLogs: StudyLog[];
@@ -34,7 +39,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
     activeCourses[0]?.title || courses[0]?.title || ''
   );
   const [sessionDate, setSessionDate] = useState(() =>
-    new Date().toISOString().split('T')[0]
+    getLocalDateString()
   );
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [tag, setTag] = useState<StudyTag>('Deep Work');
@@ -75,7 +80,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
       (c) => c.title === selectedCourse || c.shortTitle === selectedCourse
     );
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const prefix = sessionDate === todayStr ? 'Today' : sessionDate;
     const nowTime = new Date().toLocaleTimeString([], {
       hour: '2-digit',
@@ -100,7 +105,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
 
   // Total metrics
   const totalMinutes = studyLogs.reduce((sum, l) => sum + l.durationMinutes, 0);
-  const totalHours = (totalMinutes / 60).toFixed(1);
+  const totalHours = (totalMinutes / 60).toFixed(1).replace(/\.0$/, '');
 
   // Hours per course breakdown
   const courseTimeMap: { [course: string]: number } = {};
@@ -109,54 +114,8 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
       (courseTimeMap[l.courseName] || 0) + l.durationMinutes;
   });
 
-  // Calculate current week (Monday through Sunday)
-  const referenceDateStr =
-    studyLogs.length > 0 ? studyLogs[0].date : new Date().toISOString().split('T')[0];
-  const refDate = new Date(referenceDateStr);
-  const dayOfWeek = refDate.getDay(); // 0 is Sunday, 1 is Monday...
-  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(refDate);
-  monday.setDate(refDate.getDate() + distanceToMonday);
-
-  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const monthNames = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    const dateStr = d.toISOString().split('T')[0];
-
-    const dayLogs = studyLogs.filter((l) => l.date === dateStr);
-    const dayMins = dayLogs.reduce((sum, l) => sum + l.durationMinutes, 0);
-    const hours = (dayMins / 60).toFixed(1);
-    const sessionCount = dayLogs.length;
-
-    return {
-      shortDay: dayNames[i],
-      dateStr,
-      formattedDate: `${d.getDate()} ${monthNames[d.getMonth()]}`,
-      hours: dayMins > 0 ? `${hours}h` : '0h',
-      minutes: dayMins,
-      sessionCount,
-      hasSessions: sessionCount > 0,
-    };
-  });
-
-  const weekTotalMinutes = weekDays.reduce((sum, d) => sum + d.minutes, 0);
-  const weekTotalHours = (weekTotalMinutes / 60).toFixed(1);
+  // Calculate current week (Monday through Sunday) summary
+  const { weekDays, weekTotalMinutes } = getWeekDaysSummary(studyLogs);
 
   // Filtered study logs
   const filteredLogs = studyLogs.filter((log) => {
@@ -198,8 +157,8 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
             </div>
             <span className="text-neutral-300 dark:text-zinc-700 hidden sm:inline">|</span>
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-zinc-900 dark:text-zinc-100 dark:text-zinc-100 font-mono text-xs">
-                {weekTotalHours}h Focus Time
+              <span className="font-bold text-zinc-900 dark:text-zinc-100 font-mono text-xs">
+                {formatStudyDuration(weekTotalMinutes)} Focus Time
               </span>
             </div>
           </div>
@@ -301,7 +260,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2.5 pt-2">
           {Object.entries(courseTimeMap).map(([cName, mins]) => {
-            const hrs = (mins / 60).toFixed(1);
+            const hrs = (mins / 60).toFixed(1).replace(/\.0$/, '');
             const pct =
               totalMinutes > 0 ? Math.round((mins / totalMinutes) * 100) : 0;
 

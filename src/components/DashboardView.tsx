@@ -12,7 +12,13 @@ import { StatusBadge } from './StatusBadge';
 import { Button } from './ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 import { fireTaskConfetti, fireCelebrationConfetti } from '../utils/confetti';
-import { getPowerBorderClass, getPowerBarFillClass } from '../utils/telemetry';
+import {
+  getPowerBorderClass,
+  getPowerBarFillClass,
+  getLocalDateString,
+  formatStudyDuration,
+  getWeekDaysSummary,
+} from '../utils/telemetry';
 import { calculateMediaGrades } from '../utils/grades';
 import { NewAssignmentModal } from './Modals';
 import { QuickStudyModal } from './QuickStudyModal';
@@ -165,7 +171,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const handleInstantQuickStudyLog = (mins: number) => {
     const activeCourse = courses.find((c) => c.status === 'active') || courses[0];
     const cName = activeCourse ? activeCourse.title : 'General Deep Work';
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     handleCreateQuickStudyLog({
@@ -275,54 +281,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const weeklyMinutes = studyLogs
     .filter((log) => log.timestamp >= oneWeekAgo)
     .reduce((sum, log) => sum + log.durationMinutes, 0);
-  const weeklyHours = (weeklyMinutes / 60).toFixed(1);
+  const weeklyHours = (weeklyMinutes / 60).toFixed(1).replace(/\.0$/, '');
   const weeklyGoalPercent = Math.min(
     100,
     Math.round((parseFloat(weeklyHours) / profile.weeklyGoalHours) * 100)
   );
 
-  // Calculate current week (Monday through Sunday) for compact weekly schedule chart
-  const referenceDateStr =
-    studyLogs.length > 0 ? studyLogs[0].date : new Date().toISOString().split('T')[0];
-  const refDate = new Date(referenceDateStr);
-  const dayOfWeek = refDate.getDay(); // 0 is Sunday, 1 is Monday...
-  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(refDate);
-  monday.setDate(refDate.getDate() + distanceToMonday);
-
-  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const monthNames = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    const dateStr = d.toISOString().split('T')[0];
-
-    const dayLogs = studyLogs.filter((l) => l.date === dateStr);
-    const dayMins = dayLogs.reduce((sum, l) => sum + l.durationMinutes, 0);
-    const hours = (dayMins / 60).toFixed(1);
-    const sessionCount = dayLogs.length;
-
-    return {
-      shortDay: dayNames[i],
-      dateStr,
-      formattedDate: `${d.getDate()} ${monthNames[d.getMonth()]}`,
-      hours: dayMins > 0 ? `${hours}h` : '0h',
-      minutes: dayMins,
-      sessionCount,
-      hasSessions: sessionCount > 0,
-    };
-  });
-
-  const weekTotalMinutes = weekDays.reduce((sum, d) => sum + d.minutes, 0);
-  const weekTotalHours = (weekTotalMinutes / 60).toFixed(1);
-  const weekTotalSessions = weekDays.reduce((sum, d) => sum + d.sessionCount, 0);
-  const activeDaysCount = weekDays.filter((d) => d.hasSessions).length;
+  // Calculate current week (Monday through Sunday) summary
+  const { weekDays, weekTotalMinutes, weekTotalSessions, activeDaysCount } =
+    getWeekDaysSummary(studyLogs);
 
   // Dynamic Power Border Telemetry
-  const todayIso = new Date().toISOString().split('T')[0];
+  const todayIso = getLocalDateString();
   const todayMinutesStudied = studyLogs
     .filter((l) => l.date === todayIso)
     .reduce((sum, l) => sum + l.durationMinutes, 0);
@@ -1139,7 +1109,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <div className="shrink-0 p-2 sm:p-2.5 bg-slate-50/70 dark:bg-zinc-900/60 border-b border-gray-200 dark:border-zinc-800">
                   <div className="flex items-center justify-between text-[11px] pb-1 border-b border-gray-200/60 dark:border-zinc-800">
                     <span className="font-bold text-neutral-900 dark:text-zinc-100 font-mono text-xs">
-                      {weekTotalHours}h Focus Time this week
+                      {formatStudyDuration(weekTotalMinutes)} Focus Time this week
                     </span>
                     <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
                       {weekTotalSessions} session{weekTotalSessions === 1 ? '' : 's'} logged
