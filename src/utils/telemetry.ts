@@ -145,3 +145,99 @@ export function generateSquadCode(): string {
   }
   return result;
 }
+
+/**
+ * Formats a Date object to YYYY-MM-DD string in local timezone
+ */
+export function getLocalDateString(d: Date = new Date()): string {
+  const yr = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${yr}-${mo}-${da}`;
+}
+
+export interface WeekDaySummary {
+  shortDay: string;
+  dateStr: string;
+  formattedDate: string;
+  hours: string;
+  minutes: number;
+  sessionCount: number;
+  hasSessions: boolean;
+}
+
+/**
+ * Formats study minutes into human-readable hours and minutes:
+ * - 0 mins -> '0h'
+ * - Exact hours (e.g. 60m) -> '1h' (not '1.0h' and not '0.8h')
+ * - Sub-hour (e.g. 45m, 50m) -> '45m', '50m'
+ * - Hours and minutes (e.g. 90m) -> '1h 30m'
+ */
+export function formatStudyDuration(totalMinutes: number): string {
+  if (!totalMinutes || totalMinutes <= 0) return '0h';
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  if (hours > 0 && mins > 0) {
+    return `${hours}h ${mins}m`;
+  }
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+  return `${mins}m`;
+}
+
+/**
+ * Calculates current week (Monday through Sunday) summary from study logs
+ */
+export function getWeekDaysSummary(studyLogs: { date: string; durationMinutes: number }[]): {
+  weekDays: WeekDaySummary[];
+  weekTotalMinutes: number;
+  weekTotalSessions: number;
+  activeDaysCount: number;
+} {
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  const now = new Date();
+  const todayYear = now.getFullYear();
+  const todayMonth = now.getMonth();
+  const todayDate = now.getDate();
+  const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday...
+  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+
+  const weekDays: WeekDaySummary[] = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(todayYear, todayMonth, todayDate + distanceToMonday + i);
+    const yr = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yr}-${mo}-${da}`;
+
+    const dayLogs = studyLogs.filter((l) => l.date === dateStr);
+    const dayMins = dayLogs.reduce((sum, l) => sum + (l.durationMinutes || 0), 0);
+    const sessionCount = dayLogs.length;
+
+    return {
+      shortDay: dayNames[i],
+      dateStr,
+      formattedDate: `${d.getDate()} ${monthNames[d.getMonth()]}`,
+      hours: formatStudyDuration(dayMins),
+      minutes: dayMins,
+      sessionCount,
+      hasSessions: sessionCount > 0,
+    };
+  });
+
+  const weekTotalMinutes = weekDays.reduce((sum, d) => sum + d.minutes, 0);
+  const weekTotalSessions = weekDays.reduce((sum, d) => sum + d.sessionCount, 0);
+  const activeDaysCount = weekDays.filter((d) => d.hasSessions).length;
+
+  return {
+    weekDays,
+    weekTotalMinutes,
+    weekTotalSessions,
+    activeDaysCount,
+  };
+}
+

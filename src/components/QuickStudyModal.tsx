@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from '.
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { fireCelebrationConfetti } from '../utils/confetti';
+import { getLocalDateString } from '../utils/telemetry';
 
 interface QuickStudyModalProps {
   courses: Course[];
@@ -61,7 +62,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
   });
   const [durationMinutes, setDurationMinutes] = useState<number>(45);
   const [tag, setTag] = useState<StudyTag>('Deep Work');
-  const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(() => getLocalDateString());
   const [notes, setNotes] = useState<string>('');
 
   // Local timer state if not running globally
@@ -111,7 +112,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
     sDate: string
   ) => {
     const matched = courses.find((c) => c.title === cName || c.shortTitle === cName);
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const prefix = sDate === todayStr ? 'Today' : sDate;
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
@@ -151,7 +152,7 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
       elapsedMins,
       tag,
       notes.trim() || `Live timer focus session (${elapsedMins} min)`,
-      new Date().toISOString().split('T')[0]
+      getLocalDateString()
     );
   };
 

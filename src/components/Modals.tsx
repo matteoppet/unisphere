@@ -4,6 +4,7 @@ import { StatusBadge } from './StatusBadge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { fireCelebrationConfetti } from '../utils/confetti';
+import { getLocalDateString } from '../utils/telemetry';
 import {
   Dialog,
   DialogContent,
@@ -1096,7 +1097,7 @@ export const NewStudyLogModal: React.FC<NewStudyLogModalProps> = ({
   const [courseName, setCourseName] = useState(
     activeCourses[0]?.title || courses[0]?.title || 'General'
   );
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => getLocalDateString());
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [tag, setTag] = useState<StudyLog['tag']>('Deep Work');
   const [notes, setNotes] = useState('');
@@ -1104,7 +1105,7 @@ export const NewStudyLogModal: React.FC<NewStudyLogModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const matched = courses.find((c) => c.title === courseName || c.shortTitle === courseName);
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalDateString();
     const prefix = date === todayStr ? 'Today' : date;
     const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
