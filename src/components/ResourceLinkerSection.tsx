@@ -3,7 +3,6 @@ import { ResourceLink, ResourceCategory, Course, INITIAL_RESOURCE_LINKS } from '
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { playMechanicalClick, playClickBeep } from '../utils/audio';
 import {
   Bookmark,
   ExternalLink,
@@ -168,7 +167,6 @@ export const ResourceLinkerSection: React.FC<ResourceLinkerSectionProps> = ({
 
   // Open modal for Create
   const handleOpenCreate = () => {
-    playClickBeep();
     setEditingId(null);
     setFormTitle('');
     setFormUrl('');
@@ -181,7 +179,6 @@ export const ResourceLinkerSection: React.FC<ResourceLinkerSectionProps> = ({
 
   // Open modal for Edit
   const handleOpenEdit = (res: ResourceLink) => {
-    playClickBeep();
     setEditingId(res.id);
     setFormTitle(res.title);
     setFormUrl(res.url);
@@ -196,7 +193,6 @@ export const ResourceLinkerSection: React.FC<ResourceLinkerSectionProps> = ({
   const handleSaveLink = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim() || !formUrl.trim()) return;
-    playMechanicalClick();
 
     let cleanUrl = formUrl.trim();
     if (!/^https?:\/\//i.test(cleanUrl)) {
@@ -239,14 +235,12 @@ export const ResourceLinkerSection: React.FC<ResourceLinkerSectionProps> = ({
 
   // Delete Link
   const handleDeleteLink = (id: string) => {
-    playClickBeep();
     const updated = resources.filter((r) => r.id !== id);
     persistResources(updated);
   };
 
   // Toggle Pin
   const handleTogglePin = (id: string) => {
-    playClickBeep();
     const updated = resources.map((r) =>
       r.id === id ? { ...r, isPinned: !r.isPinned } : r
     );
@@ -255,7 +249,6 @@ export const ResourceLinkerSection: React.FC<ResourceLinkerSectionProps> = ({
 
   // Copy Link
   const handleCopyLink = (res: ResourceLink) => {
-    playClickBeep();
     navigator.clipboard.writeText(res.url);
     setCopiedId(res.id);
     setTimeout(() => {
@@ -326,7 +319,6 @@ export const ResourceLinkerSection: React.FC<ResourceLinkerSectionProps> = ({
             <button
               type="button"
               onClick={() => {
-                playClickBeep();
                 setActiveCategory('all');
               }}
               className={`px-2 py-0.5 text-[10px] rounded-md font-medium transition-all shrink-0 cursor-pointer ${
@@ -346,7 +338,6 @@ export const ResourceLinkerSection: React.FC<ResourceLinkerSectionProps> = ({
                   key={cat.label}
                   type="button"
                   onClick={() => {
-                    playClickBeep();
                     setActiveCategory(cat.label);
                   }}
                   className={`px-2 py-0.5 text-[10px] rounded-md font-medium transition-all shrink-0 flex items-center gap-1 cursor-pointer ${

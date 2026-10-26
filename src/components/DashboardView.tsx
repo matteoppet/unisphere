@@ -11,7 +11,6 @@ import { ResourceLinkerSection } from './ResourceLinkerSection';
 import { StatusBadge } from './StatusBadge';
 import { Button } from './ui/button';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
-import { playClickBeep, playFuturisticChime } from '../utils/audio';
 import { fireTaskConfetti, fireCelebrationConfetti } from '../utils/confetti';
 import { getPowerBorderClass, getPowerBarFillClass } from '../utils/telemetry';
 import { NewAssignmentModal } from './Modals';
@@ -163,7 +162,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       rating: 5,
       tag: 'Deep Work',
     });
-    playFuturisticChime();
     fireCelebrationConfetti();
     setFabOpen(false);
   };
@@ -172,7 +170,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     if (!profile.studentId) return;
     navigator.clipboard.writeText(profile.studentId);
     setCopiedMatricola(true);
-    playClickBeep();
     setTimeout(() => setCopiedMatricola(false), 2000);
   };
 
@@ -458,7 +455,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      playClickBeep();
                       setDashboardTab('courses');
                     }}
                     className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -477,7 +473,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      playClickBeep();
                       setDashboardTab('logs');
                     }}
                     className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -556,7 +551,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       variant="compact"
                       size="sm"
                       onClick={() => {
-                        playClickBeep();
                         onOpenNewCourse();
                       }}
                       title="Add course"
@@ -572,7 +566,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       variant="compact"
                       size="sm"
                       onClick={() => {
-                        playClickBeep();
                         setShowQuickStudyModal(true);
                       }}
                       title="Log session"
@@ -587,7 +580,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     variant="compact"
                     size="sm"
                     onClick={() => {
-                      playClickBeep();
                       if (dashboardTab === 'courses') onNavigateToCurriculum();
                       else if (onNavigateToStudyTracker) onNavigateToStudyTracker();
                       else onNavigateToCurriculum();
@@ -688,7 +680,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       variant="compact"
                       size="sm"
                       onClick={() => {
-                        playClickBeep();
                         onOpenNewCourse();
                       }}
                       title="Add new course to curriculum"
@@ -704,7 +695,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       variant="compact"
                       size="sm"
                       onClick={() => {
-                        playClickBeep();
                         setShowQuickStudyModal(true);
                       }}
                       title="Record a new study session"
@@ -720,7 +710,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     variant="compact"
                     size="sm"
                     onClick={() => {
-                      playClickBeep();
                       if (dashboardTab === 'courses') {
                         onNavigateToCurriculum();
                       } else if (onNavigateToStudyTracker) {
@@ -1337,7 +1326,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  playClickBeep();
                   setRightPanelTab('resources');
                   try {
                     localStorage.setItem('unisphere_right_panel_tab', 'resources');
@@ -1359,7 +1347,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  playClickBeep();
                   setRightPanelTab('notes');
                   try {
                     localStorage.setItem('unisphere_right_panel_tab', 'notes');
@@ -1379,7 +1366,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                playClickBeep();
                 const nextTab = rightPanelTab === 'split' ? 'resources' : 'split';
                 setRightPanelTab(nextTab);
                 try {
@@ -1475,7 +1461,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   type="button"
                   onClick={() => {
                     setFabOpen(false);
-                    playClickBeep();
                     setShowQuickStudyModal(true);
                   }}
                   className="text-left group cursor-pointer"
@@ -1491,7 +1476,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   type="button"
                   onClick={() => {
                     setFabOpen(false);
-                    playClickBeep();
                     setShowQuickStudyModal(true);
                   }}
                   className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
@@ -1521,7 +1505,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               type="button"
               onClick={() => {
                 setFabOpen(false);
-                playClickBeep();
                 setShowQuickTaskModal(true);
               }}
               className="w-full flex items-center justify-between p-2 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-800/60 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
@@ -1543,7 +1526,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               type="button"
               onClick={() => {
                 setFabOpen(false);
-                playClickBeep();
                 if (onOpenNewCourse) onOpenNewCourse();
                 else onNavigateToCurriculum();
               }}
@@ -1568,7 +1550,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <button
           type="button"
           onClick={() => {
-            playClickBeep();
             setFabOpen((prev) => !prev);
           }}
           aria-label="Quick Action"

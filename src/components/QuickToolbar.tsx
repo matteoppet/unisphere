@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Course, AssignmentItem, StudyLog, NavView, StudentProfile } from '../types';
 import { Button } from './ui/button';
-import { playClickBeep, isAudioMuted, toggleAudioMuted } from '../utils/audio';
-import { Volume2, VolumeX, Flame } from 'lucide-react';
+import { Flame } from 'lucide-react';
 
 interface QuickToolbarProps {
   profile?: StudentProfile;
@@ -40,24 +39,6 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'courses' | 'assignments' | 'logs'>('all');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const [audioMuted, setAudioMutedState] = useState(() => isAudioMuted());
-
-  useEffect(() => {
-    const handleAudioSync = () => {
-      setAudioMutedState(isAudioMuted());
-    };
-    window.addEventListener('unisphere-audio-toggle', handleAudioSync);
-    return () => window.removeEventListener('unisphere-audio-toggle', handleAudioSync);
-  }, []);
-
-  const handleToggleAudio = () => {
-    const next = toggleAudioMuted();
-    setAudioMutedState(next);
-    if (!next) {
-      playClickBeep();
-    }
-  };
 
   // Global hotkey: Ctrl+K or Cmd+K focuses search
   useEffect(() => {
@@ -128,7 +109,6 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
     (categoryFilter === 'all' || categoryFilter === 'logs' ? filteredLogs.length : 0);
 
   const handleSelectCourse = (c: Course) => {
-    playClickBeep();
     setIsOpen(false);
     setQuery('');
     if (onSelectCourse) {
@@ -140,7 +120,6 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
   };
 
   const handleSelectAssignment = (_a: AssignmentItem) => {
-    playClickBeep();
     setIsOpen(false);
     setQuery('');
     if (onNavigate) {
@@ -149,7 +128,6 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
   };
 
   const handleSelectLog = (_l: StudyLog) => {
-    playClickBeep();
     setIsOpen(false);
     setQuery('');
     if (onNavigate) {
@@ -486,21 +464,6 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
             </span>
           </div>
         )}
-
-        {/* Audio Sensory Toggle */}
-        <button
-          type="button"
-          onClick={handleToggleAudio}
-          className={`h-7.5 w-7.5 rounded-md flex items-center justify-center transition-colors cursor-pointer border ${
-            audioMuted
-              ? 'bg-white dark:bg-zinc-900 text-[#3f434a]/60 dark:text-zinc-500 border-[#ecedef] dark:border-zinc-800 hover:text-[#2d2f34]'
-              : 'bg-[#f9efe4] dark:bg-zinc-800 text-[#6366F1] border-[#ecedef] dark:border-zinc-700 hover:bg-[#ebdccf]'
-          }`}
-          title={audioMuted ? 'Tactile Audio Muted. Click to enable sound effects.' : 'Tactile Audio Active. Click to mute.'}
-          aria-label={audioMuted ? 'Unmute sensory audio' : 'Mute sensory audio'}
-        >
-          {audioMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-        </button>
 
         {onToggleTheme && (
           <Button

@@ -45,13 +45,6 @@ import {
   rollLootDrop,
   getPowerBorderClass,
 } from '../utils/telemetry';
-import {
-  playMechanicalClick,
-  playFuturisticChime,
-  playLootDropChime,
-  playPowerUp,
-  playClickBeep,
-} from '../utils/audio';
 import { fireTaskConfetti, fireCelebrationConfetti } from '../utils/confetti';
 import {
   Users,
@@ -238,7 +231,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
   const handleSwitchSquad = (squadId: string) => {
     setActiveSquadId(squadId);
     setShowSwitcher(false);
-    playClickBeep();
     try {
       localStorage.setItem('unisphere_active_squad_id', squadId);
     } catch {}
@@ -286,7 +278,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const handleFeedReaction = (activityId: string, emoji: string) => {
-    playClickBeep();
     setFeedReactions((prev) => {
       const actReactions = prev[activityId] || {};
       return {
@@ -707,7 +698,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
     });
     setNewSquadNameInput('');
     setShowCreateModal(false);
-    playPowerUp();
     fireCelebrationConfetti();
   };
 
@@ -784,7 +774,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
       });
       setJoinCodeInput('');
       setShowJoinModal(false);
-      playPowerUp();
       fireCelebrationConfetti();
     } catch (err) {
       console.error('Error joining squad', err);
@@ -796,7 +785,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
     if (!currentSquad?.code) return;
     navigator.clipboard.writeText(currentSquad.code);
     setCodeCopied(true);
-    playClickBeep();
     setTimeout(() => setCodeCopied(false), 2000);
   };
 
@@ -846,7 +834,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
       });
 
       setShowDeleteConfirmModal(false);
-      playClickBeep();
     } catch (err) {
       console.error('Failed to delete squad:', err);
     } finally {
@@ -914,7 +901,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
       });
 
       setShowLeaveConfirmModal(false);
-      playClickBeep();
     } catch (err) {
       console.error('Failed to leave squad:', err);
     } finally {
@@ -957,7 +943,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
       }).catch(() => {});
 
       setIsEditingName(false);
-      playClickBeep();
     } catch (err) {
       console.error('Failed to rename squad:', err);
     } finally {
@@ -1002,7 +987,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
       setMembers((prev) => prev.filter((m) => m.uid !== uidToKick));
       setShowKickModal(false);
       setMemberToKick(null);
-      playClickBeep();
     } catch (err) {
       console.error('Failed to kick member:', err);
     } finally {
@@ -1021,7 +1005,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
       const start = Date.now();
       setIsLockedIn(true);
       setLockInStartTime(start);
-      playPowerUp();
 
       // Write presence to Firestore
       const presenceData: SquadPresence = {
@@ -1050,7 +1033,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
       const loot = rollLootDrop(elapsedMinutes);
       setCurrentLoot(loot);
       setShowLootModal(true);
-      playLootDropChime();
       fireCelebrationConfetti();
 
       // Clear presence in Firestore
@@ -1121,7 +1103,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
     setActiveGhostRace(session);
     setGhostRaceElapsedSeconds(0);
     setGhostRaceActive(true);
-    playPowerUp();
   };
 
   const handleCancelGhostRace = () => {
@@ -1133,7 +1114,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
   const handleCompleteGhostRace = async () => {
     if (!activeGhostRace) return;
     setGhostRaceActive(false);
-    playFuturisticChime();
     fireCelebrationConfetti();
 
     const bonusXp = 100;
@@ -1162,7 +1142,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
   };
 
   const handleSendCheer = async (teammateName: string) => {
-    playPowerUp();
     fireTaskConfetti();
     if (currentSquad) {
       try {
@@ -1462,7 +1441,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                       onClick={() => {
                         setEditedSquadName(currentSquad.name);
                         setIsEditingName(true);
-                        playClickBeep();
                       }}
                       className="h-6 text-[11px] font-semibold text-[#3B77BC] dark:text-[#689FE1] hover:bg-[#3B77BC]/10 px-2 cursor-pointer"
                     >
@@ -1606,7 +1584,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                             onClick={() => {
                               setMemberToKick(m);
                               setShowKickModal(true);
-                              playClickBeep();
                             }}
                             className="h-6 px-2 text-[11px] font-semibold text-[#DE482B] dark:text-[#F37055] border-[#DE482B]/30 hover:bg-[#DE482B]/10 cursor-pointer flex items-center gap-1 shrink-0"
                             title={`Kick ${m.displayName} from squad`}
@@ -1636,7 +1613,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                   size="sm"
                   onClick={() => {
                     setShowDeleteConfirmModal(true);
-                    playClickBeep();
                   }}
                   className="bg-[#DE482B] hover:bg-[#BD361B] text-white font-bold text-xs h-7 px-3 shrink-0 cursor-pointer shadow-2xs flex items-center gap-1.5"
                 >
@@ -1792,7 +1768,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                           onClick={() => {
                             setShowSwitcher(false);
                             setShowCreateModal(true);
-                            playClickBeep();
                           }}
                           className="w-full text-left px-2.5 py-1.5 rounded-md text-xs text-[#6366F1] hover:bg-[#f9efe4] dark:hover:bg-zinc-800 flex items-center gap-1.5 font-medium cursor-pointer"
                         >
@@ -1804,7 +1779,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                           onClick={() => {
                             setShowSwitcher(false);
                             setShowJoinModal(true);
-                            playClickBeep();
                           }}
                           className="w-full text-left px-2.5 py-1.5 rounded-md text-xs text-[#2d2f34] dark:text-zinc-300 hover:bg-[#f9efe4] dark:hover:bg-zinc-800 flex items-center gap-1.5 font-medium cursor-pointer"
                         >
@@ -1828,7 +1802,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
               onClick={() => {
                 navigator.clipboard.writeText(currentSquad.code);
                 setCodeCopied(true);
-                playMechanicalClick();
                 setTimeout(() => setCodeCopied(false), 2000);
               }}
               className="p-0.5 hover:text-[#6366F1] transition-colors cursor-pointer"
@@ -1847,7 +1820,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
             onClick={() => {
               navigator.clipboard.writeText(currentSquad.code);
               setCodeCopied(true);
-              playMechanicalClick();
               setTimeout(() => setCodeCopied(false), 2000);
             }}
             className="h-8 text-xs font-medium flex items-center gap-1.5 border border-[#ecedef] dark:border-zinc-800 bg-[#f9efe4] dark:bg-zinc-800 hover:bg-[#f3e3d3] dark:hover:bg-zinc-700 text-[#2d2f34] dark:text-zinc-200 rounded-md cursor-pointer transition-colors"
@@ -1863,7 +1835,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
               variant="outline"
               onClick={() => {
                 setShowManageModal(true);
-                playClickBeep();
               }}
               className="h-8 text-xs font-medium flex items-center gap-1.5 border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-[#f9efe4] dark:hover:bg-zinc-800 text-[#2d2f34] dark:text-zinc-200 rounded-md cursor-pointer transition-colors"
               title="Manage squad, rename, members, invite code"
@@ -1877,7 +1848,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
               variant="outline"
               onClick={() => {
                 setShowLeaveConfirmModal(true);
-                playClickBeep();
               }}
               className="h-8 text-xs font-medium flex items-center gap-1.5 border border-rose-200 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md cursor-pointer transition-colors"
               title="Leave this squad"
@@ -2035,7 +2005,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                   size="sm"
                   onClick={() => {
                     setShowWrappedModal(true);
-                    playClickBeep();
                   }}
                   className="h-7 text-[11px] gap-1 font-medium text-[#6366F1] border border-[#6366F1]/30 bg-[#f9efe4]/50 dark:bg-zinc-800 hover:bg-[#f9efe4] rounded-md cursor-pointer transition-colors"
                 >
@@ -2047,7 +2016,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                   size="sm"
                   onClick={() => {
                     setShowMembersModal(true);
-                    playClickBeep();
                   }}
                   className="h-7 text-[11px] text-[#3f434a] hover:text-[#2d2f34] hover:bg-[#f9efe4] dark:hover:bg-zinc-800 rounded-md cursor-pointer"
                   title="View full roster details"
@@ -2396,7 +2364,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                     type="button"
                     onClick={() => {
                       setFeedFilter(filter);
-                      playClickBeep();
                     }}
                     className={`px-2.5 py-0.5 rounded-md capitalize font-medium transition-colors cursor-pointer ${
                       feedFilter === filter
@@ -2660,7 +2627,6 @@ export const SquadsView: React.FC<SquadsViewProps> = ({
                     navigator.clipboard.writeText(
                       `🏆 UniSphere Weekly Wrapped for ${currentSquad.name}\nMVP: ${mvpMember.displayName}\nTotal Squad Hours: ${totalSquadHours}h`
                     );
-                    playClickBeep();
                     setShowWrappedModal(false);
                   }}
                   className="w-full bg-[#3B77BC] hover:bg-[#2B5D99] text-white font-bold text-xs"
