@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AssignmentItem, Course, ExamPart } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
 import { fireTaskConfetti } from '../utils/confetti';
 import { CheckCircle2, Circle } from 'lucide-react';
+import {
+  calculateMediaGrades,
+  getItemExamGrade,
+  isExamType,
+  getExamResult,
+} from '../utils/grades';
 import {
   Dialog,
   DialogContent,
@@ -40,6 +46,13 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
   const [newDueDate, setNewDueDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newNotes, setNewNotes] = useState('');
   const [newExamMode, setNewExamMode] = useState<'single' | 'split'>('single');
+  const [newSingleGrade, setNewSingleGrade] = useState('');
+  const [newEsonero1, setNewEsonero1] = useState('');
+  const [newEsonero2, setNewEsonero2] = useState('');
+
+  const gradeSummary = useMemo(() => {
+    return calculateMediaGrades(assignments, courses);
+  }, [assignments, courses]);
 
   // Close modal on Escape key
   useEffect(() => {
@@ -73,34 +86,57 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
     e.preventDefault();
     if (!newTitle.trim()) return;
 
+    let examParts: ExamPart[] | undefined = undefined;
+    let singleGrade: number | undefined = undefined;
+    let isPassed = false;
+
+    if (isExamType(newType)) {
+      if (newExamMode === 'split') {
+        const p1 = Number(newEsonero1);
+        const p2 = Number(newEsonero2);
+        const part1Grade =
+          newEsonero1 !== '' && Number.isFinite(p1)
+            ? Math.min(30, Math.max(0, p1))
+            : undefined;
+        const part2Grade =
+          newEsonero2 !== '' && Number.isFinite(p2)
+            ? Math.min(30, Math.max(0, p2))
+            : undefined;
+        examParts = [
+          { label: 'Esonero 1', grade: part1Grade },
+          { label: 'Esonero 2', grade: part2Grade },
+        ];
+        const finalGrade = getExamResult(examParts);
+        isPassed = finalGrade !== null;
+      } else {
+        const g = Number(newSingleGrade);
+        singleGrade =
+          newSingleGrade !== '' && Number.isFinite(g)
+            ? Math.min(30, Math.max(0, g))
+            : undefined;
+        isPassed = typeof singleGrade === 'number' && singleGrade >= 18;
+      }
+    }
+
     onAddAssignment({
       title: newTitle.trim(),
       courseName: newCourse || courses[0]?.title || 'General',
       type: newType,
       dueDate: newDueDate,
-      status: 'todo',
+      status: isPassed ? 'completed' : 'todo',
       notes: newNotes.trim(),
-      examParts: newExamMode === 'split'
-        ? [
-            { label: 'Esonero 1' },
-            { label: 'Esonero 2' },
-          ]
-        : undefined,
+      examParts,
+      grade: singleGrade,
+      completedAt: isPassed ? Date.now() : undefined,
     });
 
     setNewTitle('');
     setNewNotes('');
     setNewExamMode('single');
+    setNewSingleGrade('');
+    setNewEsonero1('');
+    setNewEsonero2('');
     setShowAddForm(false);
-  };
-
-  const getExamResult = (parts?: ExamPart[]) => {
-    if (!parts || parts.length !== 2 || parts.some((part) => typeof part.grade !== 'number')) {
-      return null;
-    }
-    const grades = parts.map((part) => part.grade as number);
-    if (grades.some((grade) => grade < 18)) return null;
-    return Math.round(((grades[0] + grades[1]) / 2) * 10) / 10;
   };
 
   const handleExamGradeChange = (item: AssignmentItem, index: number, value: string) => {
@@ -120,6 +156,45 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
       status: finalGrade !== null ? 'completed' : item.status === 'completed' ? 'todo' : item.status,
       completedAt: finalGrade !== null ? item.completedAt || Date.now() : item.completedAt,
     });
+  };
+
+  const handleSingleExamGradeChange = (item: AssignmentItem, value: string) => {
+    const parsedGrade = Number(value);
+    const grade =
+      value === '' || !Number.isFinite(parsedGrade)
+        ? undefined
+        : Math.min(30, Math.max(0, parsedGrade));
+    const isPassed = typeof grade === 'number' && grade >= 18;
+    onUpdateAssignment({
+      ...item,
+      grade,
+      status: isPassed
+        ? 'completed'
+        : item.status === 'completed' && grade === undefined
+        ? 'todo'
+        : item.status,
+      completedAt: isPassed ? item.completedAt || Date.now() : item.completedAt,
+    });
+  };
+
+  const handleToggleSplitExam = (item: AssignmentItem, makeSplit: boolean) => {
+    if (makeSplit) {
+      onUpdateAssignment({
+        ...item,
+        examParts: [
+          { label: 'Esonero 1', grade: item.grade },
+          { label: 'Esonero 2' },
+        ],
+        grade: undefined,
+      });
+    } else {
+      const avg = getExamResult(item.examParts);
+      onUpdateAssignment({
+        ...item,
+        examParts: undefined,
+        grade: avg !== null ? Math.round(avg) : undefined,
+      });
+    }
   };
 
   const filteredAssignments = assignments.filter((a) => {
@@ -154,20 +229,39 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
         </legend>
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="font-semibold text-[#3f434a] dark:text-zinc-300">Filter By Type:</span>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="text-[11px] py-1 px-2.5 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4] dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-200 focus:outline-none focus:border-[#6366F1]"
-            >
-              <option value="all">All Items</option>
-              <option value="Assignment">Assignments Only</option>
-              <option value="Midterm">Midterms Only</option>
-              <option value="Exam">Exams Only</option>
-              <option value="Oral">Oral Exams Only</option>
-              <option value="Project">Projects Only</option>
-            </select>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-[#3f434a] dark:text-zinc-300">Filter By Type:</span>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="text-[11px] py-1 px-2.5 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4] dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-200 focus:outline-none focus:border-[#6366F1]"
+              >
+                <option value="all">All Items</option>
+                <option value="Assignment">Assignments Only</option>
+                <option value="Midterm">Midterms Only</option>
+                <option value="Exam">Exams Only</option>
+                <option value="Oral">Oral Exams Only</option>
+                <option value="Project">Projects Only</option>
+              </select>
+            </div>
+
+            {gradeSummary.gradedExamsCount > 0 && (
+              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#f9efe4] dark:bg-zinc-800 border border-[#ecedef] dark:border-zinc-700 font-mono text-[11px]">
+                <span className="text-[#3f434a] dark:text-zinc-400 font-sans font-semibold">Media:</span>
+                <span className="font-bold text-[#2d2f34] dark:text-zinc-100">
+                  {gradeSummary.weightedAverage !== null ? `${gradeSummary.weightedAverage.toFixed(1)}/30` : '—'}
+                </span>
+                {gradeSummary.laureaBase !== null && (
+                  <span className="text-indigo-600 dark:text-indigo-400 font-bold">
+                    ({gradeSummary.laureaBase.toFixed(1)}/110)
+                  </span>
+                )}
+                <span className="text-zinc-400 dark:text-zinc-500 font-sans text-[10px]">
+                  • {gradeSummary.gradedExamsCount} {gradeSummary.gradedExamsCount === 1 ? 'voto' : 'voti'}
+                </span>
+              </div>
+            )}
           </div>
 
           <Button
@@ -277,15 +371,72 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                   onChange={(e) => setNewExamMode(e.target.value as 'single' | 'split')}
                   className="w-full text-xs p-2 border border-[#ecedef] dark:border-zinc-800 rounded-md bg-[#fdf9f4]/50 dark:bg-zinc-950 text-[#2d2f34] dark:text-zinc-100 font-medium focus:outline-none focus:border-[#6366F1]"
                 >
-                  <option value="single">Single exam</option>
+                  <option value="single">Single exam (Esame totale)</option>
                   <option value="split">Two parts: Esonero 1 + Esonero 2</option>
                 </select>
-                {newExamMode === 'split' && (
+                {newExamMode === 'split' ? (
                   <p className="text-[10px] text-[#3f434a] dark:text-zinc-400 mt-1">
                     Pass both parts to calculate the final grade as their arithmetic average.
                   </p>
+                ) : (
+                  <p className="text-[10px] text-[#3f434a] dark:text-zinc-400 mt-1">
+                    Single total exam evaluated with a single grade out of 30.
+                  </p>
                 )}
               </div>
+              )}
+
+              {['Midterm', 'Exam', 'Final', 'Oral'].includes(newType) && newExamMode === 'single' && (
+                <div>
+                  <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
+                    Exam Grade (optional, 18-30)
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="30"
+                    step="1"
+                    placeholder="e.g. 28 (leave empty if not taken yet)"
+                    value={newSingleGrade}
+                    onChange={(e) => setNewSingleGrade(e.target.value)}
+                    className="font-mono rounded-md border-[#ecedef] dark:border-zinc-800 bg-[#fdf9f4]/50 dark:bg-zinc-950 focus:border-[#6366F1]"
+                  />
+                </div>
+              )}
+
+              {['Midterm', 'Exam', 'Final', 'Oral'].includes(newType) && newExamMode === 'split' && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
+                      Esonero 1 (optional)
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="30"
+                      step="1"
+                      placeholder="e.g. 27"
+                      value={newEsonero1}
+                      onChange={(e) => setNewEsonero1(e.target.value)}
+                      className="font-mono rounded-md border-[#ecedef] dark:border-zinc-800 bg-[#fdf9f4]/50 dark:bg-zinc-950 focus:border-[#6366F1]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs sm:text-sm font-medium text-[#2d2f34] dark:text-zinc-300 block mb-1">
+                      Esonero 2 (optional)
+                    </label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="30"
+                      step="1"
+                      placeholder="e.g. 29"
+                      value={newEsonero2}
+                      onChange={(e) => setNewEsonero2(e.target.value)}
+                      className="font-mono rounded-md border-[#ecedef] dark:border-zinc-800 bg-[#fdf9f4]/50 dark:bg-zinc-950 focus:border-[#6366F1]"
+                    />
+                  </div>
+                </div>
               )}
 
               <div>
@@ -478,9 +629,63 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
                           </label>
                         ))}
                       </div>
-                      <p className="mt-2 text-[9px] text-indigo-800/80 dark:text-indigo-200/80">
-                        In the Italian system, each part is passed with at least 18/30.
-                      </p>
+                      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-indigo-200/50 dark:border-indigo-900/50">
+                        <p className="text-[9px] text-indigo-800/80 dark:text-indigo-200/80">
+                          Pass mark: at least 18/30 each.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSplitExam(item, false)}
+                          className="text-[9px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
+                        >
+                          Passa a esame unico
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isExamType(item.type) && (!item.examParts || item.examParts.length === 0) && (
+                    <div className="mt-2 rounded-md border border-indigo-200/80 dark:border-indigo-900/70 bg-indigo-50/70 dark:bg-indigo-950/30 p-2.5">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="font-semibold text-[10px] text-indigo-900 dark:text-indigo-100">
+                          Esame totale
+                        </span>
+                        <span className={`text-[10px] font-bold ${typeof item.grade === 'number' && item.grade >= 18 ? 'text-emerald-700 dark:text-emerald-300' : 'text-indigo-700 dark:text-indigo-300'}`}>
+                          {typeof item.grade === 'number'
+                            ? item.grade >= 18
+                              ? `Voto: ${item.grade}/30`
+                              : `Non superato (${item.grade}/30)`
+                            : 'Inserisci voto'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1">
+                        <label className="text-[10px] font-medium text-indigo-900/80 dark:text-indigo-200/80">
+                          Voto esame (0-30)
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            step="1"
+                            value={item.grade ?? ''}
+                            onChange={(e) => handleSingleExamGradeChange(item, e.target.value)}
+                            placeholder="—"
+                            aria-label="Single exam grade"
+                            className="mt-1 w-full rounded-md border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 px-2 py-1 text-xs font-mono text-[#2d2f34] dark:text-zinc-100 focus:outline-none focus:border-indigo-500"
+                          />
+                        </label>
+                      </div>
+                      <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-indigo-200/50 dark:border-indigo-900/50">
+                        <p className="text-[9px] text-indigo-800/80 dark:text-indigo-200/80">
+                          Pass mark: at least 18/30.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSplitExam(item, true)}
+                          className="text-[9px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium cursor-pointer"
+                        >
+                          Dividi in 2 esoneri
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -5,6 +5,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { fireCelebrationConfetti } from '../utils/confetti';
 import { getLocalDateString } from '../utils/telemetry';
+import { isExamType, getExamResult } from '../utils/grades';
 import {
   Dialog,
   DialogContent,
@@ -943,17 +944,51 @@ export const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
     return d.toISOString().split('T')[0];
   });
   const [notes, setNotes] = useState('');
+  const [examMode, setExamMode] = useState<'single' | 'split'>('single');
+  const [singleGrade, setSingleGrade] = useState('');
+  const [esonero1, setEsonero1] = useState('');
+  const [esonero2, setEsonero2] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
+
+    let examParts: AssignmentItem['examParts'] = undefined;
+    let grade: number | undefined = undefined;
+    let isPassed = false;
+
+    if (isExamType(type)) {
+      if (examMode === 'split') {
+        const p1 = Number(esonero1);
+        const p2 = Number(esonero2);
+        const part1Grade =
+          esonero1 !== '' && Number.isFinite(p1) ? Math.min(30, Math.max(0, p1)) : undefined;
+        const part2Grade =
+          esonero2 !== '' && Number.isFinite(p2) ? Math.min(30, Math.max(0, p2)) : undefined;
+        examParts = [
+          { label: 'Esonero 1', grade: part1Grade },
+          { label: 'Esonero 2', grade: part2Grade },
+        ];
+        const finalGrade = getExamResult(examParts);
+        isPassed = finalGrade !== null;
+      } else {
+        const g = Number(singleGrade);
+        grade =
+          singleGrade !== '' && Number.isFinite(g) ? Math.min(30, Math.max(0, g)) : undefined;
+        isPassed = typeof grade === 'number' && grade >= 18;
+      }
+    }
+
     onAdd({
       title: title.trim(),
       courseName,
       type,
       dueDate,
-      status: 'todo',
+      status: isPassed ? 'completed' : 'todo',
       notes: notes.trim(),
+      examParts,
+      grade,
+      completedAt: isPassed ? Date.now() : undefined,
     });
     onClose();
   };
@@ -1035,6 +1070,72 @@ export const NewAssignmentModal: React.FC<NewAssignmentModalProps> = ({
               </select>
             </div>
           </div>
+
+          {isExamType(type) && (
+            <div>
+              <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
+                Exam format
+              </label>
+              <select
+                value={examMode}
+                onChange={(e) => setExamMode(e.target.value as 'single' | 'split')}
+                className="w-full text-xs p-2 border border-gray-200 dark:border-zinc-800 rounded-md bg-white dark:bg-zinc-950 text-neutral-900 dark:text-zinc-100 font-medium focus:outline-none focus:border-indigo-500"
+              >
+                <option value="single">Single exam (Esame totale)</option>
+                <option value="split">Two parts: Esonero 1 + Esonero 2</option>
+              </select>
+            </div>
+          )}
+
+          {isExamType(type) && examMode === 'single' && (
+            <div>
+              <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
+                Exam Grade (optional, 0-30)
+              </label>
+              <Input
+                type="number"
+                min="0"
+                max="30"
+                step="1"
+                placeholder="e.g. 28 (leave empty if not taken yet)"
+                value={singleGrade}
+                onChange={(e) => setSingleGrade(e.target.value)}
+              />
+            </div>
+          )}
+
+          {isExamType(type) && examMode === 'split' && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
+                  Esonero 1 (optional)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="30"
+                  step="1"
+                  placeholder="e.g. 27"
+                  value={esonero1}
+                  onChange={(e) => setEsonero1(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
+                  Esonero 2 (optional)
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="30"
+                  step="1"
+                  placeholder="e.g. 29"
+                  value={esonero2}
+                  onChange={(e) => setEsonero2(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-medium text-gray-700 dark:text-zinc-300 block mb-1">
