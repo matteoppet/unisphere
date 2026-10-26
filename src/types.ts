@@ -77,6 +77,7 @@ export interface AssignmentItem {
   notes?: string;
   completedAt?: number;
   examParts?: ExamPart[];
+  grade?: number;
 }
 
 export interface ExamPart {
