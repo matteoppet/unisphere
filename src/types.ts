@@ -108,7 +108,6 @@ export interface StudentProfile {
   minutesStudiedThisWeek?: number;
   tasksCompletedThisWeek?: number;
   lastActiveDate?: string;
-  audioEnabled?: boolean;
   activeSquadId?: string;
   squadIds?: string[];
   color?: string;
@@ -154,7 +153,6 @@ export const INITIAL_PROFILE: StudentProfile = {
   currentStreak: 0,
   minutesStudiedThisWeek: 0,
   tasksCompletedThisWeek: 0,
-  audioEnabled: true,
   squadIds: [],
 };
 

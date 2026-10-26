@@ -3,7 +3,6 @@ import { Course, StudyLog, AssignmentItem } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { playClickBeep, playFuturisticChime } from '../utils/audio';
 import { fireCelebrationConfetti } from '../utils/confetti';
 import {
   Dialog,
@@ -320,7 +319,6 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
       color: '#3B77BC',
     });
 
-    playFuturisticChime();
     fireCelebrationConfetti();
     onClose();
   };
@@ -437,7 +435,6 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  playClickBeep();
                   setStatus('active');
                 }}
                 className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md border text-center transition-all cursor-pointer ${
@@ -459,7 +456,6 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  playClickBeep();
                   setStatus('completed');
                 }}
                 className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md border text-center transition-all cursor-pointer ${
@@ -481,7 +477,6 @@ export const NewCourseModal: React.FC<NewCourseModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  playClickBeep();
                   setStatus('planned');
                 }}
                 className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md border text-center transition-all cursor-pointer ${

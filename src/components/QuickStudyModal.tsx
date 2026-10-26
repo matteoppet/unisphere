@@ -3,7 +3,6 @@ import { Course, StudyLog, StudyTag } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { playClickBeep, playFuturisticChime, playMechanicalClick } from '../utils/audio';
 import { fireCelebrationConfetti } from '../utils/confetti';
 
 interface QuickStudyModalProps {
@@ -130,7 +129,6 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
       tag: sTag,
     });
 
-    playFuturisticChime();
     fireCelebrationConfetti();
 
     const xp = calculateXP(finalDuration);
@@ -191,7 +189,6 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
               type="button"
               onClick={() => {
                 setActiveTab('log');
-                playClickBeep();
               }}
               className={`flex items-center justify-center py-1.5 px-3 rounded-md transition-all cursor-pointer ${
                 activeTab === 'log'
@@ -205,7 +202,6 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
               type="button"
               onClick={() => {
                 setActiveTab('timer');
-                playClickBeep();
               }}
               className={`flex items-center justify-center py-1.5 px-3 rounded-md transition-all cursor-pointer ${
                 activeTab === 'timer'
@@ -267,7 +263,6 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
                       type="button"
                       onClick={() => {
                         setDurationMinutes(preset.mins);
-                        playMechanicalClick();
                       }}
                       className={`flex flex-col items-center justify-center py-2 px-1 rounded-md border text-center transition-all cursor-pointer ${
                         isSelected
@@ -452,7 +447,6 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
                 <Button
                   type="button"
                   onClick={() => {
-                    playClickBeep();
                     setLocalTimerRunning(true);
                     if (onToggleTimer) onToggleTimer(selectedCourse, tag);
                   }}
@@ -464,7 +458,6 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
                 <Button
                   type="button"
                   onClick={() => {
-                    playClickBeep();
                     setLocalTimerRunning(false);
                     if (onToggleTimer) onToggleTimer(selectedCourse, tag);
                   }}
@@ -479,7 +472,6 @@ export const QuickStudyModal: React.FC<QuickStudyModalProps> = ({
                   type="button"
                   variant="outline"
                   onClick={() => {
-                    playMechanicalClick();
                     setLocalSeconds(0);
                     if (onResetTimer) onResetTimer();
                   }}

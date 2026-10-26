@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StudentProfile } from '../types';
 import { Button } from './ui/button';
-import { isAudioMuted, toggleAudioMuted, playMechanicalClick, playFuturisticChime } from '../utils/audio';
-import { Volume2, VolumeX, Sparkles, Flame } from 'lucide-react';
+import { Sparkles, Flame } from 'lucide-react';
 
 interface SettingsViewProps {
   profile: StudentProfile;
@@ -27,20 +26,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 }) => {
   const [formData, setFormData] = useState<StudentProfile>(profile);
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [audioMuted, setAudioMutedState] = useState(() => isAudioMuted());
-
-  useEffect(() => {
-    const handleAudioSync = () => {
-      setAudioMutedState(isAudioMuted());
-    };
-    window.addEventListener('unisphere-audio-toggle', handleAudioSync);
-    return () => window.removeEventListener('unisphere-audio-toggle', handleAudioSync);
-  }, []);
-
-  const handleToggleAudio = () => {
-    const next = toggleAudioMuted();
-    setAudioMutedState(next);
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,12 +100,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Sensory Audio & Academic Telemetry Card */}
+      {/* 2. Academic Telemetry Card */}
       <div className="border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black rounded-md shadow-xs overflow-hidden flex flex-col transition-all">
         <div className="bg-zinc-50/80 dark:bg-black/90 border-b border-zinc-200 dark:border-zinc-800 px-2.5 py-1.5 sm:px-3 sm:py-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-bold text-[11px] text-zinc-900 dark:text-zinc-100 group">
             <Sparkles size={14} className="text-[#3B77BC] dark:text-[#689FE1]" />
-            <span>Sensory Audio &amp; Study Telemetry</span>
+            <span>Study Telemetry</span>
           </div>
           <div className="flex items-center gap-1 text-[11px] font-mono text-zinc-500 dark:text-zinc-400">
             <span>{profile.currentStreak || 0}d Streak</span>
@@ -130,42 +115,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
 
         <div className="p-3 text-xs space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-black transition-colors">
-            <div className="space-y-0.5">
-              <div className="font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
-                {audioMuted ? <VolumeX size={15} className="text-zinc-400" /> : <Volume2 size={15} className="text-[#3B77BC] dark:text-[#689FE1]" />}
-                <span>Tactile Audio Micro-Interactions: {audioMuted ? 'Muted' : 'Active'}</span>
-              </div>
-              <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
-                Crisp mechanical click on task completions and sleek futuristic chime when study timer finishes.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                onClick={() => {
-                  playMechanicalClick();
-                  setTimeout(() => playFuturisticChime(), 200);
-                }}
-                variant="outline"
-                size="sm"
-                className="text-xs h-8"
-              >
-                Test Sound
-              </Button>
-              <Button
-                type="button"
-                onClick={handleToggleAudio}
-                variant={audioMuted ? 'default' : 'outline'}
-                size="sm"
-                className={`text-xs h-8 ${audioMuted ? 'bg-[#3B77BC] hover:bg-[#2B5D99] text-white font-semibold' : ''}`}
-              >
-                {audioMuted ? 'Enable Audio' : 'Mute Audio'}
-              </Button>
-            </div>
-          </div>
-
           {/* Telemetry Snapshot */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div className="p-2 rounded-md bg-zinc-100 dark:bg-black border border-zinc-200 dark:border-zinc-800 text-center">

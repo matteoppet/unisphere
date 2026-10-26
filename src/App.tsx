@@ -17,7 +17,6 @@ import {
   INITIAL_ASSIGNMENTS,
   INITIAL_RESOURCE_LINKS,
 } from './types';
-import { playClickBeep } from './utils/audio';
 import { auth, db } from './lib/firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';

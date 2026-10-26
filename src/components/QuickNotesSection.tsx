@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { playClickBeep } from '../utils/audio';
 
 interface QuickNotesSectionProps {
   notes: string;
@@ -78,7 +77,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   };
 
   const handleToggleAutoReset = () => {
-    playClickBeep();
     const nextVal = !autoResetDaily;
     setAutoResetDaily(nextVal);
     try {
@@ -87,7 +85,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   };
 
   const handleCopyToClipboard = async () => {
-    playClickBeep();
     try {
       await navigator.clipboard.writeText(notes);
       setCopied(true);
@@ -100,7 +97,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   };
 
   const handleClearNotes = () => {
-    playClickBeep();
     if (!notes.trim()) return;
 
     setDeletedNotesBackup(notes);
@@ -116,7 +112,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   };
 
   const handleUndoClear = () => {
-    playClickBeep();
     if (deletedNotesBackup !== null) {
       handleNotesChange(deletedNotesBackup);
       setDeletedNotesBackup(null);
@@ -125,7 +120,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   };
 
   const handleStartFreshToday = () => {
-    playClickBeep();
     setDeletedNotesBackup(notes);
     handleNotesChange('');
     setNoteDate(todayDateStr);
@@ -165,7 +159,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
     .filter((item) => item.raw.length > 0);
 
   const toggleChecklistItem = (index: number) => {
-    playClickBeep();
     const newLines = [...lines];
     const targetLine = newLines[index];
     const isCompleted = /^(\s*[-*•]\s*\[x\]|\s*\[x\])/i.test(targetLine);
@@ -190,7 +183,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   const handleAddChecklistItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChecklistText.trim()) return;
-    playClickBeep();
     const newLine = `• [ ] ${newChecklistText.trim()}`;
     const updated = notes.trim() ? `${notes}\n${newLine}` : newLine;
     handleNotesChange(updated);
@@ -198,7 +190,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   };
 
   const handleClearCompletedChecklist = () => {
-    playClickBeep();
     const newLines = lines.filter((l) => !/^(\s*[-*•]\s*\[x\]|\s*\[x\])/i.test(l.trim()));
     handleNotesChange(newLines.join('\n'));
   };
@@ -239,7 +230,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
             <button
               type="button"
               onClick={() => {
-                playClickBeep();
                 setActiveTab('scratchpad');
               }}
               className={`px-2.5 py-0.5 text-[10.5px] rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer ${
@@ -255,7 +245,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
             <button
               type="button"
               onClick={() => {
-                playClickBeep();
                 setActiveTab('checklist');
               }}
               className={`px-2.5 py-0.5 text-[10.5px] rounded-md transition-all font-medium flex items-center gap-1 cursor-pointer ${

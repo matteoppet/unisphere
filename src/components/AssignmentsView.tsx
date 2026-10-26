@@ -3,7 +3,6 @@ import { AssignmentItem, Course, ExamPart } from '../types';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Badge } from './ui/badge';
-import { playMechanicalClick } from '../utils/audio';
 import { fireTaskConfetti } from '../utils/confetti';
 import { CheckCircle2, Circle } from 'lucide-react';
 import {
@@ -134,7 +133,6 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
     e?: React.MouseEvent
   ) => {
     if (newStatus === 'completed') {
-      playMechanicalClick();
       if (e) {
         fireTaskConfetti({ x: e.clientX, y: e.clientY });
       } else {

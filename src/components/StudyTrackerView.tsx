@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { StudyLog, Course, StudyTag } from '../types';
-import { playFuturisticChime } from '../utils/audio';
 import { fireCelebrationConfetti } from '../utils/confetti';
 
 interface StudyTrackerViewProps {
@@ -94,7 +93,6 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
       tag,
     });
 
-    playFuturisticChime();
     fireCelebrationConfetti();
     setShowAddModal(false);
     setNotes('');
