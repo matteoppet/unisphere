@@ -189,7 +189,10 @@ export function formatStudyDuration(totalMinutes: number): string {
 /**
  * Calculates current week (Monday through Sunday) summary from study logs
  */
-export function getWeekDaysSummary(studyLogs: { date: string; durationMinutes: number }[]): {
+export function getWeekDaysSummary(
+  studyLogs: { date: string; durationMinutes: number }[],
+  referenceDate: Date = new Date()
+): {
   weekDays: WeekDaySummary[];
   weekTotalMinutes: number;
   weekTotalSessions: number;
@@ -200,11 +203,10 @@ export function getWeekDaysSummary(studyLogs: { date: string; durationMinutes: n
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ];
 
-  const now = new Date();
-  const todayYear = now.getFullYear();
-  const todayMonth = now.getMonth();
-  const todayDate = now.getDate();
-  const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday...
+  const todayYear = referenceDate.getFullYear();
+  const todayMonth = referenceDate.getMonth();
+  const todayDate = referenceDate.getDate();
+  const dayOfWeek = referenceDate.getDay(); // 0 is Sunday, 1 is Monday...
   const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
 
   const weekDays: WeekDaySummary[] = Array.from({ length: 7 }, (_, i) => {
@@ -238,6 +240,48 @@ export function getWeekDaysSummary(studyLogs: { date: string; durationMinutes: n
     weekTotalMinutes,
     weekTotalSessions,
     activeDaysCount,
+  };
+}
+
+/**
+ * Calculates Weekly Focus metrics (formatted time, goal progress) for the current week.
+ * Resets each week on Monday with weekTotalMinutes (#16).
+ * Formats duration strictly in time format (e.g. 1h 50m + 2h 30m = 4h 20m, never decimal percentage).
+ */
+export function calculateWeeklyFocus(
+  studyLogsOrMinutes: { date: string; durationMinutes: number }[] | number,
+  weeklyGoalHours: number = 20,
+  referenceDate: Date = new Date()
+): {
+  weeklyMinutes: number;
+  weeklyHours: string;
+  weeklyDuration: string;
+  weeklyGoalPercent: number;
+  remainingMinutes: number;
+  remainingDuration: string;
+} {
+  const weeklyMinutes =
+    typeof studyLogsOrMinutes === 'number'
+      ? studyLogsOrMinutes
+      : getWeekDaysSummary(studyLogsOrMinutes, referenceDate).weekTotalMinutes;
+  const weeklyHours = (weeklyMinutes / 60).toFixed(1).replace(/\.0$/, '');
+  const weeklyDuration = formatStudyDuration(weeklyMinutes);
+  const goal = weeklyGoalHours > 0 ? weeklyGoalHours : 20;
+  const goalMinutes = goal * 60;
+  const remainingMinutes = Math.max(0, goalMinutes - weeklyMinutes);
+  const remainingDuration = formatStudyDuration(remainingMinutes);
+  const weeklyGoalPercent = Math.min(
+    100,
+    Math.round((weeklyMinutes / goalMinutes) * 100)
+  );
+
+  return {
+    weeklyMinutes,
+    weeklyHours,
+    weeklyDuration,
+    weeklyGoalPercent,
+    remainingMinutes,
+    remainingDuration,
   };
 }
 
