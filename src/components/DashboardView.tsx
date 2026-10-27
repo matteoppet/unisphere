@@ -18,6 +18,7 @@ import {
   getLocalDateString,
   formatStudyDuration,
   getWeekDaysSummary,
+  calculateWeeklyFocus,
 } from '../utils/telemetry';
 import { calculateMediaGrades } from '../utils/grades';
 import { NewAssignmentModal } from './Modals';
@@ -276,20 +277,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     Math.round((totalEarnedCFU / targetCFU) * 100)
   );
 
-  // Calculate weekly focus hours
-  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const weeklyMinutes = studyLogs
-    .filter((log) => log.timestamp >= oneWeekAgo)
-    .reduce((sum, log) => sum + log.durationMinutes, 0);
-  const weeklyHours = (weeklyMinutes / 60).toFixed(1).replace(/\.0$/, '');
-  const weeklyGoalPercent = Math.min(
-    100,
-    Math.round((parseFloat(weeklyHours) / profile.weeklyGoalHours) * 100)
-  );
-
   // Calculate current week (Monday through Sunday) summary
   const { weekDays, weekTotalMinutes, weekTotalSessions, activeDaysCount } =
     getWeekDaysSummary(studyLogs);
+
+  // Calculate weekly focus hours (resets every week with weekTotalMinutes - #16)
+  const {
+    weeklyMinutes,
+    weeklyHours,
+    weeklyDuration,
+    weeklyGoalPercent,
+    remainingMinutes,
+    remainingDuration,
+  } = calculateWeeklyFocus(weekTotalMinutes, profile.weeklyGoalHours);
 
   // Dynamic Power Border Telemetry
   const todayIso = getLocalDateString();
@@ -458,7 +458,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <div className="flex items-baseline gap-0.5 sm:gap-1 my-0.5">
                 <span className="font-bold text-xs sm:text-base lg:text-lg text-emerald-700 dark:text-emerald-400 font-mono">
-                  {weeklyHours}h
+                  {weeklyDuration}
                 </span>
                 <span className="text-neutral-500 dark:text-zinc-400 text-[8.5px] sm:text-[10px]">
                   /{profile.weeklyGoalHours || 20}h
@@ -471,7 +471,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 />
               </div>
               <div className="text-[8.5px] sm:text-[10px] text-neutral-500 dark:text-zinc-400 font-mono mt-0.5 truncate">
-                {weeklyGoalPercent}% goal
+                {remainingMinutes > 0 ? `${remainingDuration} remaining` : 'Goal achieved'}
               </div>
             </div>
           </div>
@@ -1342,7 +1342,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <div className="flex items-center gap-3">
                         <span>Showing {filteredLogs.length} of {studyLogs.length} sessions</span>
                         <span>•</span>
-                        <span>Total {(filteredLogs.reduce((s, l) => s + l.durationMinutes, 0) / 60).toFixed(1)} hours</span>
+                        <span>Total {formatStudyDuration(filteredLogs.reduce((s, l) => s + l.durationMinutes, 0))}</span>
                       </div>
                       <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
                         {filteredLogs.length > 0 ? `${Math.round(filteredLogs.reduce((s, l) => s + l.durationMinutes, 0) / filteredLogs.length)}m avg/session` : ''}

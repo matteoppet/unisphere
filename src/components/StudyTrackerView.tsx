@@ -105,7 +105,6 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
 
   // Total metrics
   const totalMinutes = studyLogs.reduce((sum, l) => sum + l.durationMinutes, 0);
-  const totalHours = (totalMinutes / 60).toFixed(1).replace(/\.0$/, '');
 
   // Hours per course breakdown
   const courseTimeMap: { [course: string]: number } = {};
@@ -254,13 +253,13 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
         <div className="font-bold text-[11px] text-zinc-800 dark:text-zinc-200 dark:text-zinc-200 border-b border-gray-100 dark:border-zinc-800 pb-1.5 flex items-center justify-between">
           <span>Course Distribution Analysis</span>
           <span className="font-mono text-[10px] text-neutral-500 dark:text-zinc-400">
-            {totalHours}h Logged Total
+            {formatStudyDuration(totalMinutes)} Logged Total
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2.5 pt-2">
           {Object.entries(courseTimeMap).map(([cName, mins]) => {
-            const hrs = (mins / 60).toFixed(1).replace(/\.0$/, '');
+            const courseDuration = formatStudyDuration(mins);
             const pct =
               totalMinutes > 0 ? Math.round((mins / totalMinutes) * 100) : 0;
 
@@ -271,7 +270,7 @@ export const StudyTrackerView: React.FC<StudyTrackerViewProps> = ({
                     {cName}
                   </span>
                   <span className="font-mono text-zinc-600 dark:text-zinc-400 dark:text-zinc-400 text-[10px]">
-                    {hrs}h ({pct}%)
+                    {courseDuration} ({pct}%)
                   </span>
                 </div>
                 <div className="w-full bg-slate-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
