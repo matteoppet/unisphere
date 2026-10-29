@@ -348,3 +348,10 @@ input[type='number'] {
 .animate-fadeIn {
   animation: fade-in 0.15s ease-out forwards;
 }
+
+/* Accessible Keyboard Navigation Focus Rings */
+:focus-visible {
+  outline: 2px solid #6366F1;
+  outline-offset: 2px;
+}
+
