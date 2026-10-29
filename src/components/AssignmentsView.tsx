@@ -266,7 +266,8 @@ export const AssignmentsView: React.FC<AssignmentsViewProps> = ({
 
           <Button
             onClick={handleOpenAddModal}
-            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-medium rounded-md text-xs h-7 px-3.5 shadow-xs cursor-pointer"
+            title="Add Item"
+            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white font-medium rounded-md text-xs h-7 px-3.5 shadow-xs cursor-pointer inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
           >
             <span className="material-symbols-outlined text-[14px]">add</span>
             <span>Add Item</span>

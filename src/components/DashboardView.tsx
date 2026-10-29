@@ -980,8 +980,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             return (
                               <tr
                                 key={course.id}
+                                tabIndex={0}
+                                role="button"
+                                aria-label={`View syllabus for ${course.title}`}
                                 onClick={() => onOpenCourseDetail(course)}
-                                className={`group cursor-pointer transition-colors duration-150 ${
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    onOpenCourseDetail(course);
+                                  }
+                                }}
+                                className={`group cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
                                   isEvenRow
                                     ? 'bg-white dark:bg-zinc-900'
                                     : 'bg-slate-50/80 dark:bg-zinc-800/40'

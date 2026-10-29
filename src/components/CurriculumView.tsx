@@ -198,7 +198,8 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
             />
             <button
               onClick={onOpenNewCourse}
-              className="bg-[#6366F1] hover:bg-[#4F46E5] text-white px-3.5 py-1.5 text-[11px] font-medium rounded-md shadow-xs transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
+              className="bg-[#6366F1] hover:bg-[#4F46E5] text-white px-3.5 py-1.5 text-[11px] font-medium rounded-md shadow-xs transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+              title="Add Course"
             >
               <span className="material-symbols-outlined text-[14px]">add</span>
               <span>Add Course</span>
@@ -230,8 +231,17 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
                 return (
                   <div
                     key={c.id}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`View syllabus for ${c.title}`}
                     onClick={() => onOpenCourseDetail(c)}
-                    className="px-3 py-2 rounded-md border border-[#ecedef] dark:border-zinc-800 bg-[#fdf9f4] dark:bg-zinc-900 hover:bg-[#f9efe4]/50 transition-colors cursor-pointer slite-shadow flex flex-col gap-1.5"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onOpenCourseDetail(c);
+                      }
+                    }}
+                    className="px-3 py-2 rounded-md border border-[#ecedef] dark:border-zinc-800 bg-[#fdf9f4] dark:bg-zinc-900 hover:bg-[#f9efe4]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors cursor-pointer slite-shadow flex flex-col gap-1.5"
                   >
                     {/* Compact Row 1: Title + CFU */}
                     <div className="flex items-center justify-between gap-2 min-w-0">
@@ -299,8 +309,17 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
                     return (
                       <tr
                         key={c.id}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`View syllabus for ${c.title}`}
                         onClick={() => onOpenCourseDetail(c)}
-                        className={`hover:bg-[#f9efe4]/60 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer group ${
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onOpenCourseDetail(c);
+                          }
+                        }}
+                        className={`hover:bg-[#f9efe4]/60 dark:hover:bg-zinc-800/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 transition-colors cursor-pointer group ${
                           idx % 2 === 1 ? 'bg-[#fdf9f4]/50 dark:bg-zinc-900/40' : 'bg-white dark:bg-zinc-900'
                         }`}
                       >

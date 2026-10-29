@@ -35,10 +35,14 @@ import { updateStreak } from './utils/telemetry';
 import {
   CourseDetailModal,
   NewCourseModal,
+  NewAssignmentModal,
   EmailGroupModal,
   ColumnsModal,
   ExportModal,
 } from './components/Modals';
+import { QuickStudyModal } from './components/QuickStudyModal';
+import { ShortcutsView } from './components/ShortcutsView';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const STORAGE_KEY = 'unisphere_workspace';
 
@@ -149,6 +153,8 @@ export default function App() {
   // --- Modals State ---
   const [inspectCourse, setInspectCourse] = useState<Course | null>(null);
   const [showNewCourseModal, setShowNewCourseModal] = useState(false);
+  const [showNewAssignmentModal, setShowNewAssignmentModal] = useState(false);
+  const [showQuickStudyModal, setShowQuickStudyModal] = useState(false);
   const [showEmailGroupModal, setShowEmailGroupModal] = useState(false);
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -503,32 +509,96 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isAuthenticated, sessionEmail, profile, courses, studyLogs, assignments, quickNotes, resourceLinks]);
 
-  // Keyboard Shortcuts: Ctrl+S / Ctrl+E / Ctrl+N
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
-        e.preventDefault();
-        setShowExportModal(true);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'n') {
-        e.preventDefault();
-        setCurrentView('dashboard');
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        // If there's an active study form submit button, click it
-        const formSubmitBtn = document.querySelector<HTMLButtonElement>('form button[type="submit"]');
-        if (formSubmitBtn) {
-          formSubmitBtn.click();
-        } else {
-          setStatusMessage('Workspace state synchronized (Ctrl+S)');
-          setTimeout(() => setStatusMessage('Ready'), 2000);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  // Modal & Overlay Dismissal Stack for Escape
+  const handleEscape = () => {
+    if (inspectCourse) {
+      setInspectCourse(null);
+      return;
+    }
+    if (showNewCourseModal) {
+      setShowNewCourseModal(false);
+      return;
+    }
+    if (showNewAssignmentModal) {
+      setShowNewAssignmentModal(false);
+      return;
+    }
+    if (showQuickStudyModal) {
+      setShowQuickStudyModal(false);
+      return;
+    }
+    if (showExportModal) {
+      setShowExportModal(false);
+      return;
+    }
+    if (showEmailGroupModal) {
+      setShowEmailGroupModal(false);
+      return;
+    }
+    if (showColumnsModal) {
+      setShowColumnsModal(false);
+      return;
+    }
+    if (mobileDrawerOpen) {
+      setMobileDrawerOpen(false);
+      return;
+    }
+    if (currentView === 'shortcuts') {
+      setCurrentView('dashboard');
+      return;
+    }
+  };
+
+  const handleSaveSync = () => {
+    const formSubmitBtn = document.querySelector<HTMLButtonElement>('form button[type="submit"]');
+    if (formSubmitBtn) {
+      formSubmitBtn.click();
+    } else {
+      pushWorkstationToCloud();
+      setStatusMessage('Workspace state synchronized');
+      setTimeout(() => setStatusMessage('Ready'), 2000);
+    }
+  };
+
+  const handleFocusSearch = () => {
+    const searchInput = document.querySelector<HTMLInputElement>('header input[role="combobox"]');
+    if (searchInput) {
+      searchInput.focus();
+    }
+  };
+
+  const hasOpenModal = Boolean(
+    inspectCourse ||
+    showNewCourseModal ||
+    showNewAssignmentModal ||
+    showQuickStudyModal ||
+    showEmailGroupModal ||
+    showColumnsModal ||
+    showExportModal ||
+    mobileDrawerOpen
+  );
+
+  // Global Keyboard Shortcuts Suite
+  useKeyboardShortcuts({
+    currentView,
+    onNavigate: (view) => {
+      setCurrentView(view);
+      setMobileDrawerOpen(false);
+    },
+    onOpenNewCourse: () => setShowNewCourseModal(true),
+    onOpenNewAssignment: () => setShowNewAssignmentModal(true),
+    onOpenQuickStudy: () => setShowQuickStudyModal(true),
+    onOpenExport: () => setShowExportModal(true),
+    onSaveSync: handleSaveSync,
+    onToggleTheme: handleToggleTheme,
+    onFocusSearch: handleFocusSearch,
+    onEscape: handleEscape,
+    onNotify: (msg) => {
+      setStatusMessage(msg);
+      setTimeout(() => setStatusMessage('Ready'), 2500);
+    },
+    hasOpenModal,
+  });
 
   // Actions
   const handleAddStudyLog = (logData: Omit<StudyLog, 'id' | 'timestamp'>) => {
@@ -866,6 +936,10 @@ export default function App() {
             onToggleTheme={handleToggleTheme}
           />
         )}
+
+        {currentView === 'shortcuts' && (
+          <ShortcutsView onNavigate={setCurrentView} />
+        )}
       </div>
 
       {/* 5. Modals & Dialogs */}
@@ -882,6 +956,27 @@ export default function App() {
         <NewCourseModal
           onClose={() => setShowNewCourseModal(false)}
           onAdd={handleAddCourse}
+        />
+      )}
+
+      {showNewAssignmentModal && (
+        <NewAssignmentModal
+          courses={courses}
+          onClose={() => setShowNewAssignmentModal(false)}
+          onAdd={handleAddAssignment}
+        />
+      )}
+
+      {showQuickStudyModal && (
+        <QuickStudyModal
+          courses={courses}
+          isOpen={showQuickStudyModal}
+          onClose={() => setShowQuickStudyModal(false)}
+          onAddStudyLog={handleAddStudyLog}
+          onSuccessNotification={(msg) => {
+            setStatusMessage(msg);
+            setTimeout(() => setStatusMessage('Ready'), 3000);
+          }}
         />
       )}
 
@@ -903,6 +998,16 @@ export default function App() {
           onClose={() => setShowExportModal(false)}
           onExportJson={handleExportJson}
         />
+      )}
+
+      {/* Floating Status Notification Pill */}
+      {statusMessage && statusMessage !== 'Ready' && (
+        <div className="fixed bottom-3 right-3 z-50 pointer-events-none animate-in fade-in slide-in-from-bottom-2 duration-150">
+          <div className="bg-zinc-900/95 dark:bg-zinc-100/95 text-white dark:text-zinc-900 text-xs px-3 py-1.5 rounded-md shadow-lg border border-zinc-700/50 dark:border-zinc-300 font-medium flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1] animate-pulse" />
+            <span>{statusMessage}</span>
+          </div>
+        </div>
       )}
     </div>
   );
