@@ -408,11 +408,6 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
             </div>
           </>
         )}
-
-        <div className="bg-[#fdf9f4] dark:bg-zinc-900/90 border-t border-[#ecedef] dark:border-zinc-800 px-3 py-2 text-[10px] text-[#3f434a] dark:text-zinc-400 flex justify-between items-center font-mono">
-          <span>Showing {filteredCourses.length} syllabus modules</span>
-          <span>Target Degree Total: {targetCFU} CFU (100%)</span>
-        </div>
       </div>
     </div>
   );

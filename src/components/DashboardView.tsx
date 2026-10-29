@@ -10,7 +10,6 @@ import { QuickNotesSection } from './QuickNotesSection';
 import { ResourceLinkerSection } from './ResourceLinkerSection';
 import { StatusBadge } from './StatusBadge';
 import { Button } from './ui/button';
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 import { fireTaskConfetti, fireCelebrationConfetti } from '../utils/confetti';
 import {
   getPowerBorderClass,
@@ -845,7 +844,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
 
                     {/* Dedicated Compact Data Table with clear grid borders, alternating row colors, and fixed header row */}
-                    <div className="flex-1 min-h-[280px] xl:min-h-0 overflow-auto border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                    <div className="flex-1 min-h-[280px] xl:min-h-0 overflow-auto bg-white dark:bg-zinc-900">
                       <table className="w-full text-[11px] border-separate border-spacing-0 text-left min-w-[580px]">
                         <thead className="sticky top-0 z-20 shadow-xs bg-slate-100 dark:bg-zinc-800">
                           <tr className="bg-slate-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-bold text-[10px] tracking-wider uppercase select-none">
@@ -1088,24 +1087,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         </tbody>
                       </table>
                     </div>
-
-                    {/* Data Table Footer Strip (Clean metrics, 'All up-to-date' removed) */}
-                    <div className="shrink-0 px-3 py-1.5 border-t border-zinc-200 dark:border-zinc-800 bg-slate-50/90 dark:bg-zinc-900/90 flex items-center justify-between text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono">
-                      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                        <span>
-                          Showing {filteredCourses.length} of {scopedCourses.length} courses ({courseFilter} view)
-                        </span>
-                        <span>•</span>
-                        <span>{activeCourses.length} active ({activeCourses.reduce((s, c) => s + c.cfu, 0)} CFU)</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {completedCourses.length > 0 && (
-                          <span className="text-blue-700 dark:text-blue-400 font-semibold text-[10px]">
-                            {completedCourses.length} passed ({completedCourses.reduce((s, c) => s + c.cfu, 0)} CFU)
-                          </span>
-                        )}
-                      </div>
-                    </div>
                   </>
                 )}
               </div>
@@ -1196,7 +1177,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </div>
 
                     {/* Dedicated Compact Data Table for Study Logs with clear grid borders, alternating row colors, and fixed header row */}
-                    <div className="flex-1 min-h-[280px] xl:min-h-0 overflow-auto border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                    <div className="flex-1 min-h-[280px] xl:min-h-0 overflow-auto bg-white dark:bg-zinc-900">
                       <table className="w-full text-[11px] border-separate border-spacing-0 text-left min-w-[580px]">
                         <thead className="sticky top-0 z-20 shadow-xs bg-slate-100 dark:bg-zinc-800">
                           <tr className="bg-slate-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 font-bold text-[10px] tracking-wider uppercase select-none">
@@ -1344,18 +1325,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                           })}
                         </tbody>
                       </table>
-                    </div>
-
-                    {/* Sessions Data Table Footer Strip */}
-                    <div className="shrink-0 px-3 py-1.5 border-t border-zinc-200 dark:border-zinc-800 bg-slate-50/90 dark:bg-zinc-900/90 flex items-center justify-between text-[10.5px] text-zinc-500 dark:text-zinc-400 font-mono">
-                      <div className="flex items-center gap-3">
-                        <span>Showing {filteredLogs.length} of {studyLogs.length} sessions</span>
-                        <span>•</span>
-                        <span>Total {formatStudyDuration(filteredLogs.reduce((s, l) => s + l.durationMinutes, 0))}</span>
-                      </div>
-                      <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
-                        {filteredLogs.length > 0 ? `${Math.round(filteredLogs.reduce((s, l) => s + l.durationMinutes, 0) / filteredLogs.length)}m avg/session` : ''}
-                      </span>
                     </div>
                   </>
                 )}
