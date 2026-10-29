@@ -4,7 +4,8 @@ export type NavView =
   | 'study-session-tracker'
   | 'assignments-and-exams'
   | 'squads'
-  | 'settings';
+  | 'settings'
+  | 'shortcuts';
 
 export type StudyTag = 'Deep Work' | 'Problem Solving' | 'Review' | 'Lab Work' | 'Exam Prep';
 

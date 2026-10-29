@@ -2,7 +2,6 @@ import React from 'react';
 import {
   LayoutDashboard as DashboardIcon,
   BookOpen as Book,
-  Clock,
   CheckCircle2 as CheckCircle,
   Users,
   Settings as SettingsIcon,
@@ -18,7 +17,6 @@ interface SidebarProps {
   onSignOut?: () => void;
   mobileOpen?: boolean;
   onCloseMobile?: () => void;
-  onOpenShortcutsModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -26,40 +24,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   mobileOpen = false,
   onCloseMobile,
-  onOpenShortcutsModal,
 }) => {
   const mainNavItems = [
     {
       id: 'dashboard' as NavView,
       label: 'Dashboard',
-      shortcut: 'Alt+1',
       icon: DashboardIcon,
-      color: 'text-indigo-500 dark:text-indigo-400',
-      activeColor: 'text-indigo-400 dark:text-indigo-300',
     },
     {
       id: 'courses-and-curriculum' as NavView,
       label: 'Courses',
-      shortcut: 'Alt+2',
       icon: Book,
-      color: 'text-blue-500 dark:text-blue-400',
-      activeColor: 'text-blue-400 dark:text-blue-300',
     },
     {
       id: 'assignments-and-exams' as NavView,
       label: 'Assignments & Exams',
-      shortcut: 'Alt+3',
       icon: CheckCircle,
-      color: 'text-emerald-500 dark:text-emerald-400',
-      activeColor: 'text-emerald-400 dark:text-emerald-300',
     },
     {
       id: 'squads' as NavView,
       label: 'Friends',
-      shortcut: 'Alt+4',
       icon: Users,
-      color: 'text-[#3B77BC] dark:text-[#689FE1]',
-      activeColor: 'text-[#3B77BC] dark:text-[#689FE1]',
     },
   ];
 
@@ -130,14 +115,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                   <span className="truncate">{item.label}</span>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[9.5px] font-mono text-zinc-400 dark:text-zinc-500 opacity-60 group-hover:opacity-100 transition-opacity">
-                    {item.shortcut}
-                  </span>
-                  {isActive && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1] shrink-0" title="Active View" />
-                  )}
-                </div>
+                {isActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1] shrink-0" title="Active View" />
+                )}
               </button>
             );
           })}
@@ -163,37 +143,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
               <span className="truncate">Settings</span>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="text-[9.5px] font-mono text-zinc-400 dark:text-zinc-500 opacity-60 group-hover:opacity-100 transition-opacity">
-                Alt+5
+            {currentView === 'settings' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1] shrink-0" title="Active View" />
+            )}
+          </button>
+
+          {/* Shortcuts Nav Item */}
+          <button
+            type="button"
+            onClick={() => handleNavClick('shortcuts')}
+            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-all duration-150 group cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+              currentView === 'shortcuts'
+                ? 'bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 border border-[#ecedef] dark:border-zinc-800 font-semibold slite-shadow'
+                : 'text-[#3f434a] dark:text-zinc-400 hover:text-[#2d2f34] dark:hover:text-zinc-100 hover:bg-white/70 dark:hover:bg-zinc-900/60 border border-transparent'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0 truncate">
+              <span className={`shrink-0 inline-flex items-center transition-colors duration-150 ${currentView === 'shortcuts' ? 'text-[#6366F1]' : 'text-[#3f434a] dark:text-zinc-400 group-hover:text-[#2d2f34]'}`}>
+                <Keyboard size={16} />
               </span>
-              {currentView === 'settings' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1] shrink-0" title="Active View" />
-              )}
+              <span className="truncate">Shortcuts</span>
             </div>
+            {currentView === 'shortcuts' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-[#6366F1] shrink-0" title="Active View" />
+            )}
           </button>
         </div>
       </div>
-
-      {/* Footer: Keyboard Shortcuts Trigger */}
-      {onOpenShortcutsModal && (
-        <div className="p-3 border-t border-[#ecedef] dark:border-zinc-800">
-          <button
-            type="button"
-            onClick={onOpenShortcutsModal}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium text-[#3f434a] dark:text-zinc-400 hover:text-[#2d2f34] dark:hover:text-zinc-100 hover:bg-white/70 dark:hover:bg-zinc-900/60 transition-all cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            title="Open Keyboard Shortcuts (?)"
-          >
-            <div className="flex items-center gap-2">
-              <Keyboard size={15} className="text-[#6366F1] group-hover:scale-105 transition-transform" />
-              <span>Keyboard Shortcuts</span>
-            </div>
-            <kbd className="font-mono text-[9.5px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200 font-semibold shadow-2xs">
-              ?
-            </kbd>
-          </button>
-        </div>
-      )}
     </div>
   );
 

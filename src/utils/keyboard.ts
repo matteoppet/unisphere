@@ -189,7 +189,7 @@ export const WORKSTATION_SHORTCUTS: ShortcutItem[] = [
   {
     id: 'system-shortcuts-modal',
     keys: ['?', 'Ctrl + /', '⌘ + /'],
-    description: 'Open Keyboard Shortcuts Cheat Sheet',
+    description: 'Open Keyboard Shortcuts Reference',
     category: 'system',
   },
   {

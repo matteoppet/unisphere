@@ -41,7 +41,7 @@ import {
   ExportModal,
 } from './components/Modals';
 import { QuickStudyModal } from './components/QuickStudyModal';
-import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
+import { ShortcutsView } from './components/ShortcutsView';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const STORAGE_KEY = 'unisphere_workspace';
@@ -155,7 +155,6 @@ export default function App() {
   const [showNewCourseModal, setShowNewCourseModal] = useState(false);
   const [showNewAssignmentModal, setShowNewAssignmentModal] = useState(false);
   const [showQuickStudyModal, setShowQuickStudyModal] = useState(false);
-  const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showEmailGroupModal, setShowEmailGroupModal] = useState(false);
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -512,10 +511,6 @@ export default function App() {
 
   // Modal & Overlay Dismissal Stack for Escape
   const handleEscape = () => {
-    if (showShortcutsModal) {
-      setShowShortcutsModal(false);
-      return;
-    }
     if (inspectCourse) {
       setInspectCourse(null);
       return;
@@ -548,6 +543,10 @@ export default function App() {
       setMobileDrawerOpen(false);
       return;
     }
+    if (currentView === 'shortcuts') {
+      setCurrentView('dashboard');
+      return;
+    }
   };
 
   const handleSaveSync = () => {
@@ -556,7 +555,7 @@ export default function App() {
       formSubmitBtn.click();
     } else {
       pushWorkstationToCloud();
-      setStatusMessage('Workspace state synchronized (Ctrl+S)');
+      setStatusMessage('Workspace state synchronized');
       setTimeout(() => setStatusMessage('Ready'), 2000);
     }
   };
@@ -573,7 +572,6 @@ export default function App() {
     showNewCourseModal ||
     showNewAssignmentModal ||
     showQuickStudyModal ||
-    showShortcutsModal ||
     showEmailGroupModal ||
     showColumnsModal ||
     showExportModal ||
@@ -593,7 +591,6 @@ export default function App() {
     onOpenExport: () => setShowExportModal(true),
     onSaveSync: handleSaveSync,
     onToggleTheme: handleToggleTheme,
-    onToggleShortcutsModal: () => setShowShortcutsModal((prev) => !prev),
     onFocusSearch: handleFocusSearch,
     onEscape: handleEscape,
     onNotify: (msg) => {
@@ -842,7 +839,6 @@ export default function App() {
         onToggleMobileMenu={() => setMobileDrawerOpen((prev) => !prev)}
         isDark={theme === 'dark'}
         onToggleTheme={handleToggleTheme}
-        onOpenShortcutsModal={() => setShowShortcutsModal(true)}
       />
 
       {/* 3. Main Split View: Sidebar + Active Canvas */}
@@ -855,7 +851,6 @@ export default function App() {
           onSignOut={handleSignOut}
           mobileOpen={mobileDrawerOpen}
           onCloseMobile={() => setMobileDrawerOpen(false)}
-          onOpenShortcutsModal={() => setShowShortcutsModal(true)}
         />
 
         {currentView === 'dashboard' && (
@@ -941,6 +936,10 @@ export default function App() {
             onToggleTheme={handleToggleTheme}
           />
         )}
+
+        {currentView === 'shortcuts' && (
+          <ShortcutsView onNavigate={setCurrentView} />
+        )}
       </div>
 
       {/* 5. Modals & Dialogs */}
@@ -977,17 +976,6 @@ export default function App() {
           onSuccessNotification={(msg) => {
             setStatusMessage(msg);
             setTimeout(() => setStatusMessage('Ready'), 3000);
-          }}
-        />
-      )}
-
-      {showShortcutsModal && (
-        <KeyboardShortcutsModal
-          isOpen={showShortcutsModal}
-          onClose={() => setShowShortcutsModal(false)}
-          onNavigate={(view) => {
-            setCurrentView(view);
-            setShowShortcutsModal(false);
           }}
         />
       )}

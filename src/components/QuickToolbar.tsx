@@ -18,7 +18,6 @@ interface QuickToolbarProps {
   onToggleMobileMenu?: () => void;
   isDark?: boolean;
   onToggleTheme?: () => void;
-  onOpenShortcutsModal?: () => void;
 }
 
 export const QuickToolbar: React.FC<QuickToolbarProps> = ({
@@ -35,7 +34,6 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
   onToggleMobileMenu,
   isDark = true,
   onToggleTheme,
-  onOpenShortcutsModal,
 }) => {
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -259,7 +257,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
             variant="outline"
             size="sm"
             onClick={onToggleTheme}
-            title={isDark ? 'Switch to Light Theme (Alt+T)' : 'Switch to Dark Theme (Alt+T)'}
+            title={isDark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
             aria-label="Toggle theme"
             className="hidden sm:inline-flex gap-1.5 px-3 py-1 text-xs font-semibold rounded-md border-[#ecedef] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-200 hover:bg-[#f9efe4] dark:hover:bg-zinc-800 cursor-pointer transition-all slite-shadow group"
           >
@@ -275,7 +273,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
           variant="ghost"
           size="sm"
           onClick={onExport}
-          title="Export CSV / JSON Report (Ctrl+E)"
+          title="Export CSV / JSON Report"
           className="hidden lg:inline-flex gap-1.5 text-[#3f434a] hover:text-[#2d2f34] dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-[#f9efe4] text-xs font-medium rounded-md px-3"
         >
           <span className="material-symbols-outlined text-[15px] text-[#6366F1]">
@@ -283,25 +281,6 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
           </span>
           <span>Export</span>
         </Button>
-
-        {/* Keyboard Shortcuts Dialog Trigger */}
-        {onOpenShortcutsModal && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onOpenShortcutsModal}
-            title="Keyboard Shortcuts Cheat Sheet (?)"
-            aria-label="Keyboard Shortcuts Cheat Sheet"
-            className="hidden md:inline-flex items-center gap-1.5 text-[#3f434a] hover:text-[#2d2f34] dark:text-zinc-400 dark:hover:text-zinc-100 hover:bg-[#f9efe4] dark:hover:bg-zinc-850 text-xs font-medium rounded-md px-2.5 py-1"
-          >
-            <span className="material-symbols-outlined text-[16px] text-[#6366F1]">
-              keyboard
-            </span>
-            <kbd className="font-mono text-[9.5px] px-1.5 py-0.2 rounded bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-500 font-semibold">
-              ?
-            </kbd>
-          </Button>
-        )}
       </div>
 
       {/* Center: Global Search Bar & Command Palette */}
@@ -324,11 +303,11 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
             }}
             onFocus={() => setIsOpen(true)}
             onKeyDown={handleSearchKeyDown}
-            placeholder={window.innerWidth < 640 ? "Search..." : "Search courses, tasks, study logs (Ctrl+K or /)..."}
-            className="w-full h-8 pl-8.5 pr-14 text-[11px] sm:text-xs rounded-md border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 placeholder:text-[#3f434a]/60 dark:placeholder:text-zinc-500 focus:outline-none focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]/30 transition-all slite-shadow"
+            placeholder="Search courses, tasks, study logs..."
+            className="w-full h-8 pl-8.5 pr-8 text-[11px] sm:text-xs rounded-md border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-100 placeholder:text-[#3f434a]/60 dark:placeholder:text-zinc-500 focus:outline-none focus:border-[#6366F1] focus:ring-1 focus:ring-[#6366F1]/30 transition-all slite-shadow"
           />
-          <div className="absolute right-2.5 flex items-center gap-1">
-            {query ? (
+          {query && (
+            <div className="absolute right-2.5 flex items-center">
               <button
                 type="button"
                 onClick={() => {
@@ -340,12 +319,8 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
               >
                 <span className="material-symbols-outlined text-[14px]">close</span>
               </button>
-            ) : (
-              <kbd className="hidden sm:inline-block font-mono text-[9px] px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-400 font-semibold pointer-events-none">
-                ⌘K
-              </kbd>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Global Search Results Dropdown */}
@@ -430,7 +405,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
                           <span className="material-symbols-outlined text-[13px]">menu_book</span>
                           <span>Courses ({filteredCourses.length})</span>
                         </span>
-                        <span className="text-[9.5px] font-normal text-zinc-400">Press ↵ or click</span>
+                        <span className="text-[9.5px] font-normal text-zinc-400">Click to view syllabus</span>
                       </div>
                       <div className="space-y-0.5">
                         {visibleCourses.map((c, cIdx) => {
@@ -498,7 +473,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
                           <span className="material-symbols-outlined text-[13px]">task_alt</span>
                           <span>Assignments &amp; Exams ({filteredAssignments.length})</span>
                         </span>
-                        <span className="text-[9.5px] font-normal text-zinc-400">Press ↵ or click</span>
+                        <span className="text-[9.5px] font-normal text-zinc-400">Click to open registry</span>
                       </div>
                       <div className="space-y-0.5">
                         {visibleAssignments.map((a, aIdx) => {
@@ -558,7 +533,7 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
                           <span className="material-symbols-outlined text-[13px]">history_edu</span>
                           <span>Study Logs ({filteredLogs.length})</span>
                         </span>
-                        <span className="text-[9.5px] font-normal text-zinc-400">Press ↵ or click</span>
+                        <span className="text-[9.5px] font-normal text-zinc-400">Click to open tracker</span>
                       </div>
                       <div className="space-y-0.5">
                         {visibleLogs.map((l, lIdx) => {
@@ -607,25 +582,11 @@ export const QuickToolbar: React.FC<QuickToolbarProps> = ({
               )}
             </div>
 
-            {/* Quick Footer with Keyboard Hints */}
-            <div className="p-2 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/70 text-[10px] text-zinc-500 dark:text-zinc-400 flex items-center justify-between shrink-0 flex-wrap gap-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span>
-                  <kbd className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">↑</kbd>{' '}
-                  <kbd className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">↓</kbd> navigate
-                </span>
-                <span>
-                  <kbd className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">↵</kbd> jump
-                </span>
-                <span>
-                  <kbd className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">Tab</kbd> filter
-                </span>
-                <span>
-                  <kbd className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1 py-0.5 rounded text-[9px]">Esc</kbd> close
-                </span>
-              </div>
+            {/* Quick Footer */}
+            <div className="p-2 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/70 text-[10px] text-zinc-500 dark:text-zinc-400 flex items-center justify-between shrink-0">
+              <span>Search across courses, assignments, and study logs</span>
               <span className="font-medium text-indigo-600 dark:text-indigo-400">
-                Global Command Palette
+                Global Search
               </span>
             </div>
           </div>

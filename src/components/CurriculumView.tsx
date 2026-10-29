@@ -199,13 +199,10 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
             <button
               onClick={onOpenNewCourse}
               className="bg-[#6366F1] hover:bg-[#4F46E5] text-white px-3.5 py-1.5 text-[11px] font-medium rounded-md shadow-xs transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-              title="Add Course (C)"
+              title="Add Course"
             >
               <span className="material-symbols-outlined text-[14px]">add</span>
               <span>Add Course</span>
-              <kbd className="hidden sm:inline-block font-mono text-[9px] px-1 py-0.2 rounded bg-indigo-700/80 text-white font-semibold">
-                C
-              </kbd>
             </button>
           </div>
         </div>

@@ -114,31 +114,31 @@ export function useKeyboardShortcuts({
         if (e.key === '1') {
           e.preventDefault();
           onNavigate('dashboard');
-          if (onNotify) onNotify('Jumped to Dashboard (Alt+1)');
+          if (onNotify) onNotify('Jumped to Dashboard');
           return;
         }
         if (e.key === '2') {
           e.preventDefault();
           onNavigate('courses-and-curriculum');
-          if (onNotify) onNotify('Jumped to Courses (Alt+2)');
+          if (onNotify) onNotify('Jumped to Courses');
           return;
         }
         if (e.key === '3') {
           e.preventDefault();
           onNavigate('assignments-and-exams');
-          if (onNotify) onNotify('Jumped to Assignments (Alt+3)');
+          if (onNotify) onNotify('Jumped to Assignments');
           return;
         }
         if (e.key === '4') {
           e.preventDefault();
           onNavigate('squads');
-          if (onNotify) onNotify('Jumped to Friends & Squads (Alt+4)');
+          if (onNotify) onNotify('Jumped to Friends & Squads');
           return;
         }
         if (e.key === '5') {
           e.preventDefault();
           onNavigate('settings');
-          if (onNotify) onNotify('Jumped to Settings (Alt+5)');
+          if (onNotify) onNotify('Jumped to Settings');
           return;
         }
         if (e.key === 'ArrowLeft') {
@@ -185,37 +185,37 @@ export function useKeyboardShortcuts({
         if (key === 'd') {
           e.preventDefault();
           onNavigate('dashboard');
-          if (onNotify) onNotify('Jumped to Dashboard (G D)');
+          if (onNotify) onNotify('Jumped to Dashboard');
           return;
         }
         if (key === 'c') {
           e.preventDefault();
           onNavigate('courses-and-curriculum');
-          if (onNotify) onNotify('Jumped to Courses (G C)');
+          if (onNotify) onNotify('Jumped to Courses');
           return;
         }
         if (key === 'a') {
           e.preventDefault();
           onNavigate('assignments-and-exams');
-          if (onNotify) onNotify('Jumped to Assignments (G A)');
+          if (onNotify) onNotify('Jumped to Assignments');
           return;
         }
         if (key === 's' || key === 'f') {
           e.preventDefault();
           onNavigate('squads');
-          if (onNotify) onNotify('Jumped to Friends & Squads (G S)');
+          if (onNotify) onNotify('Jumped to Friends & Squads');
           return;
         }
         if (key === 't') {
           e.preventDefault();
           onNavigate('study-session-tracker');
-          if (onNotify) onNotify('Jumped to Study Tracker (G T)');
+          if (onNotify) onNotify('Jumped to Study Tracker');
           return;
         }
         if (key === 'p' || key === ',') {
           e.preventDefault();
           onNavigate('settings');
-          if (onNotify) onNotify('Jumped to Settings (G P)');
+          if (onNotify) onNotify('Jumped to Settings');
           return;
         }
       }
@@ -223,7 +223,6 @@ export function useKeyboardShortcuts({
       // First key in sequence: 'g'
       if (!e.ctrlKey && !e.metaKey && !e.altKey && key === 'g') {
         pendingGRef.current = true;
-        if (onNotify) onNotify('Go to: D (Dashboard), C (Courses), A (Assignments), S (Friends), T (Tracker), P (Settings)...');
         if (pendingGTimerRef.current) clearTimeout(pendingGTimerRef.current);
         pendingGTimerRef.current = setTimeout(() => {
           pendingGRef.current = false;
@@ -246,10 +245,14 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Help cheat sheet: ? (Shift + /)
+      // Help cheat sheet / page: ? (Shift + /)
       if (e.key === '?') {
         e.preventDefault();
-        if (onToggleShortcutsModal) onToggleShortcutsModal();
+        if (currentViewRef.current === 'shortcuts') {
+          onNavigate('dashboard');
+        } else {
+          onNavigate('shortcuts');
+        }
         return;
       }
 
