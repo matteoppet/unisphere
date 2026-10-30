@@ -22,7 +22,16 @@ import {
 import { calculateMediaGrades } from '../utils/grades';
 import { NewAssignmentModal } from './Modals';
 import { QuickStudyModal } from './QuickStudyModal';
-import { Bookmark, FileText, Columns } from 'lucide-react';
+import {
+  Bookmark,
+  FileText,
+  Columns,
+  Plus,
+  X,
+  GraduationCap,
+  Clock,
+  Calendar,
+} from 'lucide-react';
 
 interface DashboardViewProps {
   profile: StudentProfile;
@@ -180,26 +189,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     const xp = Math.max(20, Math.round(log.durationMinutes * 2));
     setQuickNotification(`Study session logged: ${log.courseName} (${log.durationMinutes}m) • +${xp} XP`);
     setTimeout(() => setQuickNotification(null), 3500);
-  };
-
-  const handleInstantQuickStudyLog = (mins: number) => {
-    const activeCourse = courses.find((c) => c.status === 'active') || courses[0];
-    const cName = activeCourse ? activeCourse.title : 'General Deep Work';
-    const todayStr = getLocalDateString();
-    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    handleCreateQuickStudyLog({
-      courseName: cName,
-      courseId: activeCourse?.id,
-      durationMinutes: mins,
-      date: todayStr,
-      timeRange: `Today ${nowTime}`,
-      notes: `Quick Study session on ${cName}`,
-      rating: 5,
-      tag: 'Deep Work',
-    });
-    fireCelebrationConfetti();
-    setFabOpen(false);
   };
 
   const handleCopyMatricola = () => {
@@ -1467,94 +1456,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           />
         )}
 
-        {/* Quick Action Menu with Embedded Quick Study Functionality */}
+        {/* Minimal Quick Action Menu */}
         {fabOpen && (
           <div
             role="menu"
-            className="absolute bottom-13 right-0 w-72 max-w-[calc(100vw-2rem)] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-gray-200 dark:border-zinc-800 rounded-md shadow-2xl p-2 space-y-2 z-50 text-left select-none animate-in fade-in slide-in-from-bottom-3 duration-200"
+            className="absolute bottom-11 sm:bottom-12 right-0 w-64 max-w-[calc(100vw-2rem)] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-gray-200 dark:border-zinc-800 rounded-lg shadow-lg p-1.5 space-y-1 z-50 text-left select-none animate-in fade-in slide-in-from-bottom-2 duration-150"
           >
-            <div className="px-2.5 py-1 flex items-center justify-between border-b border-gray-100 dark:border-zinc-800/80 mb-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-zinc-400">
+            <div className="px-2.5 py-1.5 flex items-center justify-between border-b border-gray-100 dark:border-zinc-800/80 mb-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-zinc-400">
                 Quick Actions
               </span>
               <button
                 type="button"
                 onClick={() => setFabOpen(false)}
-                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer text-xs font-bold leading-none"
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 rounded cursor-pointer transition-colors"
                 title="Close menu"
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Quick Study Section - Embedded directly inside Quick Action button (NO ICON) */}
-            <div className="p-2.5 rounded-md bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/50 space-y-2">
-              <div className="flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFabOpen(false);
-                    setShowQuickStudyModal(true);
-                  }}
-                  className="text-left group cursor-pointer"
-                >
-                  <div className="font-bold text-xs text-indigo-950 dark:text-indigo-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                    Quick Study
-                  </div>
-                  <div className="text-[10px] text-indigo-700/80 dark:text-indigo-300/80">
-                    Instantly record a study session
-                  </div>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFabOpen(false);
-                    setShowQuickStudyModal(true);
-                  }}
-                  className="text-[10.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                >
-                  Custom / Timer
-                </button>
-              </div>
-
-              {/* 1-Click Instant Presets: Log directly without opening full tracker */}
-              <div className="grid grid-cols-4 gap-1 pt-0.5">
-                {[25, 45, 60, 90].map((mins) => (
-                  <button
-                    key={mins}
-                    type="button"
-                    onClick={() => handleInstantQuickStudyLog(mins)}
-                    className="py-1 px-1 rounded-md bg-white dark:bg-zinc-900 border border-indigo-200/80 dark:border-indigo-800/80 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white text-indigo-900 dark:text-indigo-200 font-mono text-[11px] font-bold text-center transition-all cursor-pointer shadow-2xs active:scale-95"
-                    title={`Instant log ${mins}m to active course`}
-                  >
-                    {mins}m
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Other Actions in Quick Action Menu */}
-            <button
-              type="button"
-              onClick={() => {
-                setFabOpen(false);
-                setShowQuickTaskModal(true);
-              }}
-              className="w-full flex items-center justify-between p-2 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-800/60 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
-            >
-              <div>
-                <div className="font-semibold text-xs group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
-                  New Task / Exam
-                </div>
-                <div className="text-[10px] text-neutral-500 dark:text-zinc-400">
-                  Add assignment, deadline or test
-                </div>
-              </div>
-              <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200">
-                +
-              </span>
-            </button>
-
+            {/* Action 1: New Course */}
             <button
               type="button"
               onClick={() => {
@@ -1564,43 +1486,101 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               }}
               className="w-full flex items-center justify-between p-2 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-800/60 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
             >
-              <div>
-                <div className="font-semibold text-xs group-hover:text-indigo-700 dark:group-hover:text-indigo-300">
-                  Add New Course
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-md bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-900/50 flex items-center justify-center shrink-0 text-indigo-600 dark:text-indigo-400 group-hover:scale-105 transition-transform">
+                  <GraduationCap className="w-3.5 h-3.5" />
                 </div>
-                <div className="text-[10px] text-neutral-500 dark:text-zinc-400">
-                  Register syllabus &amp; CFUs
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-xs text-neutral-900 dark:text-zinc-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                    New Course
+                  </div>
+                  <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">
+                    Register syllabus &amp; CFUs
+                  </div>
                 </div>
               </div>
-              <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200">
-                +
-              </span>
+              <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 shrink-0">
+                C
+              </kbd>
+            </button>
+
+            {/* Action 2: New Session Log */}
+            <button
+              type="button"
+              onClick={() => {
+                setFabOpen(false);
+                setShowQuickStudyModal(true);
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-800/60 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-md bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 dark:border-emerald-900/50 flex items-center justify-center shrink-0 text-emerald-600 dark:text-emerald-400 group-hover:scale-105 transition-transform">
+                  <Clock className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-xs text-neutral-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                    New Session Log
+                  </div>
+                  <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">
+                    Record study hours &amp; topic review
+                  </div>
+                </div>
+              </div>
+              <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 shrink-0">
+                S
+              </kbd>
+            </button>
+
+            {/* Action 3: New Assignment/Exam */}
+            <button
+              type="button"
+              onClick={() => {
+                setFabOpen(false);
+                setShowQuickTaskModal(true);
+              }}
+              className="w-full flex items-center justify-between p-2 rounded-md text-left hover:bg-gray-100 dark:hover:bg-zinc-800/60 text-neutral-900 dark:text-zinc-100 transition-colors cursor-pointer group"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-md bg-blue-50 dark:bg-blue-950/50 border border-blue-100 dark:border-blue-900/50 flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400 group-hover:scale-105 transition-transform">
+                  <Calendar className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-xs text-neutral-900 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    New Assignment/Exam
+                  </div>
+                  <div className="text-[10px] text-neutral-500 dark:text-zinc-400 truncate">
+                    Add assignment, deadline or test
+                  </div>
+                </div>
+              </div>
+              <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 shrink-0">
+                A
+              </kbd>
             </button>
           </div>
         )}
 
-        {/* Floating Quick Action Button - Pure text, NO ICON, Restored Indigo Color, Squared edges */}
+        {/* Minimal Floating Quick Action Button - No Glow */}
         <button
           type="button"
           onClick={() => {
             setFabOpen((prev) => !prev);
           }}
-          aria-label="Quick Action"
-          title="Quick Action"
-          className={`px-4 py-2.5 rounded-md font-bold text-xs sm:text-sm shadow-xl hover:shadow-2xl transition-all duration-200 cursor-pointer active:scale-95 ring-2 ${
+          aria-label={fabOpen ? 'Close quick actions menu' : 'Quick Actions'}
+          title="Quick Actions"
+          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-md font-medium text-xs border transition-all duration-150 cursor-pointer select-none shadow-xs active:scale-95 ${
             fabOpen
-              ? 'bg-zinc-800 text-white ring-zinc-600 shadow-zinc-900/40'
-              : isQuickTimerRunning
-              ? 'bg-emerald-600 hover:bg-emerald-500 text-white ring-emerald-400/50 shadow-emerald-600/30 animate-pulse'
-              : 'bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white ring-indigo-400/30 shadow-indigo-600/40 hover:shadow-indigo-600/60'
+              ? 'bg-gray-100 dark:bg-zinc-800 text-neutral-900 dark:text-zinc-100 border-gray-300 dark:border-zinc-700'
+              : 'bg-white hover:bg-gray-50 text-neutral-900 border-gray-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-100 dark:border-zinc-800'
           }`}
         >
-          <span className="tracking-tight font-extrabold whitespace-nowrap">
-            {fabOpen
-              ? 'Close'
-              : isQuickTimerRunning
-              ? `${Math.floor(quickTimerSeconds / 60)}:${String(quickTimerSeconds % 60).padStart(2, '0')} • Quick Action`
-              : 'Quick Action'}
+          <Plus
+            className={`w-3.5 h-3.5 transition-transform duration-200 ${
+              fabOpen ? 'rotate-45 text-neutral-500 dark:text-zinc-400' : 'text-neutral-500 dark:text-zinc-400'
+            }`}
+          />
+          <span className="tracking-tight whitespace-nowrap">
+            {fabOpen ? 'Close' : 'Quick Actions'}
           </span>
         </button>
       </div>

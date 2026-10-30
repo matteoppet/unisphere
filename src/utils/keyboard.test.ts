@@ -109,6 +109,19 @@ describe('Keyboard navigation utilities', () => {
     assert.ok(shortcutsModal);
     assert.ok(shortcutsModal.keys.includes('?'));
 
+    // Check quick action shortcuts corresponding to Quick Actions menu (#24)
+    const courseShortcut = WORKSTATION_SHORTCUTS.find((s) => s.id === 'action-new-course');
+    assert.ok(courseShortcut, 'Must have new course shortcut');
+    assert.ok(courseShortcut.keys.includes('C'));
+
+    const sessionShortcut = WORKSTATION_SHORTCUTS.find((s) => s.id === 'action-quick-study');
+    assert.ok(sessionShortcut, 'Must have quick study session shortcut');
+    assert.ok(sessionShortcut.keys.includes('S'));
+
+    const assignmentShortcut = WORKSTATION_SHORTCUTS.find((s) => s.id === 'action-new-assignment');
+    assert.ok(assignmentShortcut, 'Must have new assignment/exam shortcut');
+    assert.ok(assignmentShortcut.keys.includes('A'));
+
     // Validate that every shortcut has non-empty ID, keys, and description
     for (const item of WORKSTATION_SHORTCUTS) {
       assert.ok(item.id.length > 0, `Item ID must not be empty: ${JSON.stringify(item)}`);
