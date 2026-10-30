@@ -24,6 +24,7 @@ interface AuthViewProps {
       studyLogs?: StudyLog[];
       assignments?: AssignmentItem[];
       quickNotes?: string;
+      checklist?: string;
     }
   ) => void;
   defaultEmail?: string;
@@ -165,6 +166,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       studyLogs: Array.isArray(data.studyLogs) ? data.studyLogs : [],
       assignments: Array.isArray(data.assignments) ? data.assignments : [],
       quickNotes: typeof data.quickNotes === 'string' ? data.quickNotes : '',
+      checklist: typeof data.checklist === 'string' ? data.checklist : '',
       resourceLinks: Array.isArray(data.resourceLinks)
         ? data.resourceLinks.filter(
             (r: any) =>
@@ -449,6 +451,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           studyLogs: [],
           assignments: [],
           quickNotes: '',
+          checklist: '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -527,6 +530,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           studyLogs: [],
           assignments: [],
           quickNotes: '',
+          checklist: '',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
@@ -682,6 +686,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
           studyLogs: [],
           assignments: [],
           quickNotes: '',
+          checklist: '',
         });
       }, 300);
     } catch (err: any) {

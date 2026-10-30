@@ -40,6 +40,7 @@ export interface UserCloudData {
   studyLogs?: StudyLog[];
   assignments?: AssignmentItem[];
   quickNotes?: string;
+  checklist?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -31,6 +31,8 @@ interface DashboardViewProps {
   assignments?: AssignmentItem[];
   quickNotes?: string;
   onUpdateQuickNotes?: (notes: string) => void;
+  checklist?: string;
+  onUpdateChecklist?: (checklist: string) => void;
   resources?: ResourceLink[];
   onUpdateResources?: (resources: ResourceLink[]) => void;
   onAddStudyLog: (log: Omit<StudyLog, 'id' | 'timestamp'>) => void;
@@ -55,6 +57,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   assignments = [],
   quickNotes = '',
   onUpdateQuickNotes,
+  checklist = '',
+  onUpdateChecklist,
   resources = [],
   onUpdateResources,
   onAddStudyLog,
@@ -79,6 +83,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       onUpdateQuickNotes(newNotes);
     } else {
       setLocalNotes(newNotes);
+    }
+  };
+
+  const [localChecklist, setLocalChecklist] = useState(checklist);
+  const currentChecklist = onUpdateChecklist ? checklist : localChecklist;
+  const handleUpdateChecklist = (newChecklist: string) => {
+    if (onUpdateChecklist) {
+      onUpdateChecklist(newChecklist);
+    } else {
+      setLocalChecklist(newChecklist);
     }
   };
 
@@ -1413,6 +1427,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <QuickNotesSection
               notes={currentNotes}
               onUpdateNotes={handleUpdateNotes}
+              checklist={currentChecklist}
+              onUpdateChecklist={handleUpdateChecklist}
               className="flex-1 min-h-[320px] xl:min-h-0 h-full"
             />
           )}
@@ -1431,6 +1447,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <QuickNotesSection
                   notes={currentNotes}
                   onUpdateNotes={handleUpdateNotes}
+                  checklist={currentChecklist}
+                  onUpdateChecklist={handleUpdateChecklist}
                   className="flex-1 min-h-0 h-full"
                 />
               </div>

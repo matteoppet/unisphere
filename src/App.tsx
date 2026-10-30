@@ -96,6 +96,14 @@ export default function App() {
     return '';
   });
 
+  const [checklist, setChecklist] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_checklist`);
+      if (saved !== null) return saved;
+    } catch {}
+    return '';
+  });
+
   const [resourceLinks, setResourceLinks] = useState<ResourceLink[]>(() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_resource_links`);
@@ -268,6 +276,7 @@ export default function App() {
           if (Array.isArray(data.studyLogs)) setStudyLogs(data.studyLogs);
           if (Array.isArray(data.assignments)) setAssignments(data.assignments);
           if (typeof data.quickNotes === 'string') setQuickNotes(data.quickNotes);
+          if (typeof data.checklist === 'string') setChecklist(data.checklist);
           if (Array.isArray(data.resourceLinks)) {
             const cleaned = data.resourceLinks.filter(
               (r: ResourceLink) =>
@@ -314,6 +323,7 @@ export default function App() {
               if (Array.isArray(data.studyLogs)) setStudyLogs(data.studyLogs);
               if (Array.isArray(data.assignments)) setAssignments(data.assignments);
               if (typeof data.quickNotes === 'string') setQuickNotes(data.quickNotes);
+              if (typeof data.checklist === 'string') setChecklist(data.checklist);
               if (Array.isArray(data.resourceLinks)) {
                 setResourceLinks(
                   data.resourceLinks.filter(
@@ -363,6 +373,7 @@ export default function App() {
       studyLogs?: StudyLog[];
       assignments?: AssignmentItem[];
       quickNotes?: string;
+      checklist?: string;
       resourceLinks?: ResourceLink[];
     }
   ) => {
@@ -379,6 +390,7 @@ export default function App() {
       if (Array.isArray(cloudData.studyLogs)) setStudyLogs(cloudData.studyLogs);
       if (Array.isArray(cloudData.assignments)) setAssignments(cloudData.assignments);
       if (typeof cloudData.quickNotes === 'string') setQuickNotes(cloudData.quickNotes);
+      if (typeof cloudData.checklist === 'string') setChecklist(cloudData.checklist);
       if (Array.isArray(cloudData.resourceLinks)) setResourceLinks(cloudData.resourceLinks);
     }
     if (newProfile.activeSquadId || newProfile.squadIds) {
@@ -395,6 +407,7 @@ export default function App() {
       if (cloudData?.studyLogs) localStorage.setItem(`${STORAGE_KEY}_logs`, JSON.stringify(cloudData.studyLogs));
       if (cloudData?.assignments) localStorage.setItem(`${STORAGE_KEY}_assignments`, JSON.stringify(cloudData.assignments));
       if (typeof cloudData?.quickNotes === 'string') localStorage.setItem(`${STORAGE_KEY}_quick_notes`, cloudData.quickNotes);
+      if (typeof cloudData?.checklist === 'string') localStorage.setItem(`${STORAGE_KEY}_checklist`, cloudData.checklist);
       if (Array.isArray(cloudData?.resourceLinks)) localStorage.setItem(`${STORAGE_KEY}_resource_links`, JSON.stringify(cloudData.resourceLinks));
     } catch (e) {
       console.warn('Storage sync error', e);
@@ -424,11 +437,12 @@ export default function App() {
       localStorage.setItem(`${STORAGE_KEY}_logs`, JSON.stringify(studyLogs));
       localStorage.setItem(`${STORAGE_KEY}_assignments`, JSON.stringify(assignments));
       localStorage.setItem(`${STORAGE_KEY}_quick_notes`, quickNotes);
+      localStorage.setItem(`${STORAGE_KEY}_checklist`, checklist);
       localStorage.setItem(`${STORAGE_KEY}_resource_links`, JSON.stringify(resourceLinks));
     } catch (e) {
       console.warn('Storage sync error', e);
     }
-  }, [profile, courses, studyLogs, assignments, quickNotes, resourceLinks]);
+  }, [profile, courses, studyLogs, assignments, quickNotes, checklist, resourceLinks]);
 
   // Fast direct push helper to broadcast changes to Firestore instantly
   const pushWorkstationToCloud = async (overrides?: {
@@ -436,6 +450,7 @@ export default function App() {
     studyLogs?: StudyLog[];
     assignments?: AssignmentItem[];
     quickNotes?: string;
+    checklist?: string;
     resourceLinks?: ResourceLink[];
     profile?: StudentProfile;
   }) => {
@@ -449,6 +464,7 @@ export default function App() {
     const currentStudyLogs = overrides?.studyLogs || studyLogs;
     const currentAssignments = overrides?.assignments || assignments;
     const currentQuickNotes = overrides?.quickNotes !== undefined ? overrides.quickNotes : quickNotes;
+    const currentChecklist = overrides?.checklist !== undefined ? overrides.checklist : checklist;
     const currentResourceLinks = overrides?.resourceLinks || resourceLinks;
 
     try {
@@ -476,6 +492,7 @@ export default function App() {
           studyLogs: currentStudyLogs,
           assignments: currentAssignments,
           quickNotes: currentQuickNotes,
+          checklist: currentChecklist,
           resourceLinks: currentResourceLinks,
           activeSquadId: currentProfile.activeSquadId || null,
           squadIds: currentProfile.squadIds || [],
@@ -494,7 +511,7 @@ export default function App() {
     }
   };
 
-  // Synchronize student workstation changes to Firestore (safety net for quickNotes typing)
+  // Synchronize student workstation changes to Firestore (safety net for quickNotes and checklist typing)
   useEffect(() => {
     if (!isAuthenticated) return;
     if (isApplyingRemoteUpdateRef.current) return;
@@ -507,7 +524,7 @@ export default function App() {
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [isAuthenticated, sessionEmail, profile, courses, studyLogs, assignments, quickNotes, resourceLinks]);
+  }, [isAuthenticated, sessionEmail, profile, courses, studyLogs, assignments, quickNotes, checklist, resourceLinks]);
 
   // Modal & Overlay Dismissal Stack for Escape
   const handleEscape = () => {
@@ -741,6 +758,7 @@ export default function App() {
     setStudyLogs([]);
     setAssignments([]);
     setQuickNotes('');
+    setChecklist('');
     setResourceLinks([]);
     try {
       localStorage.removeItem(`${STORAGE_KEY}_profile`);
@@ -748,6 +766,7 @@ export default function App() {
       localStorage.removeItem(`${STORAGE_KEY}_logs`);
       localStorage.removeItem(`${STORAGE_KEY}_assignments`);
       localStorage.removeItem(`${STORAGE_KEY}_quick_notes`);
+      localStorage.removeItem(`${STORAGE_KEY}_checklist`);
       localStorage.removeItem(`${STORAGE_KEY}_resource_links`);
     } catch {}
     pushWorkstationToCloud({
@@ -756,6 +775,7 @@ export default function App() {
       studyLogs: [],
       assignments: [],
       quickNotes: '',
+      checklist: '',
       resourceLinks: [],
     });
     setStatusMessage('Data Cleared');
@@ -769,6 +789,7 @@ export default function App() {
       studyLogs,
       assignments,
       quickNotes,
+      checklist,
       resourceLinks,
       exportTimestamp: new Date().toISOString(),
       version: '2.4.0',
@@ -792,6 +813,7 @@ export default function App() {
       if (parsed.studyLogs) setStudyLogs(parsed.studyLogs);
       if (parsed.assignments) setAssignments(parsed.assignments);
       if (typeof parsed.quickNotes === 'string') setQuickNotes(parsed.quickNotes);
+      if (typeof parsed.checklist === 'string') setChecklist(parsed.checklist);
       if (Array.isArray(parsed.resourceLinks)) setResourceLinks(parsed.resourceLinks);
       pushWorkstationToCloud({
         profile: parsed.profile,
@@ -799,6 +821,7 @@ export default function App() {
         studyLogs: parsed.studyLogs,
         assignments: parsed.assignments,
         quickNotes: parsed.quickNotes,
+        checklist: parsed.checklist,
         resourceLinks: parsed.resourceLinks,
       });
       setStatusMessage('Workstation Restored from JSON');
@@ -861,6 +884,8 @@ export default function App() {
             studyLogs={studyLogs}
             quickNotes={quickNotes}
             onUpdateQuickNotes={setQuickNotes}
+            checklist={checklist}
+            onUpdateChecklist={setChecklist}
             resources={resourceLinks}
             onUpdateResources={handleUpdateResources}
             onAddStudyLog={handleAddStudyLog}

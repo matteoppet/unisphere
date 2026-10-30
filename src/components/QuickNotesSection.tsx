@@ -1,8 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  parseChecklist,
+  addChecklistItem,
+  toggleChecklistItemState,
+  removeChecklistItem,
+  clearCompletedChecklistItems,
+} from '../utils/checklist';
 
-interface QuickNotesSectionProps {
+export interface QuickNotesSectionProps {
   notes: string;
   onUpdateNotes: (notes: string) => void;
+  checklist?: string;
+  onUpdateChecklist?: (checklist: string) => void;
   actionButton?: React.ReactNode;
   className?: string;
 }
@@ -10,6 +19,8 @@ interface QuickNotesSectionProps {
 export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   notes,
   onUpdateNotes,
+  checklist,
+  onUpdateChecklist,
   actionButton,
   className = '',
 }) => {
@@ -19,6 +30,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   const [lastSavedTime, setLastSavedTime] = useState<string>('Just now');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [deletedNotesBackup, setDeletedNotesBackup] = useState<string | null>(null);
+  const [deletedChecklistBackup, setDeletedChecklistBackup] = useState<string | null>(null);
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [autoResetDaily, setAutoResetDaily] = useState<boolean>(() => {
     try {
@@ -27,6 +39,17 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
       return false;
     }
   });
+
+  // Local fallback for checklist if not managed by parent
+  const [localChecklist, setLocalChecklist] = useState<string>(() => {
+    try {
+      return localStorage.getItem('unisphere_checklist') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  const currentChecklist = checklist !== undefined ? checklist : localChecklist;
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -47,25 +70,6 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
     }
   });
 
-  // Handle ephemeral daily reset check on mount
-  useEffect(() => {
-    try {
-      const storedDate = localStorage.getItem('unisphere_notes_date');
-      if (storedDate && storedDate !== todayDateStr) {
-        if (autoResetDaily && notes.trim().length > 0) {
-          // Keep a backup just in case
-          setDeletedNotesBackup(notes);
-          onUpdateNotes('');
-          setNoteDate(todayDateStr);
-          localStorage.setItem('unisphere_notes_date', todayDateStr);
-          setShowUndoToast(true);
-        }
-      }
-    } catch (e) {
-      console.warn('Note date check error', e);
-    }
-  }, []);
-
   const handleNotesChange = (text: string) => {
     onUpdateNotes(text);
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -76,6 +80,44 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
     } catch {}
   };
 
+  const handleChecklistChange = (text: string) => {
+    if (onUpdateChecklist) {
+      onUpdateChecklist(text);
+    } else {
+      setLocalChecklist(text);
+      try {
+        localStorage.setItem('unisphere_checklist', text);
+      } catch {}
+    }
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setLastSavedTime(timeStr);
+    try {
+      localStorage.setItem('unisphere_notes_date', todayDateStr);
+      setNoteDate(todayDateStr);
+    } catch {}
+  };
+
+  // Handle ephemeral daily reset check on mount
+  useEffect(() => {
+    try {
+      const storedDate = localStorage.getItem('unisphere_notes_date');
+      if (storedDate && storedDate !== todayDateStr) {
+        if (autoResetDaily && (notes.trim().length > 0 || currentChecklist.trim().length > 0)) {
+          // Keep a backup just in case
+          setDeletedNotesBackup(notes);
+          setDeletedChecklistBackup(currentChecklist);
+          onUpdateNotes('');
+          handleChecklistChange('');
+          setNoteDate(todayDateStr);
+          localStorage.setItem('unisphere_notes_date', todayDateStr);
+          setShowUndoToast(true);
+        }
+      }
+    } catch (e) {
+      console.warn('Note date check error', e);
+    }
+  }, []);
+
   const handleToggleAutoReset = () => {
     const nextVal = !autoResetDaily;
     setAutoResetDaily(nextVal);
@@ -85,8 +127,10 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   };
 
   const handleCopyToClipboard = async () => {
+    const textToCopy = activeTab === 'scratchpad' ? notes : currentChecklist;
+    if (!textToCopy.trim()) return;
     try {
-      await navigator.clipboard.writeText(notes);
+      await navigator.clipboard.writeText(textToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -97,10 +141,15 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
   };
 
   const handleClearNotes = () => {
-    if (!notes.trim()) return;
-
-    setDeletedNotesBackup(notes);
-    handleNotesChange('');
+    if (activeTab === 'scratchpad') {
+      if (!notes.trim()) return;
+      setDeletedNotesBackup(notes);
+      handleNotesChange('');
+    } else {
+      if (!currentChecklist.trim()) return;
+      setDeletedChecklistBackup(currentChecklist);
+      handleChecklistChange('');
+    }
     setShowClearConfirm(false);
     setShowUndoToast(true);
 
@@ -108,6 +157,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
     undoTimeoutRef.current = setTimeout(() => {
       setShowUndoToast(false);
       setDeletedNotesBackup(null);
+      setDeletedChecklistBackup(null);
     }, 8000);
   };
 
@@ -115,13 +165,19 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
     if (deletedNotesBackup !== null) {
       handleNotesChange(deletedNotesBackup);
       setDeletedNotesBackup(null);
-      setShowUndoToast(false);
     }
+    if (deletedChecklistBackup !== null) {
+      handleChecklistChange(deletedChecklistBackup);
+      setDeletedChecklistBackup(null);
+    }
+    setShowUndoToast(false);
   };
 
   const handleStartFreshToday = () => {
     setDeletedNotesBackup(notes);
+    setDeletedChecklistBackup(currentChecklist);
     handleNotesChange('');
+    handleChecklistChange('');
     setNoteDate(todayDateStr);
     try {
       localStorage.setItem('unisphere_notes_date', todayDateStr);
@@ -129,74 +185,36 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
     setShowUndoToast(true);
   };
 
-  // Parse lines for Checklist Mode
-  const lines = notes.split('\n');
-  const checklistItems = lines
-    .map((line, index) => {
-      const trimmed = line.trim();
-      const isCompleted = /^(\s*[-*•]\s*\[x\]|\s*\[x\])/i.test(trimmed);
-      const isTodo = /^(\s*[-*•]\s*\[\s\]|\s*\[\s\])/i.test(trimmed);
-      const isBullet = /^(\s*[-*•]\s*)/.test(trimmed) && !isTodo && !isCompleted;
-
-      let cleanText = trimmed;
-      if (isCompleted) {
-        cleanText = trimmed.replace(/^(\s*[-*•]\s*\[x\]|\s*\[x\])\s*/i, '');
-      } else if (isTodo) {
-        cleanText = trimmed.replace(/^(\s*[-*•]\s*\[\s\]|\s*\[\s\])\s*/i, '');
-      } else if (isBullet) {
-        cleanText = trimmed.replace(/^(\s*[-*•]\s*)\s*/, '');
-      }
-
-      return {
-        originalIndex: index,
-        line,
-        text: cleanText,
-        isCheckable: isCompleted || isTodo || isBullet || trimmed.length > 0,
-        isCompleted,
-        raw: trimmed,
-      };
-    })
-    .filter((item) => item.raw.length > 0);
+  // Parse lines for Checklist Mode strictly from currentChecklist
+  const checklistItems = parseChecklist(currentChecklist);
 
   const toggleChecklistItem = (index: number) => {
-    const newLines = [...lines];
-    const targetLine = newLines[index];
-    const isCompleted = /^(\s*[-*•]\s*\[x\]|\s*\[x\])/i.test(targetLine);
+    const updated = toggleChecklistItemState(currentChecklist, index);
+    handleChecklistChange(updated);
+  };
 
-    if (isCompleted) {
-      // Uncheck it
-      newLines[index] = targetLine.replace(/\[x\]/i, '[ ]');
-    } else if (/^(\s*[-*•]\s*\[\s\]|\s*\[\s\])/i.test(targetLine)) {
-      // Check it
-      newLines[index] = targetLine.replace(/\[\s\]/i, '[x]');
-    } else if (/^(\s*[-*•]\s*)/.test(targetLine)) {
-      // Add checked box to bullet
-      newLines[index] = targetLine.replace(/^(\s*[-*•]\s*)/, '• [x] ');
-    } else {
-      // Add checked box
-      newLines[index] = `• [x] ${targetLine}`;
-    }
-
-    handleNotesChange(newLines.join('\n'));
+  const handleDeleteChecklistItem = (index: number) => {
+    const updated = removeChecklistItem(currentChecklist, index);
+    handleChecklistChange(updated);
   };
 
   const handleAddChecklistItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChecklistText.trim()) return;
-    const newLine = `• [ ] ${newChecklistText.trim()}`;
-    const updated = notes.trim() ? `${notes}\n${newLine}` : newLine;
-    handleNotesChange(updated);
+    const updated = addChecklistItem(currentChecklist, newChecklistText);
+    handleChecklistChange(updated);
     setNewChecklistText('');
   };
 
   const handleClearCompletedChecklist = () => {
-    const newLines = lines.filter((l) => !/^(\s*[-*•]\s*\[x\]|\s*\[x\])/i.test(l.trim()));
-    handleNotesChange(newLines.join('\n'));
+    const updated = clearCompletedChecklistItems(currentChecklist);
+    handleChecklistChange(updated);
   };
 
   const totalItemsCount = checklistItems.length;
   const completedCount = checklistItems.filter((i) => i.isCompleted).length;
-  const isFromPreviousDay = noteDate !== todayDateStr && notes.trim().length > 0;
+  const hasContent = notes.trim().length > 0 || currentChecklist.trim().length > 0;
+  const isFromPreviousDay = noteDate !== todayDateStr && hasContent;
 
   return (
     <div className={`border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-md slite-shadow overflow-hidden flex flex-col flex-1 min-h-0 h-full relative transition-colors ${className}`}>
@@ -257,7 +275,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
               <span className="material-symbols-outlined text-[12px] text-[#6366F1]">checklist</span>
               <span>Checklist</span>
               {totalItemsCount > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.2 bg-[#f9efe4] dark:bg-zinc-700 rounded-md text-[9px] font-mono text-[#2d2f34]">
+                <span className="ml-0.5 px-1.5 py-0.2 bg-[#f9efe4] dark:bg-zinc-700 rounded-md text-[9px] font-mono text-[#2d2f34] dark:text-zinc-200">
                   {completedCount}/{totalItemsCount}
                 </span>
               )}
@@ -273,14 +291,14 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
               history
             </span>
             <span>
-              Contains notes from <strong>{noteDate}</strong>.
+              Contains notes or checklist from <strong>{noteDate}</strong>.
             </span>
           </div>
           <button
             type="button"
             onClick={handleStartFreshToday}
             className="win-button px-2 py-0.5 text-[9px] font-semibold text-amber-900 dark:text-amber-300"
-            title="Wipe previous day's notes to start today clean"
+            title="Wipe previous day's notes and checklist to start today clean"
           >
             Start Fresh for Today
           </button>
@@ -351,7 +369,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
               <div className="py-4 text-center text-zinc-400 dark:text-zinc-500 text-[11px]">
                 <p>No active reminders for today.</p>
                 <p className="text-[10px] mt-0.5 text-zinc-500 dark:text-zinc-500">
-                  Type above or switch to Scratchpad to add quick notes.
+                  Type above to add daily reminders and checklist items.
                 </p>
               </div>
             ) : (
@@ -359,23 +377,39 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
                 <div
                   key={item.originalIndex}
                   onClick={() => toggleChecklistItem(item.originalIndex)}
-                  className={`flex items-start gap-1.5 p-1.5 rounded-md transition-colors cursor-pointer group ${
-                    item.isCompleted ? 'bg-slate-100/70 dark:bg-zinc-800/60 text-zinc-400 dark:text-zinc-500' : 'hover:bg-amber-50/70 dark:hover:bg-zinc-800/60 text-zinc-800 dark:text-zinc-200'
+                  className={`flex items-center justify-between gap-1.5 p-1.5 rounded-md transition-colors cursor-pointer group ${
+                    item.isCompleted
+                      ? 'bg-slate-100/70 dark:bg-zinc-800/60 text-zinc-400 dark:text-zinc-500'
+                      : 'hover:bg-amber-50/70 dark:hover:bg-zinc-800/60 text-zinc-800 dark:text-zinc-200'
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={item.isCompleted}
-                    onChange={() => {}} // Handled by container onClick
-                    className="mt-0.5 h-3.5 w-3.5 rounded-md border-gray-300 dark:border-zinc-700 text-blue-600 focus:ring-0 cursor-pointer"
-                  />
-                  <span
-                    className={`text-[11px] leading-tight select-text flex-1 break-words ${
-                      item.isCompleted ? 'line-through opacity-70' : 'font-normal'
-                    }`}
+                  <div className="flex items-start gap-1.5 flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={item.isCompleted}
+                      onChange={() => {}} // Handled by container onClick
+                      className="mt-0.5 h-3.5 w-3.5 rounded-md border-gray-300 dark:border-zinc-700 text-blue-600 focus:ring-0 cursor-pointer shrink-0"
+                    />
+                    <span
+                      className={`text-[11px] leading-tight select-text flex-1 break-words ${
+                        item.isCompleted ? 'line-through opacity-70' : 'font-normal'
+                      }`}
+                    >
+                      {item.text}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteChecklistItem(item.originalIndex);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 hover:text-rose-500 text-zinc-400 dark:text-zinc-500 transition-opacity p-0.5 rounded cursor-pointer shrink-0"
+                    title="Delete reminder"
+                    aria-label="Delete reminder"
                   >
-                    {item.text}
-                  </span>
+                    <span className="material-symbols-outlined text-[13px] leading-none">close</span>
+                  </button>
                 </div>
               ))
             )}
@@ -390,7 +424,7 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
               <button
                 type="button"
                 onClick={handleClearCompletedChecklist}
-                className="text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                className="text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-0.5 cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[11px]">
                   cleaning_services
@@ -407,13 +441,13 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
         {/* Left: Ephemeral settings toggle */}
         <label
           className="flex items-center gap-1.5 text-[10px] text-zinc-600 dark:text-zinc-400 cursor-pointer select-none"
-          title="Automatically reset notes when a new calendar day begins"
+          title="Automatically reset notes and checklist when a new calendar day begins"
         >
           <input
             type="checkbox"
             checked={autoResetDaily}
             onChange={handleToggleAutoReset}
-            className="rounded-md border-gray-300 dark:border-zinc-700 text-amber-600 focus:ring-0"
+            className="rounded-md border-gray-300 dark:border-zinc-700 text-amber-600 focus:ring-0 cursor-pointer"
           />
           <span>Auto-clear daily</span>
         </label>
@@ -423,9 +457,9 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
           <button
             type="button"
             onClick={handleCopyToClipboard}
-            disabled={!notes.trim()}
-            className="group px-3 py-0.5 text-[10px] rounded-md border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-200 hover:bg-[#f9efe4] dark:hover:bg-zinc-800 active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer"
-            title="Copy notes to clipboard"
+            disabled={activeTab === 'scratchpad' ? !notes.trim() : !currentChecklist.trim()}
+            className="group px-3 py-0.5 text-[10px] rounded-md border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-[#2d2f34] dark:text-zinc-200 hover:bg-[#f9efe4] dark:hover:bg-zinc-800 active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+            title={activeTab === 'scratchpad' ? 'Copy notes to clipboard' : 'Copy checklist to clipboard'}
           >
             <span className="material-symbols-outlined text-[12px] text-[#6366F1]">
               {copied ? 'check' : 'content_copy'}
@@ -455,11 +489,12 @@ export const QuickNotesSection: React.FC<QuickNotesSectionProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (notes.trim()) setShowClearConfirm(true);
+                const hasCurrentContent = activeTab === 'scratchpad' ? !!notes.trim() : !!currentChecklist.trim();
+                if (hasCurrentContent) setShowClearConfirm(true);
               }}
-              disabled={!notes.trim()}
-              className="group px-3 py-0.5 text-[10px] rounded-md border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer"
-              title="Clear all ephemeral text"
+              disabled={activeTab === 'scratchpad' ? !notes.trim() : !currentChecklist.trim()}
+              className="group px-3 py-0.5 text-[10px] rounded-md border border-[#ecedef] dark:border-zinc-800 bg-white dark:bg-zinc-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+              title={activeTab === 'scratchpad' ? 'Clear quick notes' : 'Clear checklist'}
             >
               <span className="material-symbols-outlined text-[12px] text-rose-500">
                 delete
