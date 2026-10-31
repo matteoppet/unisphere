@@ -253,7 +253,7 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
                       </span>
                     </div>
 
-                    {/* Compact Row 2: Status + Email + Progress + Arrow */}
+                    {/* Compact Row 2: Status + Email + Arrow */}
                     <div className="flex items-center justify-between gap-1 text-[10px] text-[#3f434a] dark:text-zinc-400">
                       <div className="flex items-center gap-1.5 truncate min-w-0">
                         {renderStatusBadge(c.status, true)}
@@ -273,15 +273,6 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                        <div className="w-10 bg-[#f9efe4] dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className="bg-[#6366F1] h-full rounded-full"
-                            style={{ width: `${c.progress}%` }}
-                          />
-                        </div>
-                        <span className="font-mono tabular-nums text-[9.5px] text-[#2d2f34] dark:text-zinc-400 font-medium">
-                          {c.progress}%
-                        </span>
                         <span className="material-symbols-outlined text-[13px] text-[#6366F1] ml-0.5 leading-none">
                           chevron_right
                         </span>
@@ -300,7 +291,6 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
                     <th className="px-3 py-2">Name</th>
                     <th className="px-3 py-2 w-16 text-right tabular-nums">CFU</th>
                     <th className="px-3 py-2 w-28 text-center">Status</th>
-                    <th className="px-3 py-2 w-32 text-right tabular-nums">Progress</th>
                     <th className="px-3 py-2 w-24 text-center">Actions</th>
                   </tr>
                 </thead>
@@ -344,19 +334,6 @@ export const CurriculumView: React.FC<CurriculumViewProps> = ({
                         </td>
                         <td className="px-3 py-2.5 text-center">
                           {renderStatusBadge(c.status)}
-                        </td>
-                        <td className="px-3 py-2.5 text-right tabular-nums">
-                          <div className="flex items-center justify-end gap-2">
-                            <div className="w-16 bg-[#f9efe4] dark:bg-zinc-800 h-2 rounded-full overflow-hidden shrink-0">
-                              <div
-                                className="bg-[#6366F1] h-full transition-all rounded-full"
-                                style={{ width: `${c.progress}%` }}
-                              />
-                            </div>
-                            <span className="font-mono tabular-nums text-[10px] w-9 text-right font-medium text-[#2d2f34] dark:text-zinc-200 shrink-0">
-                              {c.progress}%
-                            </span>
-                          </div>
                         </td>
                         <td className="px-3 py-2.5 text-center">
                           <div className="flex items-center justify-center gap-1.5">
