@@ -516,19 +516,6 @@ export const ResourceLinkerSection: React.FC<ResourceLinkerSectionProps> = ({
             })
           )}
         </div>
-
-        {/* Footer: Quick Preset Starter Links Bar */}
-        <div className="shrink-0 pt-2 border-t border-[#ecedef] dark:border-zinc-800 flex items-center justify-between text-[10px] text-[#3f434a]/80 dark:text-zinc-400">
-          <span>{resources.length} saved portals &amp; links</span>
-          <button
-            type="button"
-            onClick={handleOpenCreate}
-            className="text-[#6366F1] hover:underline font-semibold flex items-center gap-0.5 cursor-pointer"
-          >
-            <Plus size={11} />
-            <span>Add Link</span>
-          </button>
-        </div>
       </div>
 
       {/* ADD / EDIT BOOKMARK MODAL */}
