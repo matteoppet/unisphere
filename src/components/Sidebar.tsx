@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard as DashboardIcon,
   BookOpen as Book,
+  Clock,
   CheckCircle2 as CheckCircle,
   Users,
   Settings as SettingsIcon,
@@ -35,6 +36,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       id: 'courses-and-curriculum' as NavView,
       label: 'Courses',
       icon: Book,
+    },
+    {
+      id: 'study-session-tracker' as NavView,
+      label: 'Logs',
+      icon: Clock,
     },
     {
       id: 'assignments-and-exams' as NavView,
@@ -90,9 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Section 1: Main Components Navigation with Slite Ghost Buttons */}
         <div className="p-3 space-y-1 font-sans">
           {mainNavItems.map((item) => {
-            const isActive =
-              currentView === item.id ||
-              (item.id === 'courses-and-curriculum' && currentView === 'study-session-tracker');
+            const isActive = currentView === item.id;
             const IconComponent = item.icon;
             return (
               <button

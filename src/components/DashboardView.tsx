@@ -15,7 +15,6 @@ import {
   getPowerBorderClass,
   getPowerBarFillClass,
   getLocalDateString,
-  formatStudyDuration,
   getWeekDaysSummary,
   calculateWeeklyFocus,
 } from '../utils/telemetry';
@@ -280,8 +279,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
 
   // Calculate current week (Monday through Sunday) summary
-  const { weekDays, weekTotalMinutes, weekTotalSessions, activeDaysCount } =
-    getWeekDaysSummary(studyLogs);
+  const { weekDays, weekTotalMinutes } = getWeekDaysSummary(studyLogs);
 
   // Calculate weekly focus hours (resets every week with weekTotalMinutes - #16)
   const {
@@ -1100,15 +1098,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                 {/* Minimal 7-day strip for quick weekly summary (shrink-0) */}
                 <div className="shrink-0 p-2 sm:p-2.5 bg-slate-50/70 dark:bg-zinc-900/60 border-b border-gray-200 dark:border-zinc-800">
-                  <div className="flex items-center justify-between text-[11px] pb-1 border-b border-gray-200/60 dark:border-zinc-800">
-                    <span className="font-bold text-neutral-900 dark:text-zinc-100 font-mono text-xs">
-                      {formatStudyDuration(weekTotalMinutes)} Focus Time this week
-                    </span>
-                    <span className="text-[10px] text-zinc-500 dark:text-zinc-400 font-mono">
-                      {weekTotalSessions} session{weekTotalSessions === 1 ? '' : 's'} logged
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-7 gap-1 mt-1.5">
+                  <div className="grid grid-cols-7 gap-1">
                     {weekDays.map((wd) => {
                       const isGreen = wd.hasSessions;
                       return (
