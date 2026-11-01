@@ -261,6 +261,7 @@ export function initApp() {
 
   // Filter states for views
   let dashCourseStatusFilter = 'active';
+  let dashResourceNotesTab = 'resources';
   let courseYearFilter = 'all';
   let courseStatusFilter = 'active';
   let courseSearchQuery = '';
@@ -687,7 +688,10 @@ export function initApp() {
     const dash5DayTbody = document.getElementById('dash-5day-tbody');
     if (dash5DayTbody) {
       dash5DayTbody.innerHTML = fiveDayWeek
-        .map((d) => `<td><strong>${escapeHtml(d.hours)}</strong></td>`)
+        .map(
+          (d) =>
+            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
+        )
         .join('');
     }
 
@@ -710,6 +714,27 @@ export function initApp() {
               .join('');
     }
 
+    const isNotesTab = dashResourceNotesTab === 'notes';
+    const tabResBtn = document.getElementById('tab-dash-resources');
+    const tabNotesBtn = document.getElementById('tab-dash-notes');
+    const resPanel = document.getElementById('dash-resources-panel');
+    const notesPanel = document.getElementById('dash-notes-panel');
+    const addResBtn = document.getElementById('btn-dash-add-resource');
+    const saveNotesBtn = document.getElementById('btn-dash-save-notes');
+
+    if (tabResBtn) {
+      tabResBtn.classList.toggle('active', !isNotesTab);
+      tabResBtn.setAttribute('aria-selected', String(!isNotesTab));
+    }
+    if (tabNotesBtn) {
+      tabNotesBtn.classList.toggle('active', isNotesTab);
+      tabNotesBtn.setAttribute('aria-selected', String(isNotesTab));
+    }
+    if (resPanel) resPanel.hidden = isNotesTab;
+    if (notesPanel) notesPanel.hidden = !isNotesTab;
+    if (addResBtn) addResBtn.hidden = isNotesTab;
+    if (saveNotesBtn) saveNotesBtn.hidden = !isNotesTab;
+
     const resList = document.getElementById('dash-resources-list');
     if (resList) {
       resList.innerHTML =
@@ -723,31 +748,6 @@ export function initApp() {
                 <span class="item-meta">(<a href="#" data-delete-resource="${escapeHtml(r.id)}">Delete</a>)</span>
               </li>`
               )
-              .join('');
-    }
-
-    const asgTbody = document.getElementById('dash-assignments-tbody');
-    if (asgTbody) {
-      asgTbody.innerHTML =
-        assignments.length === 0
-          ? `<tr><td colspan="5" class="empty-cell">No exams or assignments scheduled.</td></tr>`
-          : assignments
-              .slice(0, 8)
-              .map((a) => {
-                const grade = getItemExamGrade(a);
-                const statusOrGrade = grade !== null ? `${grade}/30` : a.status;
-                return `
-                <tr>
-                  <td>${escapeHtml(a.title)}</td>
-                  <td>${escapeHtml(a.courseName)}</td>
-                  <td>${escapeHtml(formatReadableDate(a.dueDate))}</td>
-                  <td>${escapeHtml(statusOrGrade)}</td>
-                  <td>
-                    <a href="#" data-open-assignment="${escapeHtml(a.id)}">Open</a> |
-                    <a href="#" data-delete-assignment="${escapeHtml(a.id)}">Delete</a>
-                  </td>
-                </tr>`;
-              })
               .join('');
     }
 
@@ -852,7 +852,12 @@ export function initApp() {
 
     const tbodyEl = document.getElementById('logs-5day-tbody');
     if (tbodyEl) {
-      tbodyEl.innerHTML = fiveDayWeek.map((d) => `<td>${escapeHtml(d.hours)}</td>`).join('');
+      tbodyEl.innerHTML = fiveDayWeek
+        .map(
+          (d) =>
+            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
+        )
+        .join('');
     }
 
     const uniqueSubjects = Array.from(
@@ -1466,6 +1471,14 @@ export function initApp() {
         dashCourseStatusFilter = e.target.value;
         populateDashboardPage();
       });
+      document.getElementById('tab-dash-resources')?.addEventListener('click', () => {
+        dashResourceNotesTab = 'resources';
+        populateDashboardPage();
+      });
+      document.getElementById('tab-dash-notes')?.addEventListener('click', () => {
+        dashResourceNotesTab = 'notes';
+        populateDashboardPage();
+      });
       document
         .getElementById('btn-dash-add-course')
         ?.addEventListener('click', () => openCourseModal());
@@ -1475,9 +1488,6 @@ export function initApp() {
       document
         .getElementById('btn-dash-add-resource')
         ?.addEventListener('click', () => openResourceModal());
-      document
-        .getElementById('btn-dash-add-assignment')
-        ?.addEventListener('click', () => openAssignmentModal());
       document.getElementById('btn-dash-save-notes')?.addEventListener('click', () => {
         const notesEl = document.getElementById('dash-quick-notes');
         if (notesEl) {

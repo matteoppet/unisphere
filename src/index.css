@@ -4,6 +4,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -190,6 +194,35 @@ h3 {
   flex-wrap: wrap;
 }
 
+.card-tabs {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+button.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 2px 0;
+  font-family: inherit;
+  font-size: 1.15rem;
+  font-weight: bold;
+  color: #777777;
+  cursor: pointer;
+}
+
+button.tab-btn:hover {
+  background: none;
+  color: #333333;
+}
+
+button.tab-btn.active {
+  color: #000000;
+  border-bottom-color: #000000;
+}
+
 /* Native Buttons */
 button,
 .btn-label {
@@ -256,6 +289,14 @@ button.btn-danger {
   font-size: 11.5px;
   font-weight: normal;
   color: #666666;
+}
+
+.study-hours-positive {
+  color: #008000;
+}
+
+.study-hours-zero {
+  color: #cc0000;
 }
 
 table {

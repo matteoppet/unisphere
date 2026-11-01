@@ -121,47 +121,25 @@
             </div>
           </section>
 
-          <!-- 3. Resources Link Card -->
+          <!-- 3. Resources Link & Quick Notes Card -->
           <section class="card">
             <div class="card-header">
-              <h3>Resources Link</h3>
-              <button type="button" id="btn-dash-add-resource">Add Resource</button>
+              <div class="card-tabs" role="tablist" aria-label="Resources and Quick Notes">
+                <button type="button" id="tab-dash-resources" class="tab-btn active" role="tab" aria-selected="true" aria-controls="dash-resources-panel">Resources Link</button>
+                <button type="button" id="tab-dash-notes" class="tab-btn" role="tab" aria-selected="false" aria-controls="dash-notes-panel">Quick Notes</button>
+              </div>
+              <div class="card-toolbar">
+                <button type="button" id="btn-dash-add-resource">Add Resource</button>
+                <button type="button" id="btn-dash-save-notes" hidden>Save Notes</button>
+              </div>
             </div>
-            <ul class="resource-list" id="dash-resources-list"></ul>
-          </section>
-        </div>
-
-        <div class="grid-2">
-          <!-- 4. Exams & Assignments Card -->
-          <section class="card">
-            <div class="card-header">
-              <h3>Exams &amp; Assignments</h3>
-              <button type="button" id="btn-dash-add-assignment">Add Exam / Task</button>
+            <div id="dash-resources-panel" role="tabpanel" aria-labelledby="tab-dash-resources">
+              <ul class="resource-list" id="dash-resources-list"></ul>
             </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Subject</th>
-                    <th>Date</th>
-                    <th>Status / Grade</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="dash-assignments-tbody"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <!-- 5. Quick Notes Card -->
-          <section class="card">
-            <div class="card-header">
-              <h3>Quick Notes</h3>
-              <button type="button" id="btn-dash-save-notes">Save Notes</button>
-            </div>
-            <div class="form-row">
-              <textarea id="dash-quick-notes" rows="5" placeholder="Write quick study reminders or notes here..."></textarea>
+            <div id="dash-notes-panel" role="tabpanel" aria-labelledby="tab-dash-notes" hidden>
+              <div class="form-row">
+                <textarea id="dash-quick-notes" rows="5" placeholder="Write quick study reminders or notes here..."></textarea>
+              </div>
             </div>
           </section>
         </div>
@@ -372,6 +350,55 @@
       </dialog>
     </div>
 
+    <script>
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('#tab-dash-resources, #tab-dash-notes');
+        if (!btn) return;
+        const isNotes = btn.id === 'tab-dash-notes';
+        const tabRes = document.getElementById('tab-dash-resources');
+        const tabNotes = document.getElementById('tab-dash-notes');
+        const resPanel = document.getElementById('dash-resources-panel');
+        const notesPanel = document.getElementById('dash-notes-panel');
+        const addResBtn = document.getElementById('btn-dash-add-resource');
+        const saveNotesBtn = document.getElementById('btn-dash-save-notes');
+        if (tabRes) {
+          tabRes.classList.toggle('active', !isNotes);
+          tabRes.setAttribute('aria-selected', String(!isNotes));
+        }
+        if (tabNotes) {
+          tabNotes.classList.toggle('active', isNotes);
+          tabNotes.setAttribute('aria-selected', String(isNotes));
+        }
+        if (resPanel) resPanel.hidden = isNotes;
+        if (notesPanel) notesPanel.hidden = !isNotes;
+        if (addResBtn) addResBtn.hidden = isNotes;
+        if (saveNotesBtn) saveNotesBtn.hidden = !isNotes;
+      });
+      window.addEventListener('DOMContentLoaded', () => {
+        const thead = document.getElementById('dash-5day-thead');
+        const tbody = document.getElementById('dash-5day-tbody');
+        if (thead && tbody && !thead.innerHTML.trim()) {
+          const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const now = new Date();
+          const dayOfWeek = now.getDay();
+          const distToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+          let logs = [];
+          try {
+            logs = JSON.parse(localStorage.getItem('unisphere_workstation_v1_logs') || '[]');
+          } catch {}
+          const days = dayNames.map((shortDay, i) => {
+            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distToMon + i);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const mins = logs.filter((l) => l.date === dateStr).reduce((s, l) => s + (l.durationMinutes || 0), 0);
+            const hrs = mins <= 0 ? '0h' : mins >= 60 ? (mins % 60 === 0 ? `${Math.floor(mins / 60)}h` : `${Math.floor(mins / 60)}h ${mins % 60}m`) : `${mins}m`;
+            return { shortDay, formattedDate: `${d.getDate()} ${monthNames[d.getMonth()]}`, mins, hrs };
+          });
+          thead.innerHTML = days.map((d) => `<th>${d.shortDay}<span class="day-sub">${d.formattedDate}</span></th>`).join('');
+          tbody.innerHTML = days.map((d) => `<td><strong class="${d.mins > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${d.hrs}</strong></td>`).join('');
+        }
+      });
+    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
