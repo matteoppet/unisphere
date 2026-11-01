@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UniSphere - Squads</title>
+    <meta name="description" content="Multiplayer study squads and weekly leaderboard." />
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body>
+    <div id="root">
+      <header class="site-header">
+        <div class="header-top">
+          <h2>UniSphere</h2>
+          <div class="header-actions">
+            <div id="sync-status" class="sync-status">Ready</div>
+            <button type="button" id="btn-header-logout" hidden>Log-Out</button>
+          </div>
+        </div>
+        <nav aria-label="Main Navigation">
+          <ul id="nav-list" class="nav-list">
+            <li><a href="/pages/dashboard.html" data-nav="dashboard">Dashboard</a></li>
+            <li><a href="/pages/courses.html" data-nav="courses">Courses</a></li>
+            <li><a href="/pages/logs.html" data-nav="logs">Session Logs</a></li>
+            <li><a href="/pages/assignments.html" data-nav="assignments">Exams &amp; Assignments</a></li>
+            <li><a href="/pages/squads.html" data-nav="squads" class="active-nav">Squads</a></li>
+            <li><a href="/pages/settings.html" data-nav="settings">Settings</a></li>
+          </ul>
+        </nav>
+      </header>
+
+      <hr class="section-divider" />
+
+      <main id="app-main" data-page="squads">
+        <h1>Squads</h1>
+
+        <div class="grid-2" style="margin-top: 0;">
+          <section class="card">
+            <div class="card-header">
+              <h3>Create a New Squad</h3>
+            </div>
+            <form id="form-create-squad">
+              <div class="form-row">
+                <label for="squad-new-name">Squad Name *</label>
+                <input type="text" id="squad-new-name" required placeholder="e.g. Roma Tre Engineering" />
+              </div>
+              <button type="submit">Create Squad</button>
+            </form>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h3>Join Existing Squad</h3>
+            </div>
+            <form id="form-join-squad">
+              <div class="form-row">
+                <label for="squad-join-code">6-Character Invite Code *</label>
+                <input type="text" id="squad-join-code" maxlength="6" required placeholder="e.g. AB12CD" />
+              </div>
+              <button type="submit">Join Squad</button>
+            </form>
+          </section>
+        </div>
+
+        <div class="grid-2">
+          <section class="card">
+            <div class="card-header">
+              <h3>Your Squads</h3>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Squad Name</th>
+                    <th>Invite Code</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="squads-list-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h3 id="squads-leaderboard-header">Weekly Leaderboard</h3>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Rank</th>
+                    <th>Student</th>
+                    <th>Study Time (Week)</th>
+                    <th>Streak</th>
+                    <th>ELO</th>
+                  </tr>
+                </thead>
+                <tbody id="squads-leaderboard-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

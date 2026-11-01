@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UniSphere - Courses</title>
+    <meta name="description" content="Manage your university courses and CFU." />
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body>
+    <div id="root">
+      <header class="site-header">
+        <div class="header-top">
+          <h2>UniSphere</h2>
+          <div class="header-actions">
+            <div id="sync-status" class="sync-status">Ready</div>
+            <button type="button" id="btn-header-logout" hidden>Log-Out</button>
+          </div>
+        </div>
+        <nav aria-label="Main Navigation">
+          <ul id="nav-list" class="nav-list">
+            <li><a href="/pages/dashboard.html" data-nav="dashboard">Dashboard</a></li>
+            <li><a href="/pages/courses.html" data-nav="courses" class="active-nav">Courses</a></li>
+            <li><a href="/pages/logs.html" data-nav="logs">Session Logs</a></li>
+            <li><a href="/pages/assignments.html" data-nav="assignments">Exams &amp; Assignments</a></li>
+            <li><a href="/pages/squads.html" data-nav="squads">Squads</a></li>
+            <li><a href="/pages/settings.html" data-nav="settings">Settings</a></li>
+          </ul>
+        </nav>
+      </header>
+
+      <hr class="section-divider" />
+
+      <main id="app-main" data-page="courses">
+        <h1>Courses</h1>
+
+        <div class="stack">
+          <section class="card">
+            <div class="card-header">
+              <h3>Degree Progress Summary</h3>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Completed CFU</th>
+                    <th>Active CFU</th>
+                    <th>Planned CFU</th>
+                    <th>Weighted Average</th>
+                    <th>Graduation Base (/110)</th>
+                  </tr>
+                </thead>
+                <tbody id="courses-summary-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-header">
+              <h3>Courses Registry</h3>
+              <div class="card-toolbar">
+                <select id="filter-course-year" class="inline-input" aria-label="Filter by Year">
+                  <option value="all" selected>All Years</option>
+                  <option value="1">Year 1</option>
+                  <option value="2">Year 2</option>
+                  <option value="3">Year 3</option>
+                </select>
+                <select id="filter-course-status" class="inline-input" aria-label="Filter by Status">
+                  <option value="active" selected>Active</option>
+                  <option value="completed">Passed</option>
+                  <option value="planned">Planned</option>
+                  <option value="all">All Statuses</option>
+                </select>
+                <input
+                  type="search"
+                  id="filter-course-search"
+                  class="inline-input"
+                  placeholder="Search course..."
+                />
+                <button type="button" id="btn-courses-add">Add Course</button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Year / Semester</th>
+                    <th>Status</th>
+                    <th>CFU</th>
+                    <th>Professor Email</th>
+                    <th>Office Hours</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="courses-registry-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <!-- Native HTML Dialog: Add / Edit Course -->
+      <dialog id="modal-course">
+        <form id="form-course" method="dialog">
+          <h3 id="modal-course-title">Add Course</h3>
+          <input type="hidden" id="course-id" />
+          <div class="form-row">
+            <label for="course-title">Title *</label>
+            <input type="text" id="course-title" required placeholder="e.g. Analisi 1" />
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="course-status">Status</label>
+              <select id="course-status">
+                <option value="active">Active</option>
+                <option value="completed">Passed</option>
+                <option value="planned">Planned</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="course-cfu">CFU</label>
+              <input type="number" id="course-cfu" min="1" max="60" value="6" required />
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="course-year">Year</label>
+              <select id="course-year">
+                <option value="1">Year 1</option>
+                <option value="2">Year 2</option>
+                <option value="3">Year 3</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="course-semester">Semester</label>
+              <select id="course-semester">
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="course-email">Professor Email</label>
+              <input type="email" id="course-email" placeholder="prof@university.edu" />
+            </div>
+            <div class="form-row">
+              <label for="course-office">Office Hours</label>
+              <input type="text" id="course-office" placeholder="e.g. Tue 14:00 - 16:00" />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="course-notes">Notes / Syllabus</label>
+            <textarea id="course-notes" rows="3" placeholder="Course notes..."></textarea>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" id="btn-delete-course" class="btn-danger" hidden>Delete Course</button>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-course">Cancel</button>
+              <button type="submit">Save Course</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UniSphere - Settings</title>
+    <meta name="description" content="Configure your student profile, cloud sync, and backups." />
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body>
+    <div id="root">
+      <header class="site-header">
+        <div class="header-top">
+          <h2>UniSphere</h2>
+          <div class="header-actions">
+            <div id="sync-status" class="sync-status">Ready</div>
+            <button type="button" id="btn-header-logout" hidden>Log-Out</button>
+          </div>
+        </div>
+        <nav aria-label="Main Navigation">
+          <ul id="nav-list" class="nav-list">
+            <li><a href="/pages/dashboard.html" data-nav="dashboard">Dashboard</a></li>
+            <li><a href="/pages/courses.html" data-nav="courses">Courses</a></li>
+            <li><a href="/pages/logs.html" data-nav="logs">Session Logs</a></li>
+            <li><a href="/pages/assignments.html" data-nav="assignments">Exams &amp; Assignments</a></li>
+            <li><a href="/pages/squads.html" data-nav="squads">Squads</a></li>
+            <li><a href="/pages/settings.html" data-nav="settings" class="active-nav">Settings</a></li>
+          </ul>
+        </nav>
+      </header>
+
+      <hr class="section-divider" />
+
+      <main id="app-main" data-page="settings">
+        <h1>Settings</h1>
+
+        <div class="grid-2" style="margin-top: 0;">
+          <section class="card">
+            <div class="card-header">
+              <h3>Student &amp; Degree Profile</h3>
+            </div>
+            <form id="form-settings-profile">
+              <div class="form-grid-2">
+                <div class="form-row">
+                  <label for="set-name">Full Name</label>
+                  <input type="text" id="set-name" placeholder="Student Name" />
+                </div>
+                <div class="form-row">
+                  <label for="set-email">Account Email (Firebase Sync Key)</label>
+                  <input type="email" id="set-email" placeholder="student@university.edu" />
+                </div>
+              </div>
+
+              <div class="form-grid-2">
+                <div class="form-row">
+                  <label for="set-student-id">Matricola / Student ID</label>
+                  <input type="text" id="set-student-id" placeholder="e.g. 543210" />
+                </div>
+                <div class="form-row">
+                  <label for="set-institution">University / Institution</label>
+                  <input type="text" id="set-institution" placeholder="e.g. Università Roma Tre" />
+                </div>
+              </div>
+
+              <div class="form-grid-2">
+                <div class="form-row">
+                  <label for="set-degree-name">Degree Program</label>
+                  <input type="text" id="set-degree-name" placeholder="e.g. Ingegneria Informatica" />
+                </div>
+                <div class="form-row">
+                  <label for="set-degree-type">Degree Type</label>
+                  <select id="set-degree-type">
+                    <option value="Laurea Triennale">Laurea Triennale (180 CFU)</option>
+                    <option value="Laurea Magistrale">Laurea Magistrale (120 CFU)</option>
+                    <option value="Ciclo Unico">Ciclo Unico (300/360 CFU)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-grid-3">
+                <div class="form-row">
+                  <label for="set-academic-year">Academic Year</label>
+                  <select id="set-academic-year">
+                    <option value="Year 1">Year 1</option>
+                    <option value="Year 2">Year 2</option>
+                    <option value="Year 3">Year 3</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label for="set-target-cfu">Total Target CFU</label>
+                  <input type="number" id="set-target-cfu" min="30" max="360" value="180" />
+                </div>
+                <div class="form-row">
+                  <label for="set-weekly-goal">Weekly Study Goal (h)</label>
+                  <input type="number" id="set-weekly-goal" min="1" max="100" value="20" />
+                </div>
+              </div>
+
+              <button type="submit">Save Profile &amp; Sync</button>
+            </form>
+          </section>
+
+          <div class="stack">
+            <section class="card">
+              <div class="card-header">
+                <h3>Cloud Sync &amp; Account</h3>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <tbody id="settings-account-tbody"></tbody>
+                </table>
+              </div>
+              <div class="card-toolbar" style="margin-top: 14px;">
+                <button type="button" id="btn-sync-now">Force Cloud Sync Now</button>
+                <button type="button" id="btn-sign-out">Log-Out</button>
+              </div>
+            </section>
+
+            <section class="card">
+              <div class="card-header">
+                <h3>Workspace Backup &amp; Reset</h3>
+              </div>
+              <p style="margin: 0 0 12px 0; font-size: 14px;">
+                Export your entire workspace (courses, logs, assignments, resources, notes) as a JSON file or restore from a backup.
+              </p>
+              <div class="card-toolbar">
+                <button type="button" id="btn-export-json">Export JSON Backup</button>
+                <label for="input-import-json" class="btn-label" style="margin: 0; font-weight: normal;">
+                  Import JSON Backup
+                </label>
+                <input type="file" id="input-import-json" accept=".json" hidden />
+                <button type="button" id="btn-reset-data" class="btn-danger">Reset All Data</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

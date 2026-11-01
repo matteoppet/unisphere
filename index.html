@@ -3,55 +3,378 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Unisphere - University Life</title>
+    <title>UniSphere - University Life</title>
     <meta name="description" content="Your university life into a single website." />
-    
-    <!-- Prevent stale browser caching -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    
-    <!-- OpenGraph Social Sharing Metadata -->
-    <meta property="og:site_name" content="UniSphere" />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="Unisphere - University Life" />
-    <meta property="og:description" content="Your university life into a single website." />
-    
-    <!-- Twitter / X Social Cards -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Unisphere - University Life" />
-    <meta name="twitter:description" content="Your university life into a single website." />
-
-    <!-- Browser & PWA Integration Metadata -->
-    <meta name="theme-color" content="#fdf9f4" />
-    <meta name="application-name" content="UniSphere" />
-    <meta name="apple-mobile-web-app-title" content="UniSphere" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-
-    <!-- Schema.org Structured Data -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "UniSphere",
-      "applicationCategory": "EducationalApplication",
-      "operatingSystem": "All",
-      "description": "Your university life into a single website.",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      }
-    }
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/index.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="root">
+      <header class="site-header">
+        <div class="header-top">
+          <h2>UniSphere</h2>
+          <div class="header-actions">
+            <div id="sync-status" class="sync-status">Ready</div>
+            <button type="button" id="btn-header-logout" hidden>Log-Out</button>
+          </div>
+        </div>
+        <nav aria-label="Main Navigation">
+          <ul id="nav-list" class="nav-list">
+            <li><a href="/pages/dashboard.html" data-nav="dashboard" class="active-nav">Dashboard</a></li>
+            <li><a href="/pages/courses.html" data-nav="courses">Courses</a></li>
+            <li><a href="/pages/logs.html" data-nav="logs">Session Logs</a></li>
+            <li><a href="/pages/assignments.html" data-nav="assignments">Exams &amp; Assignments</a></li>
+            <li><a href="/pages/squads.html" data-nav="squads">Squads</a></li>
+            <li><a href="/pages/settings.html" data-nav="settings">Settings</a></li>
+          </ul>
+        </nav>
+      </header>
+
+      <hr class="section-divider" />
+
+      <main id="app-main" data-page="dashboard">
+        <div class="dashboard-title-row">
+          <h1>Dashboard</h1>
+        </div>
+
+        <!-- Student Degree & Telemetry Overview Div -->
+        <div class="dashboard-summary">
+          <div class="summary-item">
+            <span class="summary-label">My Degree</span>
+            <span class="summary-value" id="summary-degree">Not set</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Institution</span>
+            <span class="summary-value" id="summary-institution">Not set</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">My Total CFU</span>
+            <span class="summary-value" id="summary-cfu">0 / 180 CFU</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Grade</span>
+            <span class="summary-value" id="summary-grade">- / 30</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Weekly Session Study Time</span>
+            <span class="summary-value" id="summary-weekly-study">0h</span>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <!-- 1. Courses Card -->
+          <section class="card">
+            <div class="card-header">
+              <h3>Courses</h3>
+              <div class="card-toolbar">
+                <select id="dash-course-status" class="inline-input" aria-label="Filter Courses by Status">
+                  <option value="active" selected>Active</option>
+                  <option value="completed">Passed</option>
+                  <option value="planned">Planned</option>
+                  <option value="all">All</option>
+                </select>
+                <button type="button" id="btn-dash-add-course">Add Course</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>CFU</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-courses-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- 2. Sessions Logs Card -->
+          <section class="card">
+            <div class="card-header">
+              <h3>Sessions Logs</h3>
+              <button type="button" id="btn-dash-add-log">Add Log</button>
+            </div>
+            <div class="week-5day-tracker" aria-label="Current 5-Day Week Study Time">
+              <table>
+                <thead>
+                  <tr id="dash-5day-thead"></tr>
+                </thead>
+                <tbody>
+                  <tr id="dash-5day-tbody"></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Subject</th>
+                    <th>Time</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-logs-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- 3. Resources Link Card -->
+          <section class="card">
+            <div class="card-header">
+              <h3>Resources Link</h3>
+              <button type="button" id="btn-dash-add-resource">Add Resource</button>
+            </div>
+            <ul class="resource-list" id="dash-resources-list"></ul>
+          </section>
+        </div>
+
+        <div class="grid-2">
+          <!-- 4. Exams & Assignments Card -->
+          <section class="card">
+            <div class="card-header">
+              <h3>Exams &amp; Assignments</h3>
+              <button type="button" id="btn-dash-add-assignment">Add Exam / Task</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Subject</th>
+                    <th>Date</th>
+                    <th>Status / Grade</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="dash-assignments-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- 5. Quick Notes Card -->
+          <section class="card">
+            <div class="card-header">
+              <h3>Quick Notes</h3>
+              <button type="button" id="btn-dash-save-notes">Save Notes</button>
+            </div>
+            <div class="form-row">
+              <textarea id="dash-quick-notes" rows="5" placeholder="Write quick study reminders or notes here..."></textarea>
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <!-- Native HTML Dialog: Add / Edit Course -->
+      <dialog id="modal-course">
+        <form id="form-course" method="dialog">
+          <h3 id="modal-course-title">Add Course</h3>
+          <input type="hidden" id="course-id" />
+          <div class="form-row">
+            <label for="course-title">Title *</label>
+            <input type="text" id="course-title" required placeholder="e.g. Analisi 1" />
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="course-status">Status</label>
+              <select id="course-status">
+                <option value="active">Active</option>
+                <option value="completed">Passed</option>
+                <option value="planned">Planned</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="course-cfu">CFU</label>
+              <input type="number" id="course-cfu" min="1" max="60" value="6" required />
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="course-year">Year</label>
+              <select id="course-year">
+                <option value="1">Year 1</option>
+                <option value="2">Year 2</option>
+                <option value="3">Year 3</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="course-semester">Semester</label>
+              <select id="course-semester">
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="course-email">Professor Email</label>
+              <input type="email" id="course-email" placeholder="prof@university.edu" />
+            </div>
+            <div class="form-row">
+              <label for="course-office">Office Hours</label>
+              <input type="text" id="course-office" placeholder="e.g. Tue 14:00 - 16:00" />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="course-notes">Notes / Syllabus</label>
+            <textarea id="course-notes" rows="3" placeholder="Course notes..."></textarea>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" id="btn-delete-course" class="btn-danger" hidden>Delete Course</button>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-course">Cancel</button>
+              <button type="submit">Save Course</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- Native HTML Dialog: Add Session Log -->
+      <dialog id="modal-log">
+        <form id="form-log" method="dialog">
+          <h3>Add Session Log</h3>
+          <div class="form-row">
+            <label for="log-subject">Subject / Course *</label>
+            <input type="text" id="log-subject" list="course-suggestions" required placeholder="e.g. Analisi 1" />
+            <datalist id="course-suggestions"></datalist>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="log-date">Date *</label>
+              <input type="date" id="log-date" required />
+            </div>
+            <div class="form-row">
+              <label for="log-minutes">Duration (minutes) *</label>
+              <input type="number" id="log-minutes" min="5" max="720" step="5" value="90" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="log-tag">Session Tag</label>
+            <select id="log-tag">
+              <option value="Deep Work">Deep Work</option>
+              <option value="Exam Prep">Exam Prep</option>
+              <option value="Lecture Review">Lecture Review</option>
+              <option value="Exercises">Exercises</option>
+              <option value="Project">Project</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label for="log-notes">Session Notes</label>
+            <textarea id="log-notes" rows="2" placeholder="What did you cover?"></textarea>
+          </div>
+          <div class="dialog-actions">
+            <div></div>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-log">Cancel</button>
+              <button type="submit">Save Log</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- Native HTML Dialog: Add Resource Link -->
+      <dialog id="modal-resource">
+        <form id="form-resource" method="dialog">
+          <h3>Add Resource Link</h3>
+          <div class="form-row">
+            <label for="resource-title">Title *</label>
+            <input type="text" id="resource-title" required placeholder="e.g. Gomp Roma Tre" />
+          </div>
+          <div class="form-row">
+            <label for="resource-url">URL *</label>
+            <input type="url" id="resource-url" required placeholder="https://..." />
+          </div>
+          <div class="form-row">
+            <label for="resource-category">Category</label>
+            <select id="resource-category">
+              <option value="Portal">University Portal</option>
+              <option value="Notes">Course Notes</option>
+              <option value="Tools">Tools &amp; API</option>
+              <option value="Library">Library</option>
+            </select>
+          </div>
+          <div class="dialog-actions">
+            <div></div>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-resource">Cancel</button>
+              <button type="submit">Save Resource</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- Native HTML Dialog: Add / Edit Exam or Assignment -->
+      <dialog id="modal-assignment">
+        <form id="form-assignment" method="dialog">
+          <h3 id="modal-assignment-title">Add Exam / Assignment</h3>
+          <input type="hidden" id="assignment-id" />
+          <div class="form-row">
+            <label for="assignment-title">Title *</label>
+            <input type="text" id="assignment-title" required placeholder="e.g. Analisi 1 Written Exam" />
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="assignment-course">Subject / Course *</label>
+              <input type="text" id="assignment-course" list="course-suggestions" required placeholder="e.g. Analisi 1" />
+            </div>
+            <div class="form-row">
+              <label for="assignment-type">Type</label>
+              <select id="assignment-type">
+                <option value="Exam">Exam</option>
+                <option value="Midterm">Midterm (Esonero)</option>
+                <option value="Project">Project</option>
+                <option value="Reading">Assignment / Reading</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="assignment-due">Date *</label>
+              <input type="date" id="assignment-due" required />
+            </div>
+            <div class="form-row">
+              <label for="assignment-status">Status</label>
+              <select id="assignment-status">
+                <option value="todo">Scheduled / To Do</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Passed / Completed</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid-3">
+            <div class="form-row">
+              <label for="assignment-grade">Final Grade (18-30)</label>
+              <input type="number" id="assignment-grade" min="0" max="30" placeholder="-" />
+            </div>
+            <div class="form-row">
+              <label for="assignment-esonero1">Esonero 1</label>
+              <input type="number" id="assignment-esonero1" min="0" max="30" placeholder="-" />
+            </div>
+            <div class="form-row">
+              <label for="assignment-esonero2">Esonero 2</label>
+              <input type="number" id="assignment-esonero2" min="0" max="30" placeholder="-" />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="assignment-notes">Notes / Room</label>
+            <textarea id="assignment-notes" rows="2" placeholder="Room, oral exam details..."></textarea>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" id="btn-delete-assignment" class="btn-danger" hidden>Delete</button>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-assignment">Cancel</button>
+              <button type="submit">Save</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

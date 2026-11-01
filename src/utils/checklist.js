@@ -1,14 +1,4 @@
-export interface ChecklistItem {
-  originalIndex: number;
-  text: string;
-  isCompleted: boolean;
-  raw: string;
-}
-
-/**
- * Parses a checklist string (line-by-line) into structured ChecklistItem objects.
- */
-export function parseChecklist(checklistText: string): ChecklistItem[] {
+export function parseChecklist(checklistText) {
   if (!checklistText || !checklistText.trim()) return [];
   const lines = checklistText.split('\n');
   return lines
@@ -35,23 +25,17 @@ export function parseChecklist(checklistText: string): ChecklistItem[] {
         raw: trimmed,
       };
     })
-    .filter((item): item is ChecklistItem => item !== null);
+    .filter((item) => item !== null);
 }
 
-/**
- * Appends a new item to the checklist string with unchecked bullet format.
- */
-export function addChecklistItem(checklistText: string, newItemText: string): string {
-  const trimmed = newItemText.trim();
+export function addChecklistItem(checklistText, newItemText) {
+  const trimmed = String(newItemText || '').trim();
   if (!trimmed) return checklistText;
   const newLine = `• [ ] ${trimmed}`;
   return checklistText.trim() ? `${checklistText}\n${newLine}` : newLine;
 }
 
-/**
- * Toggles the completion state of an item in the checklist by original line index.
- */
-export function toggleChecklistItemState(checklistText: string, lineIndex: number): string {
+export function toggleChecklistItemState(checklistText, lineIndex) {
   const lines = checklistText.split('\n');
   if (lineIndex < 0 || lineIndex >= lines.length) return checklistText;
   const targetLine = lines[lineIndex];
@@ -70,20 +54,14 @@ export function toggleChecklistItemState(checklistText: string, lineIndex: numbe
   return lines.join('\n');
 }
 
-/**
- * Removes an item from the checklist by original line index.
- */
-export function removeChecklistItem(checklistText: string, lineIndex: number): string {
+export function removeChecklistItem(checklistText, lineIndex) {
   const lines = checklistText.split('\n');
   if (lineIndex < 0 || lineIndex >= lines.length) return checklistText;
   lines.splice(lineIndex, 1);
   return lines.join('\n');
 }
 
-/**
- * Removes all completed items from the checklist string.
- */
-export function clearCompletedChecklistItems(checklistText: string): string {
+export function clearCompletedChecklistItems(checklistText) {
   const lines = checklistText.split('\n');
   const remaining = lines.filter((line) => !/^(\s*[-*•]\s*\[x\]|\s*\[x\])/i.test(line.trim()));
   return remaining.join('\n');

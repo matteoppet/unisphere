@@ -5,12 +5,10 @@ import {
   getItemExamGrade,
   isExamType,
   calculateMediaGrades,
-} from './grades';
-import { AssignmentItem, Course } from '../types';
+} from './grades.js';
 
 describe('Grade calculation utilities', () => {
   it('correctly calculates split exam grade (esonero 1 + esonero 2)', () => {
-    // Both passed
     assert.strictEqual(
       getExamResult([
         { label: 'Esonero 1', grade: 28 },
@@ -19,7 +17,6 @@ describe('Grade calculation utilities', () => {
       29
     );
 
-    // Decimal result
     assert.strictEqual(
       getExamResult([
         { label: 'Esonero 1', grade: 27 },
@@ -28,7 +25,6 @@ describe('Grade calculation utilities', () => {
       27.5
     );
 
-    // One part failing (< 18)
     assert.strictEqual(
       getExamResult([
         { label: 'Esonero 1', grade: 16 },
@@ -37,7 +33,6 @@ describe('Grade calculation utilities', () => {
       null
     );
 
-    // Incomplete parts
     assert.strictEqual(
       getExamResult([
         { label: 'Esonero 1', grade: 25 },
@@ -60,7 +55,7 @@ describe('Grade calculation utilities', () => {
   });
 
   it('extracts item exam grade for both single and split exams', () => {
-    const splitExam: AssignmentItem = {
+    const splitExam = {
       id: '1',
       title: 'Physics Exam',
       courseName: 'Physics 1',
@@ -74,7 +69,7 @@ describe('Grade calculation utilities', () => {
     };
     assert.strictEqual(getItemExamGrade(splitExam), 28);
 
-    const singleExam: AssignmentItem = {
+    const singleExam = {
       id: '2',
       title: 'Math Exam',
       courseName: 'Calculus',
@@ -85,7 +80,7 @@ describe('Grade calculation utilities', () => {
     };
     assert.strictEqual(getItemExamGrade(singleExam), 30);
 
-    const failingExam: AssignmentItem = {
+    const failingExam = {
       id: '3',
       title: 'Chemistry Exam',
       courseName: 'Chemistry',
@@ -96,7 +91,7 @@ describe('Grade calculation utilities', () => {
     };
     assert.strictEqual(getItemExamGrade(failingExam), null);
 
-    const unrankedExam: AssignmentItem = {
+    const unrankedExam = {
       id: '4',
       title: 'Upcoming Exam',
       courseName: 'History',
@@ -108,7 +103,7 @@ describe('Grade calculation utilities', () => {
   });
 
   it('calculates weighted average, arithmetic average, and laurea base', () => {
-    const courses: Course[] = [
+    const courses = [
       {
         id: 'c1',
         code: 'MAT01',
@@ -137,8 +132,7 @@ describe('Grade calculation utilities', () => {
       },
     ];
 
-    const assignments: AssignmentItem[] = [
-      // Single exam: Calculus 1 (9 CFU) -> 28
+    const assignments = [
       {
         id: 'a1',
         title: 'Calculus 1 Written & Oral',
@@ -148,11 +142,10 @@ describe('Grade calculation utilities', () => {
         status: 'completed',
         grade: 28,
       },
-      // Split exam: Physics 1 (6 CFU) -> 24 (22 and 26)
       {
         id: 'a2',
         title: 'Physics 1 Partial Exams',
-        courseName: 'Phys 1', // matches shortTitle
+        courseName: 'Phys 1',
         type: 'Exam',
         dueDate: '2026-02-15',
         status: 'completed',
@@ -161,7 +154,6 @@ describe('Grade calculation utilities', () => {
           { label: 'Esonero 2', grade: 26 },
         ],
       },
-      // Ungraded exam (should be excluded)
       {
         id: 'a3',
         title: 'Future Exam',
@@ -174,11 +166,6 @@ describe('Grade calculation utilities', () => {
 
     const summary = calculateMediaGrades(assignments, courses);
 
-    // Total CFU = 9 + 6 = 15
-    // Weighted sum = (28 * 9) + (24 * 6) = 252 + 144 = 396
-    // Weighted average = 396 / 15 = 26.4
-    // Arithmetic average = (28 + 24) / 2 = 26
-    // Laurea base = (26.4 * 110) / 30 = 96.8
     assert.strictEqual(summary.gradedExamsCount, 2);
     assert.strictEqual(summary.totalGradedCFU, 15);
     assert.strictEqual(summary.weightedAverage, 26.4);

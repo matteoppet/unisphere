@@ -1,19 +1,11 @@
-/**
- * Authentication & Multi-Device Synchronization Service
- * Backed by Firestore document persistence with standard SHA-256 password hashing.
- */
+import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-export function getEmailDocId(email: string): string {
-  return email.trim().toLowerCase().replace(/\//g, '_');
+export function getEmailDocId(email) {
+  return String(email || '').trim().toLowerCase().replace(/\//g, '_');
 }
 
-/**
- * Pure TypeScript / JavaScript SHA-256 implementation
- * Guaranteeing identical, standard SHA-256 hex output across all browsers,
- * mobile devices, non-secure contexts (HTTP), WebViews, and Node.
- */
-function sha256Sync(ascii: string): string {
-  function rightRotate(value: number, amount: number) {
+function sha256Sync(ascii) {
+  function rightRotate(value, amount) {
     return (value >>> amount) | (value << (32 - amount));
   }
 
@@ -23,16 +15,14 @@ function sha256Sync(ascii: string): string {
   let j = 0;
   let result = '';
 
-  const words: number[] = [];
+  const words = [];
   const asciiBitLength = ascii.length * 8;
 
-  // Initial hash values (first 32 bits of fractional parts of square roots of first 8 primes 2..19)
-  let hash: number[] = [];
-  // Round constants (first 32 bits of fractional parts of cube roots of first 64 primes 2..311)
-  const k: number[] = [];
+  let hash = [];
+  const k = [];
 
   let primeCounter = 0;
-  const isPrime = (n: number) => {
+  const isPrime = (n) => {
     for (let factor = 2, max = Math.sqrt(n); factor <= max; factor++) {
       if (n % factor === 0) return false;
     }
@@ -49,8 +39,8 @@ function sha256Sync(ascii: string): string {
     }
   }
 
-  ascii += '\x80'; // Append Ƈ' bit (plus zero padding)
-  while ((ascii.length % 64) - 56) ascii += '\x00'; // More zero padding
+  ascii += '\x80';
+  while ((ascii.length % 64) - 56) ascii += '\x00';
   for (i = 0; i < ascii.length; i++) {
     j = ascii.charCodeAt(i);
     words[i >> 2] |= j << (((3 - i) % 4) * 8);
@@ -58,8 +48,7 @@ function sha256Sync(ascii: string): string {
   words[words.length] = (asciiBitLength / maxWord) | 0;
   words[words.length] = asciiBitLength | 0;
 
-  // Process each 16-word block
-  for (j = 0; j < words.length;) {
+  for (j = 0; j < words.length; ) {
     const w = words.slice(j, (j += 16));
     const oldHash = hash.slice(0);
 
@@ -107,11 +96,15 @@ function sha256Sync(ascii: string): string {
   return result;
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  const normalized = password.trim();
+export async function hashPassword(password) {
+  const normalized = String(password || '').trim();
+  const cryptoObj =
+    typeof window !== 'undefined'
+      ? window.crypto
+      : typeof globalThis !== 'undefined'
+      ? globalThis.crypto
+      : null;
 
-  // 1. Try global Web Crypto API if available
-  const cryptoObj = typeof window !== 'undefined' ? window.crypto : (typeof globalThis !== 'undefined' ? globalThis.crypto : null);
   if (cryptoObj && cryptoObj.subtle) {
     try {
       const encoder = new TextEncoder();
@@ -120,55 +113,26 @@ export async function hashPassword(password: string): Promise<string> {
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
     } catch {
-      // Fall through to deterministic pure JS SHA-256
+      // Fallback to pure JS SHA-256
     }
   }
 
-  // 2. Pure deterministic standard SHA-256 (guaranteed standard match on any context)
   return sha256Sync(normalized);
 }
 
-/**
- * Generate a secure 6-digit numeric verification OTP
- */
-export function generateVerificationCode(): string {
+export function generateVerificationCode() {
   const num = Math.floor(100000 + Math.random() * 900000);
   return num.toString();
 }
 
-/**
- * Dispatches and records a 6-digit email verification code for an email.
- * Stored in Firestore with a 15-minute expiration timestamp.
- */
-export interface DispatchCodeResult {
-  success: boolean;
-  expiresAt: number;
-  emailSent: boolean;
-  providerNotice?: string;
-  error?: string;
-}
-
-/**
- * Dispatches and records a 6-digit email verification code for an email.
- * - Stored securely in Firestore emailVerifications collection with 15-minute expiration
- * - Queued in Firestore mail collection (for Firebase Trigger Email Extension)
- * - Dispatched in real time via server-side /api/send-email (Resend / SMTP)
- * Note: The OTP code is never returned to the client UI to maintain strict authentication security.
- */
-export async function dispatchVerificationCode(
-  email: string,
-  dbInstance: any
-): Promise<DispatchCodeResult> {
+export async function dispatchVerificationCode(email, dbInstance) {
   try {
-    const normalized = email.trim().toLowerCase();
+    const normalized = String(email || '').trim().toLowerCase();
     const docId = getEmailDocId(normalized);
     const code = generateVerificationCode();
-    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes validity
+    const expiresAt = Date.now() + 15 * 60 * 1000;
 
-    const { doc, setDoc } = await import('firebase/firestore');
     const verRef = doc(dbInstance, 'emailVerifications', docId);
-
-    // 1. Record in Firestore for verification
     await setDoc(verRef, {
       email: normalized,
       code,
@@ -177,26 +141,22 @@ export async function dispatchVerificationCode(
       createdAt: new Date().toISOString(),
     });
 
-    // 2. Also write to Firestore 'mail' collection (Firebase Trigger Email extension compatible)
     try {
-      const { collection, addDoc, serverTimestamp } = await import('firebase/firestore');
       await addDoc(collection(dbInstance, 'mail'), {
         to: [normalized],
         message: {
           subject: `Your UniSphere Verification Code: ${code}`,
           text: `Your UniSphere verification code is: ${code}\nThis code will expire in 15 minutes.`,
-          html: `<div style="font-family: sans-serif; padding: 20px;"><h2 style="color: #4338ca;">UniSphere Verification Code</h2><p>Here is your 6-digit verification code to confirm your email (<strong>${normalized}</strong>):</p><div style="font-size: 32px; letter-spacing: 6px; font-weight: bold; background: #eef2ff; border: 2px dashed #6366f1; padding: 16px; text-align: center; border-radius: 8px; color: #4338ca; margin: 20px 0;">${code}</div><p style="color: #64748b; font-size: 13px;">This code will expire in 15 minutes.</p></div>`,
+          html: `<div style="font-family: sans-serif; padding: 20px;"><h2>UniSphere Verification Code</h2><p>Here is your 6-digit verification code to confirm your email (<strong>${normalized}</strong>):</p><div style="font-size: 28px; letter-spacing: 6px; font-weight: bold; padding: 12px; border: 1px solid #333; text-align: center; margin: 16px 0;">${code}</div><p>This code will expire in 15 minutes.</p></div>`,
         },
         createdAt: serverTimestamp(),
       });
     } catch (mailErr) {
-      // Non-blocking if Trigger Email extension is not installed
       console.warn('Firestore mail collection trigger skipped:', mailErr);
     }
 
-    // 3. Dispatch real email via server API route
     let emailSent = false;
-    let providerNotice: string | undefined;
+    let providerNotice;
 
     try {
       const response = await fetch('/api/send-email', {
@@ -206,15 +166,19 @@ export async function dispatchVerificationCode(
       });
 
       const resData = await response.json().catch(() => null);
-
-      if (response.ok && (resData?.id || resData?.data?.id || resData?.success || !resData?.error)) {
+      if (
+        response.ok &&
+        (resData?.id || resData?.data?.id || resData?.success || !resData?.error)
+      ) {
         emailSent = true;
       } else if (resData?.configured === false) {
-        providerNotice = resData.message || 'Email provider credentials not configured in environment.';
+        providerNotice =
+          resData.message || 'Email provider credentials not configured in environment.';
       } else if (resData?.error) {
-        providerNotice = typeof resData.error === 'string' ? resData.error : resData.error.message;
+        providerNotice =
+          typeof resData.error === 'string' ? resData.error : resData.error.message;
       }
-    } catch (netErr: any) {
+    } catch (netErr) {
       console.warn('Backend email dispatch request:', netErr);
     }
 
@@ -224,35 +188,27 @@ export async function dispatchVerificationCode(
       emailSent,
       providerNotice,
     };
-  } catch (err: any) {
+  } catch (err) {
     console.error('Error dispatching verification code:', err);
     return {
       success: false,
       expiresAt: 0,
       emailSent: false,
-      error: err.message || 'Failed to dispatch verification code.',
+      error: err instanceof Error ? err.message : 'Failed to dispatch verification code.',
     };
   }
 }
 
-/**
- * Verifies a 6-digit email code against Firestore records.
- */
-export async function verifyEmailCode(
-  email: string,
-  inputCode: string,
-  dbInstance: any
-): Promise<{ success: boolean; error?: string }> {
+export async function verifyEmailCode(email, inputCode, dbInstance) {
   try {
-    const normalized = email.trim().toLowerCase();
+    const normalized = String(email || '').trim().toLowerCase();
     const docId = getEmailDocId(normalized);
-    const cleanCode = inputCode.trim();
+    const cleanCode = String(inputCode || '').trim();
 
     if (!cleanCode || cleanCode.length < 6) {
       return { success: false, error: 'Please enter the complete 6-digit verification code.' };
     }
 
-    const { doc, getDoc, setDoc } = await import('firebase/firestore');
     const verRef = doc(dbInstance, 'emailVerifications', docId);
     const snap = await getDoc(verRef);
 
@@ -278,10 +234,8 @@ export async function verifyEmailCode(
       };
     }
 
-    // Mark as verified
     await setDoc(verRef, { verified: true, verifiedAt: new Date().toISOString() }, { merge: true });
 
-    // Also mark on users doc if it exists
     try {
       const userRef = doc(dbInstance, 'users', docId);
       const userSnap = await getDoc(userRef);
@@ -291,11 +245,11 @@ export async function verifyEmailCode(
     } catch {}
 
     return { success: true };
-  } catch (err: any) {
+  } catch (err) {
     console.error('Error validating verification code:', err);
     return {
       success: false,
-      error: err.message || 'Failed to verify code.',
+      error: err instanceof Error ? err.message : 'Failed to verify code.',
     };
   }
 }

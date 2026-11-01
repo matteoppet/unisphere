@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UniSphere - Login</title>
+    <meta name="description" content="Sign in or register for UniSphere." />
+    <link rel="stylesheet" href="/src/index.css" />
+  </head>
+  <body>
+    <div id="root">
+      <header class="site-header">
+        <div class="header-top">
+          <h2>UniSphere</h2>
+          <div class="header-actions">
+            <div id="sync-status" class="sync-status">Not Signed In</div>
+            <button type="button" id="btn-header-logout" hidden>Log-Out</button>
+          </div>
+        </div>
+        <nav aria-label="Main Navigation">
+          <ul id="nav-list" class="nav-list" hidden>
+            <li><a href="/pages/dashboard.html" data-nav="dashboard">Dashboard</a></li>
+            <li><a href="/pages/courses.html" data-nav="courses">Courses</a></li>
+            <li><a href="/pages/logs.html" data-nav="logs">Session Logs</a></li>
+            <li><a href="/pages/assignments.html" data-nav="assignments">Exams &amp; Assignments</a></li>
+            <li><a href="/pages/squads.html" data-nav="squads">Squads</a></li>
+            <li><a href="/pages/settings.html" data-nav="settings">Settings</a></li>
+          </ul>
+        </nav>
+      </header>
+
+      <hr class="section-divider" />
+
+      <main id="app-main" data-page="login">
+        <h1>Login</h1>
+        <div id="auth-notice-container"></div>
+
+        <div class="grid-2" style="margin-top: 0;">
+          <!-- 1. Sign In Card -->
+          <section class="card">
+            <div class="card-header">
+              <h3>Sign In</h3>
+            </div>
+            <form id="form-auth-login">
+              <div class="form-row">
+                <label for="auth-login-email">Email *</label>
+                <input type="email" id="auth-login-email" required placeholder="student@university.edu" />
+              </div>
+              <div class="form-row">
+                <label for="auth-login-password">Password *</label>
+                <input type="password" id="auth-login-password" required placeholder="Password" />
+              </div>
+              <div class="card-toolbar">
+                <button type="submit">Log-In</button>
+                <button type="button" id="btn-google-sso">Sign In with Google</button>
+              </div>
+            </form>
+          </section>
+
+          <!-- 2. Register Card -->
+          <section class="card">
+            <div class="card-header">
+              <h3>Register New Account</h3>
+            </div>
+            <form id="form-auth-register">
+              <div class="form-grid-2">
+                <div class="form-row">
+                  <label for="auth-reg-name">Full Name *</label>
+                  <input type="text" id="auth-reg-name" required placeholder="Mario Rossi" />
+                </div>
+                <div class="form-row">
+                  <label for="auth-reg-email">Email *</label>
+                  <input type="email" id="auth-reg-email" required placeholder="student@university.edu" />
+                </div>
+              </div>
+
+              <div class="form-grid-2">
+                <div class="form-row">
+                  <label for="auth-reg-degree">Degree Name *</label>
+                  <input type="text" id="auth-reg-degree" required placeholder="e.g. Ingegneria Informatica" />
+                </div>
+                <div class="form-row">
+                  <label for="auth-reg-institution">Institution *</label>
+                  <input type="text" id="auth-reg-institution" required placeholder="e.g. Università Roma Tre" />
+                </div>
+              </div>
+
+              <div class="form-grid-2">
+                <div class="form-row">
+                  <label for="auth-reg-cfu">Target CFU *</label>
+                  <input type="number" id="auth-reg-cfu" min="30" max="360" required value="180" />
+                </div>
+                <div class="form-row">
+                  <label for="auth-reg-password">Password (min 6 chars) *</label>
+                  <input type="password" id="auth-reg-password" minlength="6" required placeholder="Password" />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <label for="auth-reg-code">6-Digit Verification Code (optional)</label>
+                <div class="card-toolbar">
+                  <input type="text" id="auth-reg-code" placeholder="123456" style="max-width: 140px;" />
+                  <button type="button" id="btn-send-otp">Send Email Code</button>
+                </div>
+              </div>
+
+              <button type="submit">Register</button>
+            </form>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
