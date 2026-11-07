@@ -927,7 +927,7 @@ export function initApp() {
 
     const headerEl = document.getElementById('logs-5day-header');
     if (headerEl) {
-      headerEl.textContent = `Current 6-Day Week Study Time (Total All-Time: ${formatStudyDuration(totalMinutesAllTime)})`;
+      headerEl.textContent = `Current 7-Day Week Study Time (Total All-Time: ${formatStudyDuration(totalMinutesAllTime)})`;
     }
 
     const theadEl = document.getElementById('logs-5day-thead');

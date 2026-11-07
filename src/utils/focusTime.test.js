@@ -83,23 +83,30 @@ describe('Weekly Focus widget calculation and reset (#16)', () => {
   });
 });
 
-describe('Weekly log per day widget includes Saturday (#32)', () => {
-  it('returns 6 days (Mon through Sat) in widgetDays with Saturday study time included', () => {
-    const saturdayLogs = [
+describe('Weekly log per day widget includes Saturday and Sunday (#32)', () => {
+  it('returns 7 days (Mon through Sun) in widgetDays with Saturday and Sunday study time included', () => {
+    const weekendLogs = [
       { date: '2026-10-24', durationMinutes: 90 }, // Saturday
+      { date: '2026-10-25', durationMinutes: 120 }, // Sunday
     ];
-    const summary = getWeekDaysSummary(saturdayLogs, new Date(2026, 9, 21)); // Wednesday of that week
+    const summary = getWeekDaysSummary(weekendLogs, new Date(2026, 9, 21)); // Wednesday of that week
     assert.ok(Array.isArray(summary.widgetDays));
-    assert.equal(summary.widgetDays.length, 6);
+    assert.equal(summary.widgetDays.length, 7);
     assert.deepEqual(
       summary.widgetDays.map((d) => d.shortDay),
-      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
     );
     const saturdayEntry = summary.widgetDays[5];
     assert.equal(saturdayEntry.shortDay, 'Sat');
     assert.equal(saturdayEntry.dateStr, '2026-10-24');
     assert.equal(saturdayEntry.minutes, 90);
     assert.equal(saturdayEntry.hours, '1h 30m');
+
+    const sundayEntry = summary.widgetDays[6];
+    assert.equal(sundayEntry.shortDay, 'Sun');
+    assert.equal(sundayEntry.dateStr, '2026-10-25');
+    assert.equal(sundayEntry.minutes, 120);
+    assert.equal(sundayEntry.hours, '2h');
   });
 });
 
