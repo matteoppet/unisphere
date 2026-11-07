@@ -266,12 +266,19 @@ button.btn-danger {
 }
 
 .table-scroll {
-  max-height: calc(100vh - 420px);
+  max-height: calc(100vh - 520px);
   overflow-y: auto;
 }
 
 .table-scroll-sm {
-  max-height: calc(100vh - 460px);
+  max-height: calc(100vh - 590px);
+}
+
+@media (max-width: 720px) {
+  .table-scroll,
+  .table-scroll-sm {
+    max-height: 200px;
+  }
 }
 
 .table-scroll thead th {
