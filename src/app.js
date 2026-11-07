@@ -32,6 +32,12 @@ import {
   sanitizeUserProfile,
   sanitizeResourceLinksList,
   formatGoogleAuthError,
+  escapeHtml,
+  sanitizeTextInput,
+  sanitizeEmailInput,
+  sanitizeCourseItem,
+  sanitizeStudyLogItem,
+  sanitizeAssignmentItem,
 } from './lib/authService.js';
 import {
   fetchUserSquads,
@@ -138,14 +144,19 @@ const PAGE_PATHS = {
   settings: '/pages/settings.html',
 };
 
-function escapeHtml(value) {
-  const str = String(value ?? '');
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+function sanitizeCourseList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => sanitizeCourseItem(item)).filter(Boolean);
+}
+
+function sanitizeStudyLogList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => sanitizeStudyLogItem(item)).filter(Boolean);
+}
+
+function sanitizeAssignmentList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => sanitizeAssignmentItem(item)).filter(Boolean);
 }
 
 function formatStatusLabel(status) {
@@ -196,7 +207,7 @@ export function initApp() {
       const saved = localStorage.getItem(`${STORAGE_KEY}_courses`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return sanitizeCourseList(parsed);
       }
     } catch {}
     return [...DEFAULT_STARTER_COURSES];
@@ -207,7 +218,7 @@ export function initApp() {
       const saved = localStorage.getItem(`${STORAGE_KEY}_logs`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return sanitizeStudyLogList(parsed);
       }
     } catch {}
     return [...DEFAULT_STARTER_LOGS];
@@ -218,7 +229,7 @@ export function initApp() {
       const saved = localStorage.getItem(`${STORAGE_KEY}_assignments`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return sanitizeAssignmentList(parsed);
       }
     } catch {}
     return [];
@@ -227,7 +238,7 @@ export function initApp() {
   let quickNotes = (() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_quick_notes`);
-      if (saved !== null) return saved;
+      if (saved !== null) return sanitizeTextInput(saved, 5000, true);
     } catch {}
     return '';
   })();
@@ -235,7 +246,7 @@ export function initApp() {
   let checklist = (() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_checklist`);
-      if (saved !== null) return saved;
+      if (saved !== null) return sanitizeTextInput(saved, 5000, true);
     } catch {}
     return '';
   })();
@@ -332,11 +343,41 @@ export function initApp() {
   async function pushWorkstationToCloud() {
     saveToLocalStorage();
     const targetEmail = sessionEmail || profile.email;
-    if (!isAuthenticated || !targetEmail) return;
+    if (!isAuthenticated || !targetEmail || !db) return;
 
     const docId = getEmailDocId(targetEmail);
     try {
       const userRef = doc(db, 'users', docId);
+      // Prevent accidental overwrite of existing cloud workspace with starter local defaults
+      // before the initial server snapshot has been received.
+      if (!hasInitialServerSnapshot) {
+        try {
+          const existingSnap = await getDoc(userRef);
+          if (existingSnap.exists()) {
+            const existingData = existingSnap.data();
+            const isDefaultStarterState =
+              courses.length === 1 &&
+              courses[0]?.id === 'course-analisi-1' &&
+              Array.isArray(existingData?.courses) &&
+              existingData.courses.length > 1;
+            if (isDefaultStarterState) {
+              hasInitialServerSnapshot = true;
+              profile = sanitizeUserProfile(existingData, profile, targetEmail);
+              courses = sanitizeCourseList(existingData.courses);
+              if (Array.isArray(existingData.studyLogs)) {
+                studyLogs = sanitizeStudyLogList(existingData.studyLogs);
+              }
+              if (Array.isArray(existingData.assignments)) {
+                assignments = sanitizeAssignmentList(existingData.assignments);
+              }
+              saveToLocalStorage();
+              populateCurrentPageData();
+              return;
+            }
+          }
+        } catch {}
+      }
+
       await setDoc(
         userRef,
         {
@@ -386,7 +427,7 @@ export function initApp() {
     }
 
     const targetEmail = sessionEmail || profile.email;
-    if (!isAuthenticated || !targetEmail) {
+    if (!isAuthenticated || !targetEmail || !db) {
       setStatus('Ready', 0);
       return;
     }
@@ -407,40 +448,17 @@ export function initApp() {
         const data = snapshot.data();
         if (!data || data.updatedBy === syncClientId) return;
 
-        profile = {
-          ...profile,
-          name: data.name ?? profile.name,
-          studentId: data.studentId ?? profile.studentId,
-          email: data.email ?? profile.email,
-          degreeLevel: data.degreeLevel ?? profile.degreeLevel,
-          degreeName: data.degreeName ?? profile.degreeName,
-          degreeType: data.degreeType ?? profile.degreeType,
-          totalTargetCFU: data.totalTargetCFU ?? profile.totalTargetCFU,
-          enrolledYear: data.enrolledYear ?? profile.enrolledYear,
-          academicYear: data.academicYear ?? profile.academicYear,
-          institution: data.institution ?? profile.institution,
-          status: data.status ?? profile.status,
-          activeSquadId: data.activeSquadId ?? profile.activeSquadId,
-          squadIds: Array.isArray(data.squadIds) ? data.squadIds : profile.squadIds,
-          xp: typeof data.xp === 'number' ? data.xp : profile.xp,
-          currentStreak:
-            typeof data.currentStreak === 'number' ? data.currentStreak : profile.currentStreak,
-          minutesStudiedThisWeek:
-            typeof data.minutesStudiedThisWeek === 'number'
-              ? data.minutesStudiedThisWeek
-              : profile.minutesStudiedThisWeek,
-          tasksCompletedThisWeek:
-            typeof data.tasksCompletedThisWeek === 'number'
-              ? data.tasksCompletedThisWeek
-              : profile.tasksCompletedThisWeek,
-          lastActiveDate: data.lastActiveDate ?? profile.lastActiveDate,
-        };
+        profile = sanitizeUserProfile(data, profile, targetEmail);
 
-        if (Array.isArray(data.courses)) courses = data.courses;
-        if (Array.isArray(data.studyLogs)) studyLogs = data.studyLogs;
-        if (Array.isArray(data.assignments)) assignments = data.assignments;
-        if (typeof data.quickNotes === 'string') quickNotes = data.quickNotes;
-        if (typeof data.checklist === 'string') checklist = data.checklist;
+        if (Array.isArray(data.courses)) courses = sanitizeCourseList(data.courses);
+        if (Array.isArray(data.studyLogs)) studyLogs = sanitizeStudyLogList(data.studyLogs);
+        if (Array.isArray(data.assignments)) assignments = sanitizeAssignmentList(data.assignments);
+        if (typeof data.quickNotes === 'string') {
+          quickNotes = sanitizeTextInput(data.quickNotes, 5000, true);
+        }
+        if (typeof data.checklist === 'string') {
+          checklist = sanitizeTextInput(data.checklist, 5000, true);
+        }
         if (Array.isArray(data.resourceLinks)) {
           resourceLinks = sanitizeResourceLinksList(
             data.resourceLinks.filter(
@@ -958,7 +976,7 @@ export function initApp() {
     if (summaryTbody) {
       summaryTbody.innerHTML = `
         <tr>
-          <td>${media.examCount}</td>
+          <td>${media.gradedExamsCount}</td>
           <td>${media.arithmeticAverage !== null ? `${media.arithmeticAverage} / 30` : '-'}</td>
           <td>${media.weightedAverage !== null ? `${media.weightedAverage} / 30` : '-'}</td>
           <td>${media.laureaBase !== null ? `${media.laureaBase} / 110` : '-'}</td>
@@ -1135,7 +1153,7 @@ export function initApp() {
       squadMembersUnsub();
       squadMembersUnsub = null;
     }
-    if (!squadId) {
+    if (!squadId || !db) {
       squadMembers = [];
       populateCurrentPageData();
       return;
@@ -1294,11 +1312,17 @@ export function initApp() {
 
     if (userData) {
       profile = sanitizeUserProfile(userData, profile, normalizedEmail);
-      if (Array.isArray(userData.courses)) courses = userData.courses;
-      if (Array.isArray(userData.studyLogs)) studyLogs = userData.studyLogs;
-      if (Array.isArray(userData.assignments)) assignments = userData.assignments;
-      if (typeof userData.quickNotes === 'string') quickNotes = userData.quickNotes;
-      if (typeof userData.checklist === 'string') checklist = userData.checklist;
+      if (Array.isArray(userData.courses)) courses = sanitizeCourseList(userData.courses);
+      if (Array.isArray(userData.studyLogs)) studyLogs = sanitizeStudyLogList(userData.studyLogs);
+      if (Array.isArray(userData.assignments)) {
+        assignments = sanitizeAssignmentList(userData.assignments);
+      }
+      if (typeof userData.quickNotes === 'string') {
+        quickNotes = sanitizeTextInput(userData.quickNotes, 5000, true);
+      }
+      if (typeof userData.checklist === 'string') {
+        checklist = sanitizeTextInput(userData.checklist, 5000, true);
+      }
       if (Array.isArray(userData.resourceLinks)) {
         resourceLinks = sanitizeResourceLinksList(userData.resourceLinks);
       }
@@ -1325,12 +1349,11 @@ export function initApp() {
     }
 
     const docId = getEmailDocId(mail);
-    const userRef = doc(db, 'users', docId);
     const fallbackRecord = {
       uid: docId,
       authUid: googleUser.uid || docId,
       email: mail,
-      name: googleUser.displayName || profile.name || mail.split('@')[0],
+      name: sanitizeTextInput(googleUser.displayName || profile.name || mail.split('@')[0], 100),
       studentId: profile.studentId || '',
       authProvider: 'google',
       emailVerified: true,
@@ -1348,6 +1371,13 @@ export function initApp() {
       createdAt: new Date().toISOString(),
       updatedAt: Date.now(),
     };
+
+    if (!db) {
+      completeCloudLogin(fallbackRecord, mail);
+      return;
+    }
+
+    const userRef = doc(db, 'users', docId);
 
     try {
       const snap = await getDoc(userRef);
@@ -1459,12 +1489,12 @@ export function initApp() {
         e.preventDefault();
         const emailInput = document.getElementById('auth-login-email');
         const passInput = document.getElementById('auth-login-password');
-        const normalizedEmail = emailInput?.value.trim().toLowerCase() || '';
-        const password = passInput?.value || '';
+        const normalizedEmail = sanitizeEmailInput(emailInput?.value);
+        const password = String(passInput?.value || '');
         if (!normalizedEmail || !password) {
           authNotice = {
             type: 'error',
-            text: 'Please enter both your email address and password.',
+            text: 'Please enter a valid email address and password.',
           };
           populateLoginPage();
           return;
@@ -1489,6 +1519,12 @@ export function initApp() {
         isEmailAuthPending = true;
 
         try {
+          if (!db) {
+            loginRateLimiter.reset(normalizedEmail);
+            completeCloudLogin(null, normalizedEmail);
+            return;
+          }
+
           const docId = getEmailDocId(normalizedEmail);
           const userRef = doc(db, 'users', docId);
 
@@ -1616,12 +1652,11 @@ export function initApp() {
     if (otpBtn && !boundElements.has(otpBtn)) {
       boundElements.add(otpBtn);
       otpBtn.addEventListener('click', async () => {
-        const regEmail = document
-          .getElementById('auth-reg-email')
-          ?.value.trim()
-          .toLowerCase();
+        const regEmail = sanitizeEmailInput(
+          document.getElementById('auth-reg-email')?.value
+        );
         if (!regEmail) {
-          authNotice = { type: 'error', text: 'Enter your email first to receive a code.' };
+          authNotice = { type: 'error', text: 'Enter a valid email first to receive a code.' };
           populateLoginPage();
           return;
         }
@@ -1655,18 +1690,24 @@ export function initApp() {
       boundElements.add(regForm);
       regForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const regName = document.getElementById('auth-reg-name').value.trim();
-        const regEmail = document.getElementById('auth-reg-email').value.trim().toLowerCase();
-        const regDegree = document.getElementById('auth-reg-degree').value.trim();
-        const regInstitution = document.getElementById('auth-reg-institution').value.trim();
-        const regCFU = Number(document.getElementById('auth-reg-cfu').value) || 180;
-        const regPass = document.getElementById('auth-reg-password').value;
-        const regCode = document.getElementById('auth-reg-code').value.trim();
+        const regName = sanitizeTextInput(document.getElementById('auth-reg-name').value, 100);
+        const regEmail = sanitizeEmailInput(document.getElementById('auth-reg-email').value);
+        const regDegree = sanitizeTextInput(document.getElementById('auth-reg-degree').value, 120);
+        const regInstitution = sanitizeTextInput(
+          document.getElementById('auth-reg-institution').value,
+          120
+        );
+        const regCFU = Math.min(
+          360,
+          Math.max(30, Number(document.getElementById('auth-reg-cfu').value) || 180)
+        );
+        const regPass = String(document.getElementById('auth-reg-password').value || '');
+        const regCode = sanitizeTextInput(document.getElementById('auth-reg-code').value, 6);
 
         if (!regName || !regEmail || regPass.length < 6) {
           authNotice = {
             type: 'error',
-            text: 'Please provide your name, email, and a password of at least 6 characters.',
+            text: 'Please provide your name, a valid email, and a password of at least 6 characters.',
           };
           populateLoginPage();
           return;
@@ -1712,7 +1753,6 @@ export function initApp() {
           }
 
           const docId = getEmailDocId(regEmail);
-          const userRef = doc(db, 'users', docId);
           const passwordHash = await hashPassword(regPass);
 
           const newRecord = {
@@ -1738,7 +1778,10 @@ export function initApp() {
             updatedAt: Date.now(),
           };
 
-          await setDoc(userRef, newRecord, { merge: true });
+          if (db) {
+            const userRef = doc(db, 'users', docId);
+            await setDoc(userRef, newRecord, { merge: true });
+          }
           completeCloudLogin(newRecord, regEmail);
         } catch (err) {
           authNotice = {
@@ -1789,7 +1832,8 @@ export function initApp() {
       document.getElementById('btn-dash-save-notes')?.addEventListener('click', () => {
         const notesEl = document.getElementById('dash-quick-notes');
         if (notesEl) {
-          quickNotes = notesEl.value;
+          quickNotes = sanitizeTextInput(notesEl.value, 5000, true);
+          notesEl.value = quickNotes;
           void pushWorkstationToCloud();
           setStatus('Notes saved');
         }
@@ -1839,7 +1883,7 @@ export function initApp() {
       document.getElementById('form-create-squad')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const nameInput = document.getElementById('squad-new-name');
-        const name = nameInput?.value.trim() || '';
+        const name = sanitizeTextInput(nameInput?.value, 50);
         if (!name) return;
 
         const code = generateSquadCode();
@@ -1851,16 +1895,18 @@ export function initApp() {
           code,
           createdAt: new Date().toISOString(),
           createdBy: uid,
-          creatorName: profile.name || 'Student',
+          creatorName: sanitizeTextInput(profile.name || 'Student', 100),
           memberCount: 1,
           memberUids: [uid],
         };
 
         try {
-          await setDoc(doc(db, 'squads', squadId), newSquad);
+          if (db) {
+            await setDoc(doc(db, 'squads', squadId), newSquad);
+          }
           const member = {
             uid,
-            displayName: profile.name || 'Student',
+            displayName: sanitizeTextInput(profile.name || 'Student', 100),
             color: '#3B77BC',
             elo: calculateElo(
               profile.minutesStudiedThisWeek || 0,
@@ -1895,8 +1941,10 @@ export function initApp() {
       document.getElementById('form-join-squad')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const codeInput = document.getElementById('squad-join-code');
-        const code = codeInput?.value.trim().toUpperCase() || '';
-        if (!code) return;
+        const code = sanitizeTextInput(codeInput?.value, 8)
+          .replace(/[^A-Z0-9]/gi, '')
+          .toUpperCase();
+        if (!code || !db) return;
 
         try {
           const q = query(collection(db, 'squads'), where('code', '==', code));
@@ -1909,7 +1957,7 @@ export function initApp() {
           const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
           const member = {
             uid,
-            displayName: profile.name || 'Student',
+            displayName: sanitizeTextInput(profile.name || 'Student', 100),
             color: '#3B77BC',
             elo: calculateElo(
               profile.minutesStudiedThisWeek || 0,
@@ -1948,29 +1996,48 @@ export function initApp() {
     if (route === 'settings') {
       document.getElementById('form-settings-profile')?.addEventListener('submit', (e) => {
         e.preventDefault();
-        const name = document.getElementById('set-name').value.trim();
-        const inputEmail = document.getElementById('set-email').value.trim().toLowerCase();
+        const name = sanitizeTextInput(document.getElementById('set-name').value, 100);
+        const inputEmail = sanitizeEmailInput(document.getElementById('set-email').value);
         const email = sessionEmail || inputEmail;
-        const studentId = document.getElementById('set-student-id').value.trim();
-        const institution = document.getElementById('set-institution').value.trim();
-        const degreeName = document.getElementById('set-degree-name').value.trim();
-        const degreeType = document.getElementById('set-degree-type').value;
-        const academicYear = document.getElementById('set-academic-year').value;
-        const totalTargetCFU = Number(document.getElementById('set-target-cfu').value) || 180;
-        const weeklyGoalHours = Number(document.getElementById('set-weekly-goal').value) || 20;
+        const studentId = sanitizeTextInput(document.getElementById('set-student-id').value, 40);
+        const institution = sanitizeTextInput(
+          document.getElementById('set-institution').value,
+          120
+        );
+        const degreeName = sanitizeTextInput(
+          document.getElementById('set-degree-name').value,
+          120
+        );
+        const degreeType = sanitizeTextInput(document.getElementById('set-degree-type').value, 80);
+        const academicYear = sanitizeTextInput(
+          document.getElementById('set-academic-year').value,
+          40
+        );
+        const totalTargetCFU = Math.min(
+          360,
+          Math.max(30, Number(document.getElementById('set-target-cfu').value) || 180)
+        );
+        const weeklyGoalHours = Math.min(
+          100,
+          Math.max(1, Number(document.getElementById('set-weekly-goal').value) || 20)
+        );
 
-        profile = {
-          ...profile,
-          name,
-          email,
-          studentId,
-          institution,
-          degreeName,
-          degreeType,
-          academicYear,
-          totalTargetCFU,
-          weeklyGoalHours,
-        };
+        profile = sanitizeUserProfile(
+          {
+            ...profile,
+            name,
+            email,
+            studentId,
+            institution,
+            degreeName,
+            degreeType,
+            academicYear,
+            totalTargetCFU,
+            weeklyGoalHours,
+          },
+          profile,
+          sessionEmail || null
+        );
         void pushWorkstationToCloud();
         populateSettingsPage();
         setStatus('Settings saved');
@@ -2003,13 +2070,17 @@ export function initApp() {
                 sessionEmail || profile.email || null
               );
             }
-            if (Array.isArray(parsed.courses)) courses = parsed.courses;
-            if (Array.isArray(parsed.studyLogs)) studyLogs = parsed.studyLogs;
+            if (Array.isArray(parsed.courses)) courses = sanitizeCourseList(parsed.courses);
+            if (Array.isArray(parsed.studyLogs)) studyLogs = sanitizeStudyLogList(parsed.studyLogs);
             if (Array.isArray(parsed.assignments)) {
-              assignments = parsed.assignments;
+              assignments = sanitizeAssignmentList(parsed.assignments);
             }
-            if (typeof parsed.quickNotes === 'string') quickNotes = parsed.quickNotes;
-            if (typeof parsed.checklist === 'string') checklist = parsed.checklist;
+            if (typeof parsed.quickNotes === 'string') {
+              quickNotes = sanitizeTextInput(parsed.quickNotes, 5000, true);
+            }
+            if (typeof parsed.checklist === 'string') {
+              checklist = sanitizeTextInput(parsed.checklist, 5000, true);
+            }
             if (Array.isArray(parsed.resourceLinks)) {
               resourceLinks = sanitizeResourceLinksList(parsed.resourceLinks);
             }
@@ -2189,54 +2260,27 @@ export function initApp() {
       boundElements.add(courseForm);
       courseForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const id = document.getElementById('course-id').value.trim();
-        const title = document.getElementById('course-title').value.trim();
-        const status = document.getElementById('course-status').value;
-        const cfu = Number(document.getElementById('course-cfu').value) || 6;
-        const year = Number(document.getElementById('course-year').value) || 1;
-        const semester = Number(document.getElementById('course-semester').value) || 1;
-        const email = document.getElementById('course-email').value.trim();
-        const officeHours = document.getElementById('course-office').value.trim();
-        const notes = document.getElementById('course-notes').value.trim();
+        const id = sanitizeTextInput(document.getElementById('course-id').value, 80);
+        const sanitized = sanitizeCourseItem({
+          id: id || `course-${Date.now()}`,
+          title: document.getElementById('course-title').value,
+          status: document.getElementById('course-status').value,
+          cfu: document.getElementById('course-cfu').value,
+          year: document.getElementById('course-year').value,
+          semester: document.getElementById('course-semester').value,
+          email: document.getElementById('course-email').value,
+          officeHours: document.getElementById('course-office').value,
+          notes: document.getElementById('course-notes').value,
+        });
 
-        if (!title) return;
+        if (!sanitized) return;
 
         if (id) {
-          courses = courses.map((c) =>
-            c.id === id
-              ? {
-                  ...c,
-                  title,
-                  shortTitle: title,
-                  status,
-                  cfu,
-                  year,
-                  semester,
-                  email,
-                  officeHours,
-                  notes,
-                }
-              : c
-          );
-          setStatus(`Updated course: ${title}`);
+          courses = courses.map((c) => (c.id === id ? { ...c, ...sanitized } : c));
+          setStatus(`Updated course: ${sanitized.title}`);
         } else {
-          const newCourse = {
-            id: `course-${Date.now()}`,
-            code: title.slice(0, 6).toUpperCase(),
-            title,
-            shortTitle: title,
-            email,
-            officeHours,
-            cfu,
-            year,
-            semester,
-            status,
-            progress: status === 'completed' ? 100 : 0,
-            color: '#3B77BC',
-            notes,
-          };
-          courses = [newCourse, ...courses];
-          setStatus(`Added course: ${title}`);
+          courses = [sanitized, ...courses];
+          setStatus(`Added course: ${sanitized.title}`);
         }
 
         document.getElementById('modal-course')?.close();
@@ -2245,7 +2289,7 @@ export function initApp() {
       });
 
       document.getElementById('btn-delete-course')?.addEventListener('click', () => {
-        const id = document.getElementById('course-id').value.trim();
+        const id = sanitizeTextInput(document.getElementById('course-id').value, 80);
         if (!id) return;
         courses = courses.filter((c) => c.id !== id);
         document.getElementById('modal-course')?.close();
@@ -2260,44 +2304,45 @@ export function initApp() {
       boundElements.add(logForm);
       logForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const subject = document.getElementById('log-subject').value.trim();
+        const rawSubject = sanitizeTextInput(document.getElementById('log-subject').value, 120);
         const date = document.getElementById('log-date').value;
-        const durationMinutes = Number(document.getElementById('log-minutes').value) || 60;
-        const tag = document.getElementById('log-tag').value;
-        const notes = document.getElementById('log-notes').value.trim();
+        if (!rawSubject || !date) return;
 
-        if (!subject || !date) return;
-
-        const matchedCourse = courses.find((c) => c.title.toLowerCase() === subject.toLowerCase());
-        const newLog = {
+        const matchedCourse = courses.find(
+          (c) => c.title.toLowerCase() === rawSubject.toLowerCase()
+        );
+        const newLog = sanitizeStudyLogItem({
           id: `log-${Date.now()}`,
           courseId: matchedCourse?.id,
-          courseName: matchedCourse ? matchedCourse.title : subject,
-          durationMinutes,
+          courseName: matchedCourse ? matchedCourse.title : rawSubject,
+          durationMinutes: document.getElementById('log-minutes').value,
           date,
-          timeRange: date,
-          notes,
+          notes: document.getElementById('log-notes').value,
           rating: 5,
-          tag,
+          tag: document.getElementById('log-tag').value,
           timestamp: Date.now(),
-        };
+        });
+
+        if (!newLog) return;
 
         studyLogs = [newLog, ...studyLogs];
 
-        const xpGained = Math.max(20, Math.round(durationMinutes * 2));
+        const xpGained = Math.max(20, Math.round(newLog.durationMinutes * 2));
         const { streak, today } = updateStreak(profile.currentStreak || 0, profile.lastActiveDate);
         profile = {
           ...profile,
           xp: (profile.xp || 0) + xpGained,
           currentStreak: streak,
-          minutesStudiedThisWeek: (profile.minutesStudiedThisWeek || 0) + durationMinutes,
+          minutesStudiedThisWeek: (profile.minutesStudiedThisWeek || 0) + newLog.durationMinutes,
           lastActiveDate: today,
         };
 
         document.getElementById('modal-log')?.close();
         void pushWorkstationToCloud();
         populateCurrentPageData();
-        setStatus(`Added session log: ${subject} (${formatStudyDuration(durationMinutes)})`);
+        setStatus(
+          `Added session log: ${newLog.courseName} (${formatStudyDuration(newLog.durationMinutes)})`
+        );
       });
     }
 
@@ -2306,13 +2351,13 @@ export function initApp() {
       boundElements.add(resourceForm);
       resourceForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const title = document.getElementById('resource-title').value.trim();
+        const title = sanitizeTextInput(document.getElementById('resource-title').value, 200);
         const rawUrl = document.getElementById('resource-url').value.trim();
-        const category = document.getElementById('resource-category').value;
+        const category = sanitizeTextInput(document.getElementById('resource-category').value, 64);
 
         const safeUrl = sanitizeResourceUrl(rawUrl);
         if (!title || !safeUrl) {
-          alert('Please enter a valid http:// or https:// resource URL.');
+          alert('Please enter a valid title and http:// or https:// resource URL.');
           return;
         }
 
@@ -2320,7 +2365,7 @@ export function initApp() {
           id: `res-${Date.now()}`,
           title,
           url: safeUrl,
-          category,
+          category: category || 'Portal',
           createdAt: Date.now(),
         };
 
@@ -2337,16 +2382,23 @@ export function initApp() {
       boundElements.add(assignmentForm);
       assignmentForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const id = document.getElementById('assignment-id').value.trim();
-        const title = document.getElementById('assignment-title').value.trim();
-        const courseName = document.getElementById('assignment-course').value.trim();
+        const id = sanitizeTextInput(document.getElementById('assignment-id').value, 80);
+        const title = sanitizeTextInput(document.getElementById('assignment-title').value, 150);
+        const courseName = sanitizeTextInput(
+          document.getElementById('assignment-course').value,
+          120
+        );
         const type = document.getElementById('assignment-type').value;
         const dueDate = document.getElementById('assignment-due').value;
         let status = document.getElementById('assignment-status').value;
         const gradeRaw = document.getElementById('assignment-grade').value.trim();
         const es1Raw = document.getElementById('assignment-esonero1').value.trim();
         const es2Raw = document.getElementById('assignment-esonero2').value.trim();
-        const notes = document.getElementById('assignment-notes').value.trim();
+        const notes = sanitizeTextInput(
+          document.getElementById('assignment-notes').value,
+          1000,
+          true
+        );
 
         if (!title || !courseName || !dueDate) return;
 
@@ -2370,40 +2422,38 @@ export function initApp() {
           }
         }
 
+        const sanitizedAsg = sanitizeAssignmentItem({
+          id: id || `asg-${Date.now()}`,
+          title,
+          courseName,
+          type,
+          dueDate,
+          status,
+          grade,
+          examParts,
+          notes,
+          completedAt: status === 'completed' ? Date.now() : undefined,
+        });
+
+        if (!sanitizedAsg) return;
+
         if (id) {
           assignments = assignments.map((a) =>
             a.id === id
               ? {
                   ...a,
-                  title,
-                  courseName,
-                  type,
-                  dueDate,
-                  status,
-                  grade,
-                  examParts,
-                  notes,
+                  ...sanitizedAsg,
                   completedAt:
-                    status === 'completed' ? a.completedAt || Date.now() : a.completedAt,
+                    sanitizedAsg.status === 'completed'
+                      ? a.completedAt || Date.now()
+                      : a.completedAt,
                 }
               : a
           );
-          setStatus(`Updated: ${title}`);
+          setStatus(`Updated: ${sanitizedAsg.title}`);
         } else {
-          const newAsg = {
-            id: `asg-${Date.now()}`,
-            title,
-            courseName,
-            type,
-            dueDate,
-            status,
-            grade,
-            examParts,
-            notes,
-            completedAt: status === 'completed' ? Date.now() : undefined,
-          };
-          assignments = [newAsg, ...assignments];
-          setStatus(`Added: ${title}`);
+          assignments = [sanitizedAsg, ...assignments];
+          setStatus(`Added: ${sanitizedAsg.title}`);
         }
 
         document.getElementById('modal-assignment')?.close();
@@ -2412,7 +2462,7 @@ export function initApp() {
       });
 
       document.getElementById('btn-delete-assignment')?.addEventListener('click', () => {
-        const id = document.getElementById('assignment-id').value.trim();
+        const id = sanitizeTextInput(document.getElementById('assignment-id').value, 80);
         if (!id) return;
         assignments = assignments.filter((a) => a.id !== id);
         document.getElementById('modal-assignment')?.close();

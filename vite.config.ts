@@ -43,6 +43,7 @@ export default defineConfig(() => {
           'bun.lock',
           'tsconfig.json',
           'firebase-blueprint.json',
+          'firebase-applet-config.json',
         ],
       },
     },

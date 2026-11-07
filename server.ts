@@ -19,7 +19,7 @@ const emailBuckets = new Map<string, number[]>();
 const BLOCKED_PATH_PATTERNS = [
   /^\/\.(env|git|vercel|aistudio|DS_Store)/i,
   /^\/(firestore\.rules|server\.ts|server\.js|package\.json|bun\.lock|tsconfig\.json|vercel\.json|vite\.config\.ts|components\.json|metadata\.json)/i,
-  /^\/firebase-blueprint.*\.json$/i,
+  /^\/firebase-(blueprint|applet-config).*\.json$/i,
   /^\/api\/.*\.ts$/i,
 ];
 

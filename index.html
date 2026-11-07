@@ -353,57 +353,6 @@
       </dialog>
     </div>
 
-    <script>
-      document.addEventListener('click', (e) => {
-        const btn = e.target.closest('#tab-dash-resources, #tab-dash-notes');
-        if (!btn) return;
-        const isNotes = btn.id === 'tab-dash-notes';
-        const tabRes = document.getElementById('tab-dash-resources');
-        const tabNotes = document.getElementById('tab-dash-notes');
-        const resPanel = document.getElementById('dash-resources-panel');
-        const notesPanel = document.getElementById('dash-notes-panel');
-        const addResBtn = document.getElementById('btn-dash-add-resource');
-        const saveNotesBtn = document.getElementById('btn-dash-save-notes');
-        if (tabRes) {
-          tabRes.classList.toggle('active', !isNotes);
-          tabRes.setAttribute('aria-selected', String(!isNotes));
-        }
-        if (tabNotes) {
-          tabNotes.classList.toggle('active', isNotes);
-          tabNotes.setAttribute('aria-selected', String(isNotes));
-        }
-        if (resPanel) resPanel.hidden = isNotes;
-        if (notesPanel) notesPanel.hidden = !isNotes;
-        if (addResBtn) addResBtn.hidden = isNotes;
-        if (saveNotesBtn) saveNotesBtn.hidden = !isNotes;
-      });
-      window.addEventListener('DOMContentLoaded', () => {
-        const thead = document.getElementById('dash-5day-thead');
-        const tbody = document.getElementById('dash-5day-tbody');
-        if (thead && tbody && !thead.innerHTML.trim()) {
-          const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-          const now = new Date();
-          const dayOfWeek = now.getDay();
-          const distToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-          let logs = [];
-          try {
-            if (localStorage.getItem('unisphere_workspace_session_email')) {
-              logs = JSON.parse(localStorage.getItem('unisphere_workspace_logs') || '[]');
-            }
-          } catch {}
-          const days = dayNames.map((shortDay, i) => {
-            const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distToMon + i);
-            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            const mins = logs.filter((l) => l.date === dateStr).reduce((s, l) => s + (l.durationMinutes || 0), 0);
-            const hrs = mins <= 0 ? '0h' : mins >= 60 ? (mins % 60 === 0 ? `${Math.floor(mins / 60)}h` : `${Math.floor(mins / 60)}h ${mins % 60}m`) : `${mins}m`;
-            return { shortDay, formattedDate: `${d.getDate()} ${monthNames[d.getMonth()]}`, mins, hrs };
-          });
-          thead.innerHTML = days.map((d) => `<th>${d.shortDay}<span class="day-sub">${d.formattedDate}</span></th>`).join('');
-          tbody.innerHTML = days.map((d) => `<td><strong class="${d.mins > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${d.hrs}</strong></td>`).join('');
-        }
-      });
-    </script>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

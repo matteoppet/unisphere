@@ -8,6 +8,8 @@ firebase-debug.log*
 firestore-debug.log*
 .env*
 !.env.example
+firebase-applet-config*.json
+firebase-blueprint*.json
 .vercel/
 .aistudio/
 *.pem

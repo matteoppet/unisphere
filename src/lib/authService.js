@@ -385,6 +385,183 @@ export function getSecurityHeaders() {
 }
 
 /**
+ * Escapes HTML special characters to prevent Cross-Site Scripting (XSS).
+ */
+export function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Sanitizes freeform user text input from forms or JSON imports by stripping
+ * control characters, embedded <script>/<style>/<iframe> tags, and HTML markup,
+ * then enforcing a maximum character length.
+ */
+export function sanitizeTextInput(value, maxLength = 200, allowMultiline = false) {
+  let str = String(value ?? '');
+  // Strip null bytes and ASCII control characters (except \n and \t when multiline is allowed)
+  str = allowMultiline
+    ? str.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    : str.replace(/[\u0000-\u001F\u007F]/g, ' ');
+  // Strip dangerous container elements completely along with their contents
+  str = str.replace(/<(script|style|iframe|object|embed|applet)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+  // Strip any remaining HTML/SVG tags
+  str = str.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+  if (!allowMultiline) {
+    str = str.replace(/\s+/g, ' ');
+  }
+  return str.trim().slice(0, maxLength);
+}
+
+/**
+ * Validates and normalizes an email address input, rejecting HTML/script payloads or invalid formats.
+ */
+export function sanitizeEmailInput(value) {
+  const clean = String(value ?? '').trim().toLowerCase();
+  if (!clean || clean.length > 254) return '';
+  if (/[<>"'`\s\\]/.test(clean)) return '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return '';
+  return clean;
+}
+
+/**
+ * Sanitizes a Course item from form submission or JSON/Firestore restoration.
+ */
+export function sanitizeCourseItem(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const title = sanitizeTextInput(raw.title, 120);
+  if (!title) return null;
+  const allowedStatuses = ['active', 'completed', 'planned'];
+  const status = allowedStatuses.includes(raw.status) ? raw.status : 'active';
+  const rawCfu = Number(raw.cfu);
+  const cfu = Number.isFinite(rawCfu) ? Math.min(60, Math.max(1, Math.round(rawCfu))) : 6;
+  const rawYear = Number(raw.year);
+  const year = Number.isFinite(rawYear) ? Math.min(6, Math.max(1, Math.round(rawYear))) : 1;
+  const rawSem = Number(raw.semester);
+  const semester = Number.isFinite(rawSem) ? Math.min(2, Math.max(1, Math.round(rawSem))) : 1;
+  const email = sanitizeEmailInput(raw.email);
+  const officeHours = sanitizeTextInput(raw.officeHours, 120);
+  const notes = sanitizeTextInput(raw.notes, 2000, true);
+  const id = sanitizeTextInput(raw.id || `course-${Date.now()}`, 80);
+  const code = sanitizeTextInput(raw.code || title.slice(0, 6).toUpperCase(), 20);
+  const shortTitle = sanitizeTextInput(raw.shortTitle || title, 60) || title;
+  const color = /^#[0-9A-Fa-f]{6}$/.test(String(raw.color || '')) ? raw.color : '#3B77BC';
+  const progress = status === 'completed' ? 100 : Math.min(100, Math.max(0, Number(raw.progress) || 0));
+
+  return {
+    id,
+    code,
+    title,
+    shortTitle,
+    email,
+    officeHours,
+    cfu,
+    year,
+    semester,
+    status,
+    progress,
+    color,
+    notes,
+  };
+}
+
+/**
+ * Sanitizes a StudyLog item from form submission or JSON/Firestore restoration.
+ */
+export function sanitizeStudyLogItem(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const courseName = sanitizeTextInput(raw.courseName, 120);
+  if (!courseName) return null;
+  const rawMins = Number(raw.durationMinutes);
+  const durationMinutes = Number.isFinite(rawMins)
+    ? Math.min(720, Math.max(1, Math.round(rawMins)))
+    : 60;
+  const rawDate = String(raw.date || '').trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+    ? rawDate
+    : new Date().toISOString().split('T')[0];
+  const allowedTags = ['Deep Work', 'Exam Prep', 'Lecture Review', 'Exercises', 'Project'];
+  const tag = allowedTags.includes(raw.tag) ? raw.tag : 'Deep Work';
+  const notes = sanitizeTextInput(raw.notes, 1000, true);
+  const id = sanitizeTextInput(raw.id || `log-${Date.now()}`, 80);
+  const courseId = raw.courseId ? sanitizeTextInput(raw.courseId, 80) : undefined;
+  const rating = Math.min(5, Math.max(1, Number(raw.rating) || 5));
+  const timestamp = typeof raw.timestamp === 'number' && Number.isFinite(raw.timestamp) ? raw.timestamp : Date.now();
+
+  return {
+    id,
+    courseId,
+    courseName,
+    durationMinutes,
+    date,
+    timeRange: date,
+    notes,
+    rating,
+    tag,
+    timestamp,
+  };
+}
+
+/**
+ * Sanitizes an Assignment/Exam item from form submission or JSON/Firestore restoration.
+ */
+export function sanitizeAssignmentItem(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const title = sanitizeTextInput(raw.title, 150);
+  const courseName = sanitizeTextInput(raw.courseName, 120);
+  if (!title || !courseName) return null;
+  const allowedTypes = ['Exam', 'Midterm', 'Project', 'Reading', 'Final', 'Oral', 'Assignment'];
+  const type = allowedTypes.includes(raw.type) ? raw.type : 'Exam';
+  const rawDue = String(raw.dueDate || '').trim();
+  const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDue)
+    ? rawDue
+    : new Date().toISOString().split('T')[0];
+  const allowedStatuses = ['todo', 'in-progress', 'completed'];
+  const status = allowedStatuses.includes(raw.status) ? raw.status : 'todo';
+  const notes = sanitizeTextInput(raw.notes, 1000, true);
+  const id = sanitizeTextInput(raw.id || `asg-${Date.now()}`, 80);
+
+  let grade = undefined;
+  if (raw.grade !== undefined && raw.grade !== null && raw.grade !== '') {
+    const numGrade = Number(raw.grade);
+    if (Number.isFinite(numGrade)) {
+      grade = Math.min(30, Math.max(0, numGrade));
+    }
+  }
+
+  let examParts = undefined;
+  if (Array.isArray(raw.examParts) && raw.examParts.length > 0) {
+    examParts = raw.examParts.slice(0, 2).map((part, idx) => {
+      const pGrade =
+        part && part.grade !== undefined && part.grade !== null && part.grade !== ''
+          ? Math.min(30, Math.max(0, Number(part.grade)))
+          : undefined;
+      return {
+        label: sanitizeTextInput(part?.label || `Esonero ${idx + 1}`, 40),
+        grade: Number.isFinite(pGrade) ? pGrade : undefined,
+      };
+    });
+  }
+
+  return {
+    id,
+    title,
+    courseName,
+    type,
+    dueDate,
+    status,
+    grade,
+    examParts,
+    notes,
+    completedAt: typeof raw.completedAt === 'number' ? raw.completedAt : undefined,
+  };
+}
+
+/**
  * Validates and normalizes user-submitted resource URLs to prevent javascript: or data: XSS payloads.
  */
 export function sanitizeResourceUrl(rawUrl) {
@@ -448,14 +625,37 @@ export function sanitizeUserProfile(rawProfile, fallbackProfile = {}, lockedEmai
     'squadIds',
   ];
 
+  const stringFields = {
+    name: 100,
+    studentId: 40,
+    degreeLevel: 80,
+    degreeName: 120,
+    degreeType: 80,
+    status: 40,
+    currentSession: 60,
+    academicYear: 40,
+    enrolledYear: 20,
+    institution: 120,
+    lastActiveDate: 20,
+    activeSquadId: 80,
+  };
+
   const clean = { ...fallbackProfile };
   for (const key of allowedFields) {
     if (Object.prototype.hasOwnProperty.call(rawProfile, key) && rawProfile[key] !== undefined) {
-      clean[key] = rawProfile[key];
+      if (key in stringFields && typeof rawProfile[key] === 'string') {
+        clean[key] = sanitizeTextInput(rawProfile[key], stringFields[key]);
+      } else if (key === 'email' && typeof rawProfile[key] === 'string') {
+        clean.email = sanitizeEmailInput(rawProfile[key]) || fallbackProfile.email || '';
+      } else if ((key === 'avatarUrl' || key === 'logoUrl') && rawProfile[key]) {
+        clean[key] = sanitizeResourceUrl(rawProfile[key]) || '';
+      } else {
+        clean[key] = rawProfile[key];
+      }
     }
   }
   if (lockedEmail) {
-    clean.email = String(lockedEmail).trim().toLowerCase();
+    clean.email = sanitizeEmailInput(lockedEmail) || String(lockedEmail).trim().toLowerCase();
   }
   return clean;
 }
@@ -471,10 +671,10 @@ export function sanitizeResourceLinksList(links) {
     const safeUrl = sanitizeResourceUrl(item.url);
     if (!safeUrl) continue;
     out.push({
-      id: String(item.id || `res-${Date.now()}-${out.length}`),
-      title: String(item.title || 'Resource').slice(0, 200),
+      id: sanitizeTextInput(item.id || `res-${Date.now()}-${out.length}`, 80),
+      title: sanitizeTextInput(item.title || 'Resource', 200) || 'Resource',
       url: safeUrl,
-      category: String(item.category || 'Portal').slice(0, 64),
+      category: sanitizeTextInput(item.category || 'Portal', 64) || 'Portal',
       createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
     });
   }
@@ -535,8 +735,8 @@ export function formatGoogleAuthError(err) {
 
 export async function dispatchVerificationCode(email, dbInstance) {
   try {
-    const normalized = String(email || '').trim().toLowerCase();
-    if (!normalized || !normalized.includes('@')) {
+    const normalized = sanitizeEmailInput(email);
+    if (!normalized) {
       return {
         success: false,
         expiresAt: 0,
@@ -562,31 +762,33 @@ export async function dispatchVerificationCode(email, dbInstance) {
     const expiresAt = Date.now() + 15 * 60 * 1000;
 
     // Store ONLY the salted hash in Firestore — NEVER store the plaintext OTP code!
-    const verRef = doc(dbInstance, 'emailVerifications', docId);
-    await setDoc(verRef, {
-      email: normalized,
-      code: null,
-      codeSalt,
-      codeHash,
-      attempts: 0,
-      maxAttempts: 5,
-      expiresAt,
-      verified: false,
-      createdAt: new Date().toISOString(),
-    });
-
-    try {
-      await addDoc(collection(dbInstance, 'mail'), {
-        to: [normalized],
-        message: {
-          subject: 'Your UniSphere Verification Code',
-          text: `Your UniSphere verification code is: ${code}\nThis code will expire in 15 minutes.`,
-          html: `<div style="font-family: sans-serif; padding: 20px;"><h2>UniSphere Verification Code</h2><p>Here is your 6-digit verification code to confirm your email (<strong>${normalized.replace(/[<>&"']/g, '')}</strong>):</p><div style="font-size: 28px; letter-spacing: 6px; font-weight: bold; padding: 12px; border: 1px solid #333; text-align: center; margin: 16px 0;">${code}</div><p>This code will expire in 15 minutes.</p></div>`,
-        },
-        createdAt: serverTimestamp(),
+    if (dbInstance) {
+      const verRef = doc(dbInstance, 'emailVerifications', docId);
+      await setDoc(verRef, {
+        email: normalized,
+        code: null,
+        codeSalt,
+        codeHash,
+        attempts: 0,
+        maxAttempts: 5,
+        expiresAt,
+        verified: false,
+        createdAt: new Date().toISOString(),
       });
-    } catch (mailErr) {
-      console.warn('Firestore mail collection trigger skipped:', mailErr);
+
+      try {
+        await addDoc(collection(dbInstance, 'mail'), {
+          to: [normalized],
+          message: {
+            subject: 'Your UniSphere Verification Code',
+            text: `Your UniSphere verification code is: ${code}\nThis code will expire in 15 minutes.`,
+            html: `<div style="font-family: sans-serif; padding: 20px;"><h2>UniSphere Verification Code</h2><p>Here is your 6-digit verification code to confirm your email (<strong>${escapeHtml(normalized)}</strong>):</p><div style="font-size: 28px; letter-spacing: 6px; font-weight: bold; padding: 12px; border: 1px solid #333; text-align: center; margin: 16px 0;">${escapeHtml(code)}</div><p>This code will expire in 15 minutes.</p></div>`,
+          },
+          createdAt: serverTimestamp(),
+        });
+      } catch (mailErr) {
+        console.warn('Firestore mail collection trigger skipped:', mailErr);
+      }
     }
 
     let emailSent = false;
@@ -635,11 +837,11 @@ export async function dispatchVerificationCode(email, dbInstance) {
 
 export async function verifyEmailCode(email, inputCode, dbInstance) {
   try {
-    const normalized = String(email || '').trim().toLowerCase();
+    const normalized = sanitizeEmailInput(email);
     const docId = getEmailDocId(normalized);
     const cleanCode = String(inputCode || '').trim();
 
-    if (!cleanCode || !/^\d{6}$/.test(cleanCode)) {
+    if (!normalized || !cleanCode || !/^\d{6}$/.test(cleanCode)) {
       return { success: false, error: 'Please enter a valid 6-digit verification code.' };
     }
 
@@ -648,6 +850,13 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
       return {
         success: false,
         error: `Too many verification attempts. Please wait ${rateCheck.retryAfterSeconds}s and try again.`,
+      };
+    }
+
+    if (!dbInstance) {
+      return {
+        success: false,
+        error: 'Cloud database is not configured in this environment.',
       };
     }
 

@@ -15,6 +15,12 @@ import {
   sanitizeUserProfile,
   sanitizeResourceLinksList,
   formatGoogleAuthError,
+  escapeHtml,
+  sanitizeTextInput,
+  sanitizeEmailInput,
+  sanitizeCourseItem,
+  sanitizeStudyLogItem,
+  sanitizeAssignmentItem,
 } from '../lib/authService.js';
 
 describe('Password Hashing & Verification (PBKDF2 + Legacy Compatibility)', () => {
@@ -178,18 +184,23 @@ describe('Security Headers, URL Sanitization, CSV Injection & Profile Stripping 
   });
 });
 
-describe('Firebase Config Fallback, Login Binding & Firestore Rules Hardening (#30)', () => {
+describe('Firebase Config Fallback, Login Binding & Firestore Rules Hardening (#30, #31)', () => {
   const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
 
-  it('ensures src/lib/firebase.js initializes with VITE_FIREBASE_* or fallback config without external JSON import', () => {
+  it('ensures src/lib/firebase.js reads from VITE_FIREBASE_* env vars and never hardcodes exposed AIzaSy API keys (#31)', () => {
     const firebaseSrc = fs.readFileSync(path.join(repoRoot, 'src/lib/firebase.js'), 'utf8');
-    assert.ok(
-      firebaseSrc.includes('DEFAULT_FIREBASE_CONFIG'),
-      'firebase.js must include inline DEFAULT_FIREBASE_CONFIG fallback so ES module loading never fails when .env is absent'
-    );
     assert.ok(
       firebaseSrc.includes('VITE_FIREBASE_API_KEY'),
       'firebase.js must support VITE_FIREBASE_* environment variables'
+    );
+    assert.ok(
+      !firebaseSrc.includes('AIzaSy'),
+      'firebase.js must not contain hardcoded AIzaSy API keys'
+    );
+    assert.equal(
+      fs.existsSync(path.join(repoRoot, 'firebase-applet-config.json')),
+      false,
+      'firebase-applet-config.json with exposed keys must not be present in the repository'
     );
   });
 
@@ -220,6 +231,85 @@ describe('Firebase Config Fallback, Login Binding & Firestore Rules Hardening (#
       rulesContent.includes("(!('code' in data) || data.code == null)"),
       'emailVerifications must forbid storing non-null plaintext code'
     );
+  });
+});
+
+describe('Form Input Sanitization & XSS Protection (#31)', () => {
+  it('escapes HTML entities in untrusted strings via escapeHtml', () => {
+    assert.equal(
+      escapeHtml('<img src=x onerror="alert(1)">\'&'),
+      '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;&#39;&amp;'
+    );
+  });
+
+  it('sanitizes text inputs by stripping control characters, script/HTML tags, and enforcing length limits', () => {
+    assert.equal(
+      sanitizeTextInput('  <script>alert("xss")</script>Analisi\u0000 1  ', 50),
+      'Analisi 1'
+    );
+    assert.equal(
+      sanitizeTextInput('<b>Prof.</b> <img src=x onerror=alert(1)>Rossi', 100),
+      'Prof. Rossi'
+    );
+    assert.equal(sanitizeTextInput('A'.repeat(500), 20).length, 20);
+  });
+
+  it('validates and normalizes email inputs via sanitizeEmailInput', () => {
+    assert.equal(sanitizeEmailInput('  Student@UniRoma3.IT '), 'student@uniroma3.it');
+    assert.equal(sanitizeEmailInput('not-an-email'), '');
+    assert.equal(sanitizeEmailInput('evil<script>@uni.it'), '');
+  });
+
+  it('sanitizes course, study log, and assignment form/import payloads against XSS and invalid ranges', () => {
+    const cleanCourse = sanitizeCourseItem({
+      id: 'course-1',
+      title: '<script>evil()</script>Fisica 1',
+      status: 'invalid-status',
+      cfu: 999,
+      year: -2,
+      semester: 5,
+      email: 'javascript:alert(1)',
+      officeHours: '<b>Mon 10-12</b>',
+      notes: '<svg onload=alert(1)>Mechanics',
+    });
+    assert.equal(cleanCourse.title, 'Fisica 1');
+    assert.equal(cleanCourse.status, 'active');
+    assert.equal(cleanCourse.cfu, 60);
+    assert.equal(cleanCourse.year, 1);
+    assert.equal(cleanCourse.semester, 2);
+    assert.equal(cleanCourse.email, '');
+    assert.equal(cleanCourse.officeHours, 'Mon 10-12');
+    assert.equal(cleanCourse.notes, 'Mechanics');
+
+    const cleanLog = sanitizeStudyLogItem({
+      id: 'log-1',
+      courseName: '<img src=x onerror=alert(1)>Analisi 1',
+      durationMinutes: 9999,
+      date: '2026-11-07',
+      tag: '<script>hack</script>',
+      notes: 'Derivatives <iframe>bad</iframe>',
+    });
+    assert.equal(cleanLog.courseName, 'Analisi 1');
+    assert.equal(cleanLog.durationMinutes, 720);
+    assert.equal(cleanLog.tag, 'Deep Work');
+    assert.equal(cleanLog.notes, 'Derivatives');
+
+    const cleanAsg = sanitizeAssignmentItem({
+      id: 'asg-1',
+      title: '<b>Midterm 1</b>',
+      courseName: '<script>x</script>Analisi 1',
+      type: 'UnknownType',
+      dueDate: '2026-11-20',
+      status: 'hacked',
+      grade: 45,
+      notes: '<a href="javascript:alert(1)">Room A</a>',
+    });
+    assert.equal(cleanAsg.title, 'Midterm 1');
+    assert.equal(cleanAsg.courseName, 'Analisi 1');
+    assert.equal(cleanAsg.type, 'Exam');
+    assert.equal(cleanAsg.status, 'todo');
+    assert.equal(cleanAsg.grade, 30);
+    assert.equal(cleanAsg.notes, 'Room A');
   });
 });
 

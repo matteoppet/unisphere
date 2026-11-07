@@ -31,6 +31,10 @@ export async function fetchUserSquads(currentUid, email) {
   const foundSquadsMap = new Map();
   let activeSquadId = null;
 
+  if (!db) {
+    return { squads: [], activeSquadId: null };
+  }
+
   try {
     const userDocRef = doc(db, 'users', userDocId);
     const userSnap = await getDoc(userDocRef);
@@ -86,6 +90,7 @@ export async function fetchUserSquads(currentUid, email) {
 }
 
 export async function syncSquadToUserDoc(email, currentUid, squadId, makeActive = true) {
+  if (!db) return;
   const userDocId = getUserDocId(email, currentUid);
   const userRef = doc(db, 'users', userDocId);
 
@@ -106,6 +111,7 @@ export async function syncSquadToUserDoc(email, currentUid, squadId, makeActive 
 }
 
 export async function removeSquadFromUserDoc(email, currentUid, squadId, nextActiveSquadId = null) {
+  if (!db) return;
   const userDocId = getUserDocId(email, currentUid);
   const userRef = doc(db, 'users', userDocId);
 
@@ -123,6 +129,7 @@ export async function removeSquadFromUserDoc(email, currentUid, squadId, nextAct
 }
 
 export async function saveSquadMemberToCloud(squadId, member) {
+  if (!db) return;
   try {
     const { email: _omitEmail, ...sanitizedMember } = member || {};
     const memberRef = doc(db, 'squads', squadId, 'members', sanitizedMember.uid);
