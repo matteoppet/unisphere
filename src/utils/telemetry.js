@@ -108,6 +108,7 @@ export function getWeekDaysSummary(studyLogs = [], referenceDate = new Date()) {
 
   return {
     weekDays,
+    widgetDays: weekDays.slice(0, 6),
     weekTotalMinutes,
     weekTotalSessions,
     activeDaysCount,

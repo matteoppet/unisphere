@@ -79,3 +79,24 @@ describe('Weekly Focus widget calculation and reset (#16)', () => {
     assert.equal(mondayFocus.weeklyGoalPercent, 0);
   });
 });
+
+describe('Weekly log per day widget includes Saturday (#32)', () => {
+  it('returns 6 days (Mon through Sat) in widgetDays with Saturday study time included', () => {
+    const saturdayLogs = [
+      { date: '2026-10-24', durationMinutes: 90 }, // Saturday
+    ];
+    const summary = getWeekDaysSummary(saturdayLogs, new Date(2026, 9, 21)); // Wednesday of that week
+    assert.ok(Array.isArray(summary.widgetDays));
+    assert.equal(summary.widgetDays.length, 6);
+    assert.deepEqual(
+      summary.widgetDays.map((d) => d.shortDay),
+      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    );
+    const saturdayEntry = summary.widgetDays[5];
+    assert.equal(saturdayEntry.shortDay, 'Sat');
+    assert.equal(saturdayEntry.dateStr, '2026-10-24');
+    assert.equal(saturdayEntry.minutes, 90);
+    assert.equal(saturdayEntry.hours, '1h 30m');
+  });
+});
+

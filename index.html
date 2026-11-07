@@ -99,7 +99,7 @@
               <h3>Sessions Logs</h3>
               <button type="button" id="btn-dash-add-log">Add Log</button>
             </div>
-            <div class="week-5day-tracker" aria-label="Current 5-Day Week Study Time">
+            <div class="week-5day-tracker" aria-label="Current 6-Day Week Study Time">
               <table>
                 <thead>
                   <tr id="dash-5day-thead"></tr>
@@ -381,7 +381,7 @@
         const thead = document.getElementById('dash-5day-thead');
         const tbody = document.getElementById('dash-5day-tbody');
         if (thead && tbody && !thead.innerHTML.trim()) {
-          const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+          const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
           const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
           const now = new Date();
           const dayOfWeek = now.getDay();

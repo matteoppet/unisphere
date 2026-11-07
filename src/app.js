@@ -627,8 +627,7 @@ export function initApp() {
       .reduce((sum, c) => sum + c.cfu, 0);
     const targetCFU = profile.totalTargetCFU || 180;
     const media = calculateMediaGrades(assignments, courses);
-    const { weekDays, weekTotalMinutes } = getWeekDaysSummary(studyLogs);
-    const fiveDayWeek = weekDays.slice(0, 5);
+    const { widgetDays, weekTotalMinutes } = getWeekDaysSummary(studyLogs);
 
     const elDegree = document.getElementById('summary-degree');
     if (elDegree) elDegree.textContent = profile.degreeName || 'Not set';
@@ -677,7 +676,7 @@ export function initApp() {
 
     const dash5DayThead = document.getElementById('dash-5day-thead');
     if (dash5DayThead) {
-      dash5DayThead.innerHTML = fiveDayWeek
+      dash5DayThead.innerHTML = widgetDays
         .map(
           (d) =>
             `<th>${escapeHtml(d.shortDay)}<span class="day-sub">${escapeHtml(d.formattedDate)}</span></th>`
@@ -687,7 +686,7 @@ export function initApp() {
 
     const dash5DayTbody = document.getElementById('dash-5day-tbody');
     if (dash5DayTbody) {
-      dash5DayTbody.innerHTML = fiveDayWeek
+      dash5DayTbody.innerHTML = widgetDays
         .map(
           (d) =>
             `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
@@ -834,25 +833,24 @@ export function initApp() {
   }
 
   function populateLogsPage() {
-    const { weekDays } = getWeekDaysSummary(studyLogs);
-    const fiveDayWeek = weekDays.slice(0, 5);
+    const { widgetDays } = getWeekDaysSummary(studyLogs);
     const totalMinutesAllTime = studyLogs.reduce((sum, l) => sum + l.durationMinutes, 0);
 
     const headerEl = document.getElementById('logs-5day-header');
     if (headerEl) {
-      headerEl.textContent = `Current 5-Day Week Study Time (Total All-Time: ${formatStudyDuration(totalMinutesAllTime)})`;
+      headerEl.textContent = `Current 6-Day Week Study Time (Total All-Time: ${formatStudyDuration(totalMinutesAllTime)})`;
     }
 
     const theadEl = document.getElementById('logs-5day-thead');
     if (theadEl) {
-      theadEl.innerHTML = fiveDayWeek
+      theadEl.innerHTML = widgetDays
         .map((d) => `<th>${escapeHtml(d.shortDay)} (${escapeHtml(d.formattedDate)})</th>`)
         .join('');
     }
 
     const tbodyEl = document.getElementById('logs-5day-tbody');
     if (tbodyEl) {
-      tbodyEl.innerHTML = fiveDayWeek
+      tbodyEl.innerHTML = widgetDays
         .map(
           (d) =>
             `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
