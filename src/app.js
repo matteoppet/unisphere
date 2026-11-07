@@ -7,6 +7,8 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
 } from 'firebase/auth';
 import {
   doc,
@@ -21,8 +23,12 @@ import {
 import {
   getEmailDocId,
   hashPassword,
+  verifyPassword,
   dispatchVerificationCode,
   verifyEmailCode,
+  loginRateLimiter,
+  sanitizeResourceUrl,
+  formatGoogleAuthError,
 } from './lib/authService.js';
 import {
   fetchUserSquads,
@@ -1060,11 +1066,16 @@ export function initApp() {
     const email = sessionEmail || profile.email;
     const uid = email ? getEmailDocId(email) : 'local_student';
     try {
-      const loaded = await fetchUserSquads(email, uid, profile.squadIds);
+      const result = await fetchUserSquads(uid, email);
+      const loaded = Array.isArray(result)
+        ? result
+        : Array.isArray(result?.squads)
+        ? result.squads
+        : [];
       if (loaded.length > 0) {
         squads = loaded;
         if (!activeSquadId || !squads.some((s) => s.id === activeSquadId)) {
-          activeSquadId = squads[0].id;
+          activeSquadId = result?.activeSquadId || squads[0].id;
         }
         subscribeToSquadMembers(activeSquadId);
       }
@@ -1274,73 +1285,352 @@ export function initApp() {
     setStatus(`Logged in as ${normalizedEmail}`);
   }
 
-  function bindAuthEvents() {
-    document.getElementById('form-auth-login')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const emailInput = document.getElementById('auth-login-email');
-      const passInput = document.getElementById('auth-login-password');
-      const normalizedEmail = emailInput?.value.trim().toLowerCase() || '';
-      const password = passInput?.value || '';
-      if (!normalizedEmail || !password) return;
+  async function completeGoogleUserSignIn(googleUser) {
+    const mail = googleUser?.email?.trim().toLowerCase() || '';
+    if (!mail) {
+      authNotice = {
+        type: 'error',
+        text: 'Google account did not return an email address.',
+      };
+      populateLoginPage();
+      return;
+    }
 
-      try {
-        const docId = getEmailDocId(normalizedEmail);
-        const userRef = doc(db, 'users', docId);
-        const snap = await getDoc(userRef);
+    const docId = getEmailDocId(mail);
+    const userRef = doc(db, 'users', docId);
+    const fallbackRecord = {
+      uid: docId,
+      authUid: googleUser.uid || docId,
+      email: mail,
+      name: googleUser.displayName || profile.name || mail.split('@')[0],
+      studentId: profile.studentId || '',
+      authProvider: 'google',
+      emailVerified: true,
+      degreeName: profile.degreeName || '',
+      institution: profile.institution || '',
+      degreeType: profile.degreeType || 'Laurea Triennale',
+      totalTargetCFU: profile.totalTargetCFU || 180,
+      academicYear: profile.academicYear || 'Year 1',
+      courses,
+      studyLogs,
+      assignments,
+      quickNotes,
+      checklist,
+      resourceLinks,
+      createdAt: new Date().toISOString(),
+      updatedAt: Date.now(),
+    };
 
-        if (!snap.exists()) {
+    try {
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        const existingData = snap.data();
+        await setDoc(
+          userRef,
+          {
+            authUid: googleUser.uid || existingData.authUid || docId,
+            authProvider: existingData.authProvider || 'google',
+            emailVerified: true,
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        ).catch(() => {});
+        completeCloudLogin(existingData, mail);
+        return;
+      }
+
+      await setDoc(userRef, fallbackRecord, { merge: true });
+      completeCloudLogin(fallbackRecord, mail);
+    } catch (firestoreErr) {
+      console.warn('Firestore profile sync after Google SSO notice:', firestoreErr);
+      completeCloudLogin(fallbackRecord, mail);
+    }
+  }
+
+  let isGoogleSignInPending = false;
+  async function handleGoogleSignIn() {
+    if (isGoogleSignInPending) return;
+    isGoogleSignInPending = true;
+
+    const googleBtn = document.getElementById('btn-google-sso');
+    if (googleBtn) {
+      googleBtn.disabled = true;
+      googleBtn.textContent = 'Signing in with Google...';
+    }
+
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('email');
+      provider.addScope('profile');
+      provider.setCustomParameters({ prompt: 'select_account' });
+
+      const res = await signInWithPopup(auth, provider);
+      if (res?.user) {
+        await completeGoogleUserSignIn(res.user);
+      }
+    } catch (err) {
+      const classified = formatGoogleAuthError(err);
+      if (classified.shouldFallbackToRedirect) {
+        authNotice = {
+          type: 'success',
+          text: classified.message,
+        };
+        populateLoginPage();
+        try {
+          const redirectProvider = new GoogleAuthProvider();
+          redirectProvider.addScope('email');
+          redirectProvider.addScope('profile');
+          redirectProvider.setCustomParameters({ prompt: 'select_account' });
+          await signInWithRedirect(auth, redirectProvider);
+          return;
+        } catch (redirectErr) {
+          const redirectClassified = formatGoogleAuthError(redirectErr);
           authNotice = {
             type: 'error',
-            text: 'No account found with this email. Please register on the right.',
+            text: redirectClassified.message,
+          };
+          populateLoginPage();
+        }
+      } else {
+        authNotice = {
+          type: 'error',
+          text: classified.message,
+        };
+        populateLoginPage();
+      }
+    } finally {
+      isGoogleSignInPending = false;
+      const btnAfter = document.getElementById('btn-google-sso');
+      if (btnAfter) {
+        btnAfter.disabled = false;
+        btnAfter.textContent = 'Sign In with Google';
+      }
+    }
+  }
+
+  function bindAuthEvents() {
+    const loginForm = document.getElementById('form-auth-login');
+    if (loginForm && !loginForm.dataset.bound) {
+      loginForm.dataset.bound = 'true';
+      loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const emailInput = document.getElementById('auth-login-email');
+        const passInput = document.getElementById('auth-login-password');
+        const normalizedEmail = emailInput?.value.trim().toLowerCase() || '';
+        const password = passInput?.value || '';
+        if (!normalizedEmail || !password) return;
+
+        const rateStatus = loginRateLimiter.check(normalizedEmail);
+        if (!rateStatus.allowed) {
+          authNotice = {
+            type: 'error',
+            text: `Too many failed sign-in attempts. Please wait ${rateStatus.retryAfterSeconds}s before trying again.`,
           };
           populateLoginPage();
           return;
         }
 
-        const data = snap.data();
-        const inputHash = await hashPassword(password);
-        if (data.passwordHash && data.passwordHash !== inputHash) {
-          authNotice = { type: 'error', text: 'Incorrect password. Please try again.' };
+        try {
+          const docId = getEmailDocId(normalizedEmail);
+          const userRef = doc(db, 'users', docId);
+
+          let firebaseAuthSucceeded = false;
+          try {
+            await signInWithEmailAndPassword(auth, normalizedEmail, password);
+            firebaseAuthSucceeded = true;
+          } catch (fbErr) {
+            const fbCode = String(fbErr?.code || '');
+            if (fbCode === 'auth/too-many-requests') {
+              loginRateLimiter.consume(normalizedEmail);
+              authNotice = {
+                type: 'error',
+                text: 'Account temporarily locked due to too many failed attempts. Please try again later.',
+              };
+              populateLoginPage();
+              return;
+            }
+          }
+
+          const snap = await getDoc(userRef);
+
+          if (!snap.exists()) {
+            if (firebaseAuthSucceeded) {
+              loginRateLimiter.reset(normalizedEmail);
+              completeCloudLogin(null, normalizedEmail);
+              return;
+            }
+            loginRateLimiter.consume(normalizedEmail);
+            authNotice = {
+              type: 'error',
+              text: 'No account found with this email. Please register on the right.',
+            };
+            populateLoginPage();
+            return;
+          }
+
+          const data = snap.data();
+
+          if (!firebaseAuthSucceeded) {
+            if (!data.passwordHash) {
+              loginRateLimiter.consume(normalizedEmail);
+              authNotice = {
+                type: 'error',
+                text:
+                  data.authProvider === 'google'
+                    ? 'This account uses Google Sign-In. Please click "Sign In with Google".'
+                    : 'Incorrect email or password. Please try again.',
+              };
+              populateLoginPage();
+              return;
+            }
+
+            const isPasswordValid = await verifyPassword(password, data.passwordHash);
+            if (!isPasswordValid) {
+              const consumed = loginRateLimiter.consume(normalizedEmail);
+              authNotice = {
+                type: 'error',
+                text: consumed.allowed
+                  ? `Incorrect password. Please try again (${consumed.remaining} attempts remaining).`
+                  : `Too many failed sign-in attempts. Please wait ${consumed.retryAfterSeconds}s.`,
+              };
+              populateLoginPage();
+              return;
+            }
+
+            // Upgrade legacy unsalted SHA-256 hash to salted PBKDF2 hash transparently
+            if (!String(data.passwordHash).startsWith('pbkdf2$')) {
+              const upgradedHash = await hashPassword(password);
+              await setDoc(userRef, { passwordHash: upgradedHash }, { merge: true }).catch(() => {});
+            }
+
+            // Ensure legacy Firestore account also exists in Firebase Auth
+            try {
+              await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+            } catch {}
+          } else if (data.passwordHash && !String(data.passwordHash).startsWith('pbkdf2$')) {
+            const upgradedHash = await hashPassword(password);
+            await setDoc(userRef, { passwordHash: upgradedHash }, { merge: true }).catch(() => {});
+          }
+
+          loginRateLimiter.reset(normalizedEmail);
+          completeCloudLogin(data, normalizedEmail);
+        } catch (err) {
+          loginRateLimiter.consume(normalizedEmail);
+          authNotice = {
+            type: 'error',
+            text: err instanceof Error ? err.message : 'Sign-in failed.',
+          };
+          populateLoginPage();
+        }
+      });
+    }
+
+    const googleBtn = document.getElementById('btn-google-sso');
+    if (googleBtn && !googleBtn.dataset.bound) {
+      googleBtn.dataset.bound = 'true';
+      googleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        void handleGoogleSignIn();
+      });
+    }
+
+    const otpBtn = document.getElementById('btn-send-otp');
+    if (otpBtn && !otpBtn.dataset.bound) {
+      otpBtn.dataset.bound = 'true';
+      otpBtn.addEventListener('click', async () => {
+        const regEmail = document
+          .getElementById('auth-reg-email')
+          ?.value.trim()
+          .toLowerCase();
+        if (!regEmail) {
+          authNotice = { type: 'error', text: 'Enter your email first to receive a code.' };
           populateLoginPage();
           return;
         }
-        try {
-          await signInWithEmailAndPassword(auth, normalizedEmail, password);
-        } catch {}
-        completeCloudLogin(data, normalizedEmail);
-      } catch (err) {
-        authNotice = {
-          type: 'error',
-          text: err instanceof Error ? err.message : 'Sign-in failed.',
-        };
-        populateLoginPage();
-      }
-    });
-
-    document.getElementById('btn-google-sso')?.addEventListener('click', async () => {
-      try {
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        const res = await signInWithPopup(auth, provider);
-        const mail = res.user?.email?.trim().toLowerCase() || '';
-        if (!mail) return;
-        const docId = getEmailDocId(mail);
-        const userRef = doc(db, 'users', docId);
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          completeCloudLogin(snap.data(), mail);
+        verificationSentTo = regEmail;
+        const res = await dispatchVerificationCode(regEmail, db);
+        if (res.success) {
+          authNotice = {
+            type: 'success',
+            text: `Verification code sent to ${regEmail}. Check your inbox.`,
+          };
         } else {
+          authNotice = {
+            type: 'error',
+            text: res.error || 'Could not send verification code.',
+          };
+        }
+        populateLoginPage();
+      });
+    }
+
+    const regForm = document.getElementById('form-auth-register');
+    if (regForm && !regForm.dataset.bound) {
+      regForm.dataset.bound = 'true';
+      regForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const regName = document.getElementById('auth-reg-name').value.trim();
+        const regEmail = document.getElementById('auth-reg-email').value.trim().toLowerCase();
+        const regDegree = document.getElementById('auth-reg-degree').value.trim();
+        const regInstitution = document.getElementById('auth-reg-institution').value.trim();
+        const regCFU = Number(document.getElementById('auth-reg-cfu').value) || 180;
+        const regPass = document.getElementById('auth-reg-password').value;
+        const regCode = document.getElementById('auth-reg-code').value.trim();
+
+        if (!regName || !regEmail || regPass.length < 6) {
+          authNotice = {
+            type: 'error',
+            text: 'Please provide your name, email, and a password of at least 6 characters.',
+          };
+          populateLoginPage();
+          return;
+        }
+
+        try {
+          if (regCode) {
+            const ver = await verifyEmailCode(regEmail, regCode, db);
+            if (!ver.success) {
+              authNotice = {
+                type: 'error',
+                text: ver.error || 'Invalid verification code.',
+              };
+              populateLoginPage();
+              return;
+            }
+          }
+
+          let authUid = null;
+          try {
+            const cred = await createUserWithEmailAndPassword(auth, regEmail, regPass);
+            authUid = cred.user?.uid || null;
+            await updateProfile(cred.user, { displayName: regName });
+          } catch (fbErr) {
+            if (fbErr?.code === 'auth/email-already-in-use') {
+              authNotice = {
+                type: 'error',
+                text: 'An account with this email already exists. Please sign in on the left.',
+              };
+              populateLoginPage();
+              return;
+            }
+          }
+
+          const docId = getEmailDocId(regEmail);
+          const userRef = doc(db, 'users', docId);
+          const passwordHash = await hashPassword(regPass);
+
           const newRecord = {
             uid: docId,
-            email: mail,
-            name: res.user.displayName || mail.split('@')[0],
+            authUid: authUid || docId,
+            email: regEmail,
+            name: regName,
             studentId: profile.studentId || '',
-            authProvider: 'google',
-            emailVerified: true,
-            degreeName: profile.degreeName || '',
-            institution: profile.institution || '',
+            passwordHash,
+            emailVerified: Boolean(regCode),
+            degreeName: regDegree,
+            institution: regInstitution,
             degreeType: profile.degreeType || 'Laurea Triennale',
-            totalTargetCFU: profile.totalTargetCFU || 180,
+            totalTargetCFU: regCFU,
             academicYear: profile.academicYear || 'Year 1',
             courses,
             studyLogs,
@@ -1351,110 +1641,18 @@ export function initApp() {
             createdAt: new Date().toISOString(),
             updatedAt: Date.now(),
           };
+
           await setDoc(userRef, newRecord, { merge: true });
-          completeCloudLogin(newRecord, mail);
+          completeCloudLogin(newRecord, regEmail);
+        } catch (err) {
+          authNotice = {
+            type: 'error',
+            text: err instanceof Error ? err.message : 'Registration error.',
+          };
+          populateLoginPage();
         }
-      } catch (err) {
-        authNotice = {
-          type: 'error',
-          text: err instanceof Error ? err.message : 'Google Sign-In popup failed.',
-        };
-        populateLoginPage();
-      }
-    });
-
-    document.getElementById('btn-send-otp')?.addEventListener('click', async () => {
-      const regEmail = document
-        .getElementById('auth-reg-email')
-        ?.value.trim()
-        .toLowerCase();
-      if (!regEmail) {
-        authNotice = { type: 'error', text: 'Enter your email first to receive a code.' };
-        populateLoginPage();
-        return;
-      }
-      verificationSentTo = regEmail;
-      const res = await dispatchVerificationCode(regEmail, db);
-      if (res.success) {
-        authNotice = {
-          type: 'success',
-          text: `Verification code sent to ${regEmail}. Check your inbox.`,
-        };
-      } else {
-        authNotice = {
-          type: 'error',
-          text: res.error || 'Could not send verification code.',
-        };
-      }
-      populateLoginPage();
-    });
-
-    document.getElementById('form-auth-register')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const regName = document.getElementById('auth-reg-name').value.trim();
-      const regEmail = document.getElementById('auth-reg-email').value.trim().toLowerCase();
-      const regDegree = document.getElementById('auth-reg-degree').value.trim();
-      const regInstitution = document.getElementById('auth-reg-institution').value.trim();
-      const regCFU = Number(document.getElementById('auth-reg-cfu').value) || 180;
-      const regPass = document.getElementById('auth-reg-password').value;
-      const regCode = document.getElementById('auth-reg-code').value.trim();
-
-      if (!regName || !regEmail || regPass.length < 6) return;
-
-      try {
-        if (regCode) {
-          const ver = await verifyEmailCode(regEmail, regCode, db);
-          if (!ver.success) {
-            authNotice = {
-              type: 'error',
-              text: ver.error || 'Invalid verification code.',
-            };
-            populateLoginPage();
-            return;
-          }
-        }
-
-        const docId = getEmailDocId(regEmail);
-        const userRef = doc(db, 'users', docId);
-        const passwordHash = await hashPassword(regPass);
-
-        const newRecord = {
-          uid: docId,
-          email: regEmail,
-          name: regName,
-          studentId: profile.studentId || '',
-          passwordHash,
-          emailVerified: Boolean(regCode),
-          degreeName: regDegree,
-          institution: regInstitution,
-          degreeType: profile.degreeType || 'Laurea Triennale',
-          totalTargetCFU: regCFU,
-          academicYear: profile.academicYear || 'Year 1',
-          courses,
-          studyLogs,
-          assignments,
-          quickNotes,
-          checklist,
-          resourceLinks,
-          createdAt: new Date().toISOString(),
-          updatedAt: Date.now(),
-        };
-
-        await setDoc(userRef, newRecord, { merge: true });
-        try {
-          const cred = await createUserWithEmailAndPassword(auth, regEmail, regPass);
-          await updateProfile(cred.user, { displayName: regName });
-        } catch {}
-
-        completeCloudLogin(newRecord, regEmail);
-      } catch (err) {
-        authNotice = {
-          type: 'error',
-          text: err instanceof Error ? err.message : 'Registration error.',
-        };
-        populateLoginPage();
-      }
-    });
+      });
+    }
   }
 
   // --- Bind Events for Active Route ---
@@ -1736,8 +1934,20 @@ export function initApp() {
 
   // --- Global Delegated Click Listeners for Navigation, Table Links & Modals ---
   document.addEventListener('click', (e) => {
-    const target = e.target;
+    const rawTarget = e.target;
+    const target =
+      rawTarget && typeof rawTarget.closest === 'function'
+        ? rawTarget.closest(
+            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], #btn-google-sso'
+          ) || rawTarget
+        : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
+
+    if (target.id === 'btn-google-sso') {
+      e.preventDefault();
+      void handleGoogleSignIn();
+      return;
+    }
 
     const navTarget = target.getAttribute('data-nav');
     if (navTarget) {
@@ -1984,15 +2194,19 @@ export function initApp() {
       resourceForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const title = document.getElementById('resource-title').value.trim();
-        const url = document.getElementById('resource-url').value.trim();
+        const rawUrl = document.getElementById('resource-url').value.trim();
         const category = document.getElementById('resource-category').value;
 
-        if (!title || !url) return;
+        const safeUrl = sanitizeResourceUrl(rawUrl);
+        if (!title || !safeUrl) {
+          alert('Please enter a valid http:// or https:// resource URL.');
+          return;
+        }
 
         const newRes = {
           id: `res-${Date.now()}`,
           title,
-          url,
+          url: safeUrl,
           category,
           createdAt: Date.now(),
         };
@@ -2097,16 +2311,35 @@ export function initApp() {
   }
 
   // --- Firebase Auth Listener & Browser History Navigation ---
+  getRedirectResult(auth)
+    .then((res) => {
+      if (res?.user) {
+        void completeGoogleUserSignIn(res.user);
+      }
+    })
+    .catch((err) => {
+      const classified = formatGoogleAuthError(err);
+      if (classified.code) {
+        authNotice = { type: 'error', text: classified.message };
+        populateLoginPage();
+      }
+    });
+
   onAuthStateChanged(auth, (user) => {
     if (user?.email) {
       const cleanEmail = user.email.trim().toLowerCase();
+      const wasUnauthenticated = !isAuthenticated;
       sessionEmail = cleanEmail;
       isAuthenticated = true;
       try {
         localStorage.setItem(`${STORAGE_KEY}_session_email`, cleanEmail);
       } catch {}
       setupRealtimeFirestoreSync();
-      void loadAndRenderPage(getRouteFromLocation(), false);
+      if (wasUnauthenticated) {
+        void completeGoogleUserSignIn(user);
+      } else {
+        void loadAndRenderPage(getRouteFromLocation(), false);
+      }
     }
   });
 

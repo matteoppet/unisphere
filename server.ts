@@ -9,7 +9,51 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const IP_WINDOW_MS = 15 * 60 * 1000;
+const IP_MAX_REQUESTS = 10;
+const EMAIL_WINDOW_MS = 15 * 60 * 1000;
+const EMAIL_MAX_REQUESTS = 3;
+
+const ipBuckets = new Map<string, number[]>();
+const emailBuckets = new Map<string, number[]>();
+
+function consumeRateLimit(
+  store: Map<string, number[]>,
+  key: string,
+  windowMs: number,
+  maxRequests: number
+): { allowed: boolean; retryAfterSeconds: number } {
+  const now = Date.now();
+  const cutoff = now - windowMs;
+  const normalizedKey = String(key || 'anonymous').trim().toLowerCase();
+  const existing = (store.get(normalizedKey) || []).filter((ts) => ts > cutoff);
+
+  if (existing.length >= maxRequests) {
+    store.set(normalizedKey, existing);
+    const retryAfterMs = Math.max(1000, existing[0] + windowMs - now);
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.ceil(retryAfterMs / 1000),
+    };
+  }
+
+  existing.push(now);
+  store.set(normalizedKey, existing);
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+function escapeHtml(value: string): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function generateEmailHtml(code: string, email: string): string {
+  const safeCode = escapeHtml(code);
+  const safeEmail = escapeHtml(email);
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -31,13 +75,13 @@ function generateEmailHtml(code: string, email: string): string {
       <td style="padding: 32px;">
         <h2 style="margin: 0 0 12px 0; color: #0f172a; font-size: 18px; font-weight: 600;">Verification Code</h2>
         <p style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.5; color: #475569;">
-          You requested a verification code for your account (<strong>${email}</strong>). Use the 6-digit confirmation code below to complete your authentication:
+          You requested a verification code for your account (<strong>${safeEmail}</strong>). Use the 6-digit confirmation code below to complete your authentication:
         </p>
         
         <!-- Code Display Box -->
         <div style="background-color: #eef2ff; border: 2px dashed #6366f1; border-radius: 10px; padding: 20px; text-align: center; margin: 24px 0;">
           <span style="font-family: 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 34px; font-weight: 800; letter-spacing: 8px; color: #4338ca; display: inline-block;">
-            ${code}
+            ${safeCode}
           </span>
           <p style="margin: 8px 0 0 0; font-size: 11px; color: #6366f1; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
             Valid for 15 minutes
@@ -65,6 +109,7 @@ function generateEmailHtml(code: string, email: string): string {
 
 async function startServer() {
   const app = express();
+  app.disable('x-powered-by');
 
   let port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const portArgIndex = process.argv.indexOf('--port');
@@ -73,13 +118,54 @@ async function startServer() {
     if (!isNaN(p)) port = p;
   }
 
-  app.use(express.json());
+  // Global Security Headers Middleware
+  app.use((_req, res, next) => {
+    const cspDirectives = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://accounts.google.com https://www.gstatic.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' data: https: blob:",
+      "connect-src 'self' ws: wss: https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.resend.com",
+      "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://apis.google.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ');
+
+    res.setHeader('Content-Security-Policy', cspDirectives);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    next();
+  });
+
+  app.use(express.json({ limit: '32kb' }));
 
   // Email dispatch handler
   const handleSendEmail = async (req: express.Request, res: express.Response) => {
-    const { email, code } = req.body;
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const clientIp =
+      (Array.isArray(forwardedFor) ? forwardedFor[0] : String(forwardedFor || '')).split(',')[0].trim() ||
+      req.ip ||
+      req.socket?.remoteAddress ||
+      'unknown-ip';
 
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
+    const ipLimit = consumeRateLimit(ipBuckets, clientIp, IP_WINDOW_MS, IP_MAX_REQUESTS);
+    if (!ipLimit.allowed) {
+      res.setHeader('Retry-After', String(ipLimit.retryAfterSeconds));
+      return res.status(429).json({
+        success: false,
+        error: `Too many requests from this IP. Please try again in ${ipLimit.retryAfterSeconds}s.`,
+      });
+    }
+
+    const { email, code } = req.body || {};
+
+    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       return res.status(400).json({ success: false, error: 'A valid email address is required.' });
     }
     if (!code || typeof code !== 'string' || !/^\d{6}$/.test(code.trim())) {
@@ -87,6 +173,20 @@ async function startServer() {
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const emailLimit = consumeRateLimit(
+      emailBuckets,
+      normalizedEmail,
+      EMAIL_WINDOW_MS,
+      EMAIL_MAX_REQUESTS
+    );
+    if (!emailLimit.allowed) {
+      res.setHeader('Retry-After', String(emailLimit.retryAfterSeconds));
+      return res.status(429).json({
+        success: false,
+        error: `Too many verification emails requested for this address. Try again in ${emailLimit.retryAfterSeconds}s.`,
+      });
+    }
+
     const cleanCode = code.trim();
     const htmlContent = generateEmailHtml(cleanCode, normalizedEmail);
     const textContent = `Your UniSphere verification code is: ${cleanCode}\nThis code will expire in 15 minutes.`;

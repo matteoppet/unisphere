@@ -1,7 +1,60 @@
 import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
+const PBKDF2_ITERATIONS = 100000;
+const PBKDF2_KEY_BITS = 256;
+const SALT_BYTES = 16;
+
 export function getEmailDocId(email) {
   return String(email || '').trim().toLowerCase().replace(/\//g, '_');
+}
+
+function getCrypto() {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto) return globalThis.crypto;
+  if (typeof window !== 'undefined' && window.crypto) return window.crypto;
+  return null;
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function hexToBytes(hex) {
+  const clean = String(hex || '').trim();
+  if (clean.length % 2 !== 0) return new Uint8Array(0);
+  const out = new Uint8Array(clean.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+function generateSaltHex(byteLength = SALT_BYTES) {
+  const cryptoObj = getCrypto();
+  const bytes = new Uint8Array(byteLength);
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    cryptoObj.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < byteLength; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+  return bytesToHex(bytes);
+}
+
+/**
+ * Constant-time string comparison to prevent timing side-channel attacks.
+ */
+export function timingSafeEqualStr(a, b) {
+  const strA = String(a ?? '');
+  const strB = String(b ?? '');
+  if (strA.length !== strB.length) return false;
+  let diff = 0;
+  for (let i = 0; i < strA.length; i++) {
+    diff |= strA.charCodeAt(i) ^ strB.charCodeAt(i);
+  }
+  return diff === 0;
 }
 
 function sha256Sync(ascii) {
@@ -96,46 +149,330 @@ function sha256Sync(ascii) {
   return result;
 }
 
-export async function hashPassword(password) {
-  const normalized = String(password || '').trim();
-  const cryptoObj =
-    typeof window !== 'undefined'
-      ? window.crypto
-      : typeof globalThis !== 'undefined'
-      ? globalThis.crypto
-      : null;
-
+export async function sha256Hex(value) {
+  const normalized = String(value || '').trim();
+  const cryptoObj = getCrypto();
   if (cryptoObj && cryptoObj.subtle) {
     try {
       const encoder = new TextEncoder();
       const data = encoder.encode(normalized);
       const hashBuffer = await cryptoObj.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+      return bytesToHex(new Uint8Array(hashBuffer));
     } catch {
       // Fallback to pure JS SHA-256
     }
   }
-
   return sha256Sync(normalized);
 }
 
+async function derivePbkdf2Hex(password, saltHex, iterations = PBKDF2_ITERATIONS) {
+  const normalized = String(password || '').trim();
+  const cryptoObj = getCrypto();
+  if (cryptoObj && cryptoObj.subtle) {
+    try {
+      const encoder = new TextEncoder();
+      const keyMaterial = await cryptoObj.subtle.importKey(
+        'raw',
+        encoder.encode(normalized),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits']
+      );
+      const derivedBits = await cryptoObj.subtle.deriveBits(
+        {
+          name: 'PBKDF2',
+          salt: hexToBytes(saltHex),
+          iterations,
+          hash: 'SHA-256',
+        },
+        keyMaterial,
+        PBKDF2_KEY_BITS
+      );
+      return bytesToHex(new Uint8Array(derivedBits));
+    } catch {
+      // Fallback if WebCrypto PBKDF2 is unavailable
+    }
+  }
+  // Iterated salted SHA-256 fallback if WebCrypto subtle is absent
+  let state = `${saltHex}:${normalized}`;
+  const fallbackRounds = Math.min(iterations, 5000);
+  for (let i = 0; i < fallbackRounds; i++) {
+    state = sha256Sync(`${saltHex}:${state}:${i}`);
+  }
+  return state;
+}
+
+/**
+ * Hashes a password using salted PBKDF2-HMAC-SHA256 (100,000 iterations).
+ * Format: pbkdf2$<iterations>$<saltHex>$<derivedHex>
+ */
+export async function hashPassword(password, customSaltHex = null) {
+  const saltHex = customSaltHex || generateSaltHex(SALT_BYTES);
+  const derivedHex = await derivePbkdf2Hex(password, saltHex, PBKDF2_ITERATIONS);
+  return `pbkdf2$${PBKDF2_ITERATIONS}$${saltHex}$${derivedHex}`;
+}
+
+/**
+ * Verifies a password against a stored PBKDF2 hash (or a legacy 64-char hex SHA-256 hash).
+ */
+export async function verifyPassword(password, storedHash) {
+  if (!storedHash || typeof storedHash !== 'string') return false;
+  const trimmedHash = storedHash.trim();
+
+  if (trimmedHash.startsWith('pbkdf2$')) {
+    const parts = trimmedHash.split('$');
+    if (parts.length !== 4) return false;
+    const iterations = parseInt(parts[1], 10);
+    const saltHex = parts[2];
+    const expectedHex = parts[3];
+    if (!iterations || !saltHex || !expectedHex) return false;
+
+    const actualHex = await derivePbkdf2Hex(password, saltHex, iterations);
+    return timingSafeEqualStr(actualHex, expectedHex);
+  }
+
+  // Legacy unsalted 64-character hex SHA-256 support for seamless account migration
+  if (/^[a-f0-9]{64}$/i.test(trimmedHash)) {
+    const legacyCandidate = await sha256Hex(password);
+    return timingSafeEqualStr(legacyCandidate.toLowerCase(), trimmedHash.toLowerCase());
+  }
+
+  return false;
+}
+
+/**
+ * Generates a 6-digit verification code using cryptographically secure random numbers (CSPRNG).
+ */
 export function generateVerificationCode() {
+  const cryptoObj = getCrypto();
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const array = new Uint32Array(1);
+    // Rejection sampling to avoid modulo bias (max multiple of 900,000 under 2^32 is 4,294,800,000)
+    const maxUnbiased = 4294800000;
+    let rand = maxUnbiased;
+    while (rand >= maxUnbiased) {
+      cryptoObj.getRandomValues(array);
+      rand = array[0];
+    }
+    return String(100000 + (rand % 900000));
+  }
   const num = Math.floor(100000 + Math.random() * 900000);
   return num.toString();
+}
+
+/**
+ * Creates a sliding-window rate limiter to protect auth, OTP, and API endpoints.
+ */
+export function createRateLimiter({
+  windowMs = 15 * 60 * 1000,
+  maxAttempts = 5,
+  nowFn = () => Date.now(),
+} = {}) {
+  const buckets = new Map();
+
+  function pruneAndGet(key) {
+    const normalizedKey = String(key || 'anonymous').trim().toLowerCase();
+    const now = nowFn();
+    const cutoff = now - windowMs;
+    const existing = buckets.get(normalizedKey) || [];
+    const active = existing.filter((ts) => ts > cutoff);
+    if (active.length > 0) {
+      buckets.set(normalizedKey, active);
+    } else {
+      buckets.delete(normalizedKey);
+    }
+    return { normalizedKey, now, active };
+  }
+
+  function check(key) {
+    const { active, now } = pruneAndGet(key);
+    if (active.length >= maxAttempts) {
+      const oldest = active[0];
+      const retryAfterMs = Math.max(1000, oldest + windowMs - now);
+      return {
+        allowed: false,
+        remaining: 0,
+        retryAfterSeconds: Math.ceil(retryAfterMs / 1000),
+      };
+    }
+    return {
+      allowed: true,
+      remaining: Math.max(0, maxAttempts - active.length),
+      retryAfterSeconds: 0,
+    };
+  }
+
+  function consume(key) {
+    const status = check(key);
+    if (!status.allowed) return status;
+    const { normalizedKey, now, active } = pruneAndGet(key);
+    active.push(now);
+    buckets.set(normalizedKey, active);
+    return {
+      allowed: true,
+      remaining: Math.max(0, maxAttempts - active.length),
+      retryAfterSeconds: 0,
+    };
+  }
+
+  function reset(key) {
+    const normalizedKey = String(key || 'anonymous').trim().toLowerCase();
+    buckets.delete(normalizedKey);
+  }
+
+  return { check, consume, reset };
+}
+
+export const loginRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxAttempts: 5,
+});
+
+export const otpDispatchRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxAttempts: 1,
+});
+
+export const otpVerifyRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  maxAttempts: 5,
+});
+
+/**
+ * Standard HTTP security headers for UniSphere (compatible with Firebase Auth, Google SSO, and Firestore).
+ */
+export function getSecurityHeaders() {
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://apis.google.com https://accounts.google.com https://www.gstatic.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: https: blob:",
+    "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.resend.com",
+    "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://apis.google.com",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join('; ');
+
+  return {
+    'Content-Security-Policy': cspDirectives,
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'SAMEORIGIN',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+    'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',
+  };
+}
+
+/**
+ * Validates and normalizes user-submitted resource URLs to prevent javascript: or data: XSS payloads.
+ */
+export function sanitizeResourceUrl(rawUrl) {
+  const trimmed = String(rawUrl || '').trim();
+  if (!trimmed) return null;
+  if (/^(javascript|data|vbscript|file):/i.test(trimmed)) {
+    return null;
+  }
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    return parsed.href;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Classifies Firebase Google Sign-In errors to determine whether to fall back to signInWithRedirect
+ * or display an actionable message.
+ */
+export function formatGoogleAuthError(err) {
+  const code = String(err?.code || '');
+  const rawMessage = String(err?.message || '');
+
+  if (
+    code === 'auth/popup-blocked' ||
+    code === 'auth/operation-not-supported-in-this-environment' ||
+    rawMessage.toLowerCase().includes('popup') && rawMessage.toLowerCase().includes('blocked')
+  ) {
+    return {
+      code,
+      shouldFallbackToRedirect: true,
+      message: 'Popup was blocked by the browser. Redirecting to Google Sign-In...',
+    };
+  }
+
+  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+    return {
+      code,
+      shouldFallbackToRedirect: false,
+      message: 'Google Sign-In window was closed before completing sign-in.',
+    };
+  }
+
+  if (code === 'auth/unauthorized-domain') {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+    return {
+      code,
+      shouldFallbackToRedirect: false,
+      message: `Domain "${host}" is not authorized in Firebase Console -> Authentication -> Settings -> Authorized Domains.`,
+    };
+  }
+
+  if (code === 'auth/operation-not-allowed') {
+    return {
+      code,
+      shouldFallbackToRedirect: false,
+      message: 'Google Sign-In provider is not enabled in Firebase Authentication settings.',
+    };
+  }
+
+  return {
+    code,
+    shouldFallbackToRedirect: false,
+    message: rawMessage || 'Google Sign-In failed. Please try again or sign in with email.',
+  };
 }
 
 export async function dispatchVerificationCode(email, dbInstance) {
   try {
     const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized || !normalized.includes('@')) {
+      return {
+        success: false,
+        expiresAt: 0,
+        emailSent: false,
+        error: 'Please enter a valid email address.',
+      };
+    }
+
+    const rateStatus = otpDispatchRateLimiter.consume(normalized);
+    if (!rateStatus.allowed) {
+      return {
+        success: false,
+        expiresAt: 0,
+        emailSent: false,
+        error: `Please wait ${rateStatus.retryAfterSeconds}s before requesting another verification code.`,
+      };
+    }
+
     const docId = getEmailDocId(normalized);
     const code = generateVerificationCode();
+    const codeHash = await sha256Hex(code);
     const expiresAt = Date.now() + 15 * 60 * 1000;
 
     const verRef = doc(dbInstance, 'emailVerifications', docId);
     await setDoc(verRef, {
       email: normalized,
       code,
+      codeHash,
+      attempts: 0,
+      maxAttempts: 5,
       expiresAt,
       verified: false,
       createdAt: new Date().toISOString(),
@@ -147,7 +484,7 @@ export async function dispatchVerificationCode(email, dbInstance) {
         message: {
           subject: `Your UniSphere Verification Code: ${code}`,
           text: `Your UniSphere verification code is: ${code}\nThis code will expire in 15 minutes.`,
-          html: `<div style="font-family: sans-serif; padding: 20px;"><h2>UniSphere Verification Code</h2><p>Here is your 6-digit verification code to confirm your email (<strong>${normalized}</strong>):</p><div style="font-size: 28px; letter-spacing: 6px; font-weight: bold; padding: 12px; border: 1px solid #333; text-align: center; margin: 16px 0;">${code}</div><p>This code will expire in 15 minutes.</p></div>`,
+          html: `<div style="font-family: sans-serif; padding: 20px;"><h2>UniSphere Verification Code</h2><p>Here is your 6-digit verification code to confirm your email (<strong>${normalized.replace(/[<>&"']/g, '')}</strong>):</p><div style="font-size: 28px; letter-spacing: 6px; font-weight: bold; padding: 12px; border: 1px solid #333; text-align: center; margin: 16px 0;">${code}</div><p>This code will expire in 15 minutes.</p></div>`,
         },
         createdAt: serverTimestamp(),
       });
@@ -205,8 +542,16 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
     const docId = getEmailDocId(normalized);
     const cleanCode = String(inputCode || '').trim();
 
-    if (!cleanCode || cleanCode.length < 6) {
-      return { success: false, error: 'Please enter the complete 6-digit verification code.' };
+    if (!cleanCode || !/^\d{6}$/.test(cleanCode)) {
+      return { success: false, error: 'Please enter a valid 6-digit verification code.' };
+    }
+
+    const rateCheck = otpVerifyRateLimiter.consume(normalized);
+    if (!rateCheck.allowed) {
+      return {
+        success: false,
+        error: `Too many verification attempts. Please wait ${rateCheck.retryAfterSeconds}s and try again.`,
+      };
     }
 
     const verRef = doc(dbInstance, 'emailVerifications', docId);
@@ -227,14 +572,33 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
       };
     }
 
-    if (data.code !== cleanCode) {
+    const attempts = typeof data.attempts === 'number' ? data.attempts : 0;
+    const maxAttempts = typeof data.maxAttempts === 'number' ? data.maxAttempts : 5;
+    if (attempts >= maxAttempts) {
+      return {
+        success: false,
+        error: 'Maximum verification attempts exceeded. Please request a new code.',
+      };
+    }
+
+    const inputCodeHash = await sha256Hex(cleanCode);
+    const matchesHash = data.codeHash && timingSafeEqualStr(data.codeHash, inputCodeHash);
+    const matchesPlain = data.code && timingSafeEqualStr(String(data.code), cleanCode);
+
+    if (!matchesHash && !matchesPlain) {
+      await setDoc(verRef, { attempts: attempts + 1 }, { merge: true }).catch(() => {});
       return {
         success: false,
         error: 'Incorrect verification code. Please check your email and try again.',
       };
     }
 
-    await setDoc(verRef, { verified: true, verifiedAt: new Date().toISOString() }, { merge: true });
+    otpVerifyRateLimiter.reset(normalized);
+    await setDoc(
+      verRef,
+      { verified: true, verifiedAt: new Date().toISOString(), code: null },
+      { merge: true }
+    );
 
     try {
       const userRef = doc(dbInstance, 'users', docId);

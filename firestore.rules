@@ -1,41 +1,453 @@
 rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: users
+// Document ID: {userId} (normalized email: email.trim().toLowerCase().replace(/\//g, '_'))
+// Fields:
+//   - uid: string (optional, <= 254 chars) - normalized email document ID
+//   - authUid: string (optional, <= 254 chars) - Firebase Auth UID
+//   - email: string (required on create, <= 254 chars) - user email address
+//   - name: string (optional, <= 120 chars) - display name
+//   - studentId: string (optional, <= 64 chars) - university matricola / ID
+//   - passwordHash: string (optional, <= 512 chars) - salted PBKDF2-HMAC-SHA256 hash
+//   - authProvider: string (optional, <= 32 chars) - 'email' | 'google' | 'microsoft'
+//   - emailVerified: bool (optional) - whether email was verified
+//   - degreeLevel: string (optional, <= 64 chars)
+//   - degreeName: string (optional, <= 160 chars)
+//   - degreeType: string (optional, <= 64 chars)
+//   - totalTargetCFU: number (optional, 0..500)
+//   - enrolledYear: string|number (optional)
+//   - academicYear: string (optional, <= 64 chars)
+//   - institution: string (optional, <= 160 chars)
+//   - status: string (optional, <= 64 chars)
+//   - currentSession: string (optional, <= 64 chars)
+//   - weeklyGoalHours: number (optional, 0..168)
+//   - avatarUrl: string (optional, <= 2048 chars)
+//   - logoUrl: string (optional, <= 2048 chars)
+//   - thesisPointsExpected: number (optional, 0..30)
+//   - courses: list (optional, <= 200 items)
+//   - studyLogs: list (optional, <= 2000 items)
+//   - assignments: list (optional, <= 500 items)
+//   - quickNotes: string|list (optional, <= 20000 chars or <= 500 items)
+//   - checklist: string|list (optional, <= 20000 chars or <= 500 items)
+//   - resourceLinks: list (optional, <= 200 items)
+//   - activeSquadId: string|null (optional, <= 128 chars)
+//   - squadIds: list (optional, <= 50 items)
+//   - xp: number (optional, >= 0)
+//   - currentStreak: number (optional, >= 0)
+//   - minutesStudiedThisWeek: number (optional, >= 0)
+//   - tasksCompletedThisWeek: number (optional, >= 0)
+//   - lastActiveDate: string|null (optional, <= 64 chars)
+//   - createdAt: string|number|timestamp (optional, immutable once set)
+//   - updatedAt: string|number|timestamp (optional)
+//   - updatedBy: string (optional, <= 128 chars)
+//
+// Collection: emailVerifications
+// Document ID: {verificationId} (normalized email)
+// Fields:
+//   - email: string (required, 4..254 chars)
+//   - code: string|null (optional, <= 16 chars)
+//   - codeHash: string (optional, <= 128 chars)
+//   - attempts: number (optional, 0..20)
+//   - maxAttempts: number (optional, 1..20)
+//   - expiresAt: number (required, > 0)
+//   - verified: bool (required)
+//   - createdAt: string (optional, <= 64 chars)
+//   - verifiedAt: string (optional, <= 64 chars)
+//
+// Collection: mail
+// Document ID: {mailId}
+// Fields:
+//   - to: list (required, size == 1)
+//   - message: map (required, keys: subject, text, html)
+//   - createdAt: timestamp|string|number (optional)
+//
+// Collection: squads
+// Document ID: {squadId}
+// Fields:
+//   - id: string (optional, <= 128 chars)
+//   - name: string (required on create, 1..100 chars)
+//   - code: string (required on create, 4..16 chars)
+//   - createdAt: string|number|timestamp (optional)
+//   - createdBy: string (optional, <= 254 chars)
+//   - creatorName: string (optional, <= 120 chars)
+//   - memberCount: number (optional, >= 0)
+//   - memberUids: list (optional, <= 200 items)
+//
+// Subcollections under /squads/{squadId}:
+//   - members/{memberId}: uid, displayName, email, color, elo, minutesThisWeek, tasksThisWeek, currentStreak, joinedAt
+//   - presence/{presenceId}: uid, displayName, status, subject, startedAt, updatedAt
+//   - activities/{activityId}: uid, displayName, type, text, createdAt
+//   - sessions/{sessionId}: uid, displayName, durationMinutes, subject, completedAt, createdAt
+//
+// Collection: test
+// Document ID: connection
+//   - Connectivity check document read via getDocFromServer(doc(db, 'test', 'connection'))
+//
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User profile and academic telemetry
-    match /users/{userId} {
-      allow read, write: if true;
-    }
-    
-    // Email verifications and notifications
-    match /emailVerifications/{verificationId} {
-      allow read, write: if true;
-    }
-    match /mail/{mailId} {
-      allow read, write: if true;
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // Squads Hub: Main squad document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasAuthEmail() {
+      return isAuthenticated() &&
+             request.auth.token.email is string &&
+             request.auth.token.email.size() > 0;
+    }
+
+    function isEmailOwner(emailField) {
+      return hasAuthEmail() &&
+             emailField is string &&
+             request.auth.token.email.lower() == emailField.lower();
+    }
+
+    function isValidDocId(docId) {
+      return docId is string && docId.size() > 0 && docId.size() <= 254;
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+             email.size() > 3 &&
+             email.size() <= 254 &&
+             email.matches("^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidOptionalString(data, field, maxLen) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isValidOptionalNumber(data, field, minVal, maxVal) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is number && data[field] >= minVal && data[field] <= maxVal);
+    }
+
+    function isValidOptionalBool(data, field) {
+      return !(field in data) ||
+             data[field] == null ||
+             data[field] is bool;
+    }
+
+    function isValidOptionalList(data, field, maxSize) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is list && data[field].size() <= maxSize);
+    }
+
+    function isValidOptionalStringOrList(data, field, maxStrLen, maxListSize) {
+      return !(field in data) ||
+             data[field] == null ||
+             (data[field] is string && data[field].size() <= maxStrLen) ||
+             (data[field] is list && data[field].size() <= maxListSize);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUserPayload(data, userId) {
+      let allowedKeys = [
+        'uid', 'authUid', 'email', 'name', 'studentId', 'passwordHash',
+        'authProvider', 'emailVerified', 'degreeLevel', 'degreeName',
+        'degreeType', 'totalTargetCFU', 'enrolledYear', 'academicYear',
+        'institution', 'status', 'currentSession', 'weeklyGoalHours',
+        'avatarUrl', 'logoUrl', 'thesisPointsExpected', 'courses',
+        'studyLogs', 'assignments', 'quickNotes', 'checklist',
+        'resourceLinks', 'activeSquadId', 'squadIds', 'xp',
+        'currentStreak', 'minutesStudiedThisWeek', 'tasksCompletedThisWeek',
+        'lastActiveDate', 'createdAt', 'updatedAt', 'updatedBy'
+      ];
+      return data.keys().hasOnly(allowedKeys) &&
+             (!('email' in data) || (data.email is string && data.email.size() > 3 && data.email.size() <= 254)) &&
+             isValidOptionalString(data, 'uid', 254) &&
+             isValidOptionalString(data, 'authUid', 254) &&
+             isValidOptionalString(data, 'name', 120) &&
+             isValidOptionalString(data, 'studentId', 64) &&
+             isValidOptionalString(data, 'passwordHash', 512) &&
+             isValidOptionalString(data, 'authProvider', 32) &&
+             isValidOptionalBool(data, 'emailVerified') &&
+             isValidOptionalString(data, 'degreeLevel', 64) &&
+             isValidOptionalString(data, 'degreeName', 160) &&
+             isValidOptionalString(data, 'degreeType', 64) &&
+             isValidOptionalNumber(data, 'totalTargetCFU', 0, 1000) &&
+             isValidOptionalString(data, 'academicYear', 64) &&
+             isValidOptionalString(data, 'institution', 160) &&
+             isValidOptionalString(data, 'status', 64) &&
+             isValidOptionalString(data, 'currentSession', 64) &&
+             isValidOptionalNumber(data, 'weeklyGoalHours', 0, 168) &&
+             isValidOptionalString(data, 'avatarUrl', 2048) &&
+             isValidOptionalString(data, 'logoUrl', 2048) &&
+             isValidOptionalNumber(data, 'thesisPointsExpected', 0, 100) &&
+             isValidOptionalList(data, 'courses', 200) &&
+             isValidOptionalList(data, 'studyLogs', 2000) &&
+             isValidOptionalList(data, 'assignments', 500) &&
+             isValidOptionalStringOrList(data, 'quickNotes', 20000, 500) &&
+             isValidOptionalStringOrList(data, 'checklist', 20000, 500) &&
+             isValidOptionalList(data, 'resourceLinks', 200) &&
+             isValidOptionalString(data, 'activeSquadId', 128) &&
+             isValidOptionalList(data, 'squadIds', 50) &&
+             isValidOptionalNumber(data, 'xp', 0, 100000000) &&
+             isValidOptionalNumber(data, 'currentStreak', 0, 10000) &&
+             isValidOptionalNumber(data, 'minutesStudiedThisWeek', 0, 10080) &&
+             isValidOptionalNumber(data, 'tasksCompletedThisWeek', 0, 10000) &&
+             isValidOptionalString(data, 'lastActiveDate', 64) &&
+             isValidOptionalString(data, 'updatedBy', 128) &&
+             isValidDocId(userId);
+    }
+
+    function canWriteUserDoc(userId) {
+      let data = request.resource.data;
+      let isAuthOwner = isAuthenticated() && (
+        request.auth.uid == userId ||
+        ('email' in data && isEmailOwner(data.email)) ||
+        (resource != null && 'email' in resource.data && isEmailOwner(resource.data.email)) ||
+        (resource != null && 'authUid' in resource.data && resource.data.authUid == request.auth.uid)
+      );
+      let isValidEmailDocMatch = ('email' in data &&
+        data.email is string &&
+        data.email.size() > 3 &&
+        data.email.size() <= 254 &&
+        userId == data.email) ||
+        (isValidDocId(userId) && (resource == null || !('authUid' in resource.data) || resource.data.authUid == null));
+      let respectsExistingAuthOwner = resource == null ||
+        !('authUid' in resource.data) ||
+        resource.data.authUid == null ||
+        !isAuthenticated() ||
+        request.auth.uid == resource.data.authUid ||
+        ('email' in resource.data && isEmailOwner(resource.data.email));
+
+      return isValidUserPayload(data, userId) &&
+             respectsExistingAuthOwner &&
+             (isAuthOwner || isValidEmailDocMatch);
+    }
+
+    function isValidEmailVerification(data, verificationId) {
+      let allowedKeys = [
+        'email', 'code', 'codeHash', 'attempts', 'maxAttempts',
+        'expiresAt', 'verified', 'createdAt', 'verifiedAt'
+      ];
+      return verificationId.size() > 3 &&
+             verificationId.size() <= 254 &&
+             data.keys().hasOnly(allowedKeys) &&
+             data.email is string &&
+             data.email.size() > 3 &&
+             data.email.size() <= 254 &&
+             data.expiresAt is number &&
+             data.verified is bool &&
+             isValidOptionalString(data, 'code', 16) &&
+             isValidOptionalString(data, 'codeHash', 128) &&
+             isValidOptionalNumber(data, 'attempts', 0, 100) &&
+             isValidOptionalNumber(data, 'maxAttempts', 1, 100) &&
+             isValidOptionalString(data, 'createdAt', 64) &&
+             isValidOptionalString(data, 'verifiedAt', 64);
+    }
+
+    function isValidMailDocument(data) {
+      let allowedKeys = ['to', 'message', 'createdAt'];
+      return data.keys().hasAll(['to', 'message']) &&
+             data.keys().hasOnly(allowedKeys) &&
+             data.to is list &&
+             data.to.size() == 1 &&
+             data.to[0] is string &&
+             data.to[0].size() > 3 &&
+             data.to[0].size() <= 254 &&
+             data.message is map &&
+             data.message.keys().hasOnly(['subject', 'text', 'html']) &&
+             (!('subject' in data.message) || (data.message.subject is string && data.message.subject.size() <= 256)) &&
+             (!('text' in data.message) || (data.message.text is string && data.message.text.size() <= 10000)) &&
+             (!('html' in data.message) || (data.message.html is string && data.message.html.size() <= 25000));
+    }
+
+    function isValidSquadCreate(data, squadId) {
+      let allowedKeys = [
+        'id', 'name', 'code', 'createdAt', 'createdBy',
+        'creatorName', 'memberCount', 'memberUids'
+      ];
+      return squadId.size() > 0 &&
+             squadId.size() <= 128 &&
+             data.keys().hasOnly(allowedKeys) &&
+             data.name is string &&
+             data.name.size() > 0 &&
+             data.name.size() <= 100 &&
+             data.code is string &&
+             data.code.size() >= 4 &&
+             data.code.size() <= 16 &&
+             isValidOptionalString(data, 'id', 128) &&
+             isValidOptionalString(data, 'createdBy', 254) &&
+             isValidOptionalString(data, 'creatorName', 120) &&
+             isValidOptionalNumber(data, 'memberCount', 0, 500) &&
+             isValidOptionalList(data, 'memberUids', 200);
+    }
+
+    function isValidSquadUpdate(data, squadId) {
+      let allowedKeys = [
+        'id', 'name', 'code', 'createdAt', 'createdBy',
+        'creatorName', 'memberCount', 'memberUids', 'updatedAt'
+      ];
+      return squadId.size() > 0 &&
+             squadId.size() <= 128 &&
+             data.keys().hasOnly(allowedKeys) &&
+             (!('name' in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 100)) &&
+             (!('code' in data) || (data.code is string && data.code.size() >= 4 && data.code.size() <= 16)) &&
+             isValidOptionalString(data, 'id', 128) &&
+             isValidOptionalString(data, 'createdBy', 254) &&
+             isValidOptionalString(data, 'creatorName', 120) &&
+             isValidOptionalNumber(data, 'memberCount', 0, 500) &&
+             isValidOptionalList(data, 'memberUids', 200);
+    }
+
+    function isValidSquadMember(data, memberId) {
+      let allowedKeys = [
+        'uid', 'displayName', 'email', 'color', 'elo',
+        'minutesThisWeek', 'tasksThisWeek', 'currentStreak',
+        'joinedAt', 'updatedAt', 'avatarUrl'
+      ];
+      return memberId.size() > 0 &&
+             memberId.size() <= 254 &&
+             data.keys().hasOnly(allowedKeys) &&
+             isValidOptionalString(data, 'uid', 254) &&
+             isValidOptionalString(data, 'displayName', 120) &&
+             isValidOptionalString(data, 'email', 254) &&
+             isValidOptionalString(data, 'color', 32) &&
+             isValidOptionalNumber(data, 'elo', 0, 1000000) &&
+             isValidOptionalNumber(data, 'minutesThisWeek', 0, 10080) &&
+             isValidOptionalNumber(data, 'tasksThisWeek', 0, 10000) &&
+             isValidOptionalNumber(data, 'currentStreak', 0, 10000) &&
+             isValidOptionalString(data, 'joinedAt', 64) &&
+             isValidOptionalString(data, 'avatarUrl', 2048);
+    }
+
+    function isValidSquadSubdoc(data, docId) {
+      return docId.size() > 0 &&
+             docId.size() <= 254 &&
+             data.keys().size() > 0 &&
+             data.keys().size() <= 25 &&
+             isValidOptionalString(data, 'uid', 254) &&
+             isValidOptionalString(data, 'displayName', 120) &&
+             isValidOptionalString(data, 'status', 64) &&
+             isValidOptionalString(data, 'subject', 160) &&
+             isValidOptionalString(data, 'type', 64) &&
+             isValidOptionalString(data, 'text', 500) &&
+             isValidOptionalNumber(data, 'durationMinutes', 0, 1440);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // Connectivity check endpoint used by src/lib/firebase.js
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // User profile and academic telemetry
+    match /users/{userId} {
+      // Never allow collection-wide listing/dumping of users
+      allow list: if false;
+
+      // Allow single-document get when authenticated as owner, or by valid non-empty document ID for legacy sign-in lookup
+      allow get: if (isAuthenticated() && (
+                      userId == request.auth.uid ||
+                      (resource != null && 'email' in resource.data && isEmailOwner(resource.data.email))
+                    )) ||
+                    isValidDocId(userId);
+
+      // Allow create and update with strict schema/size validation and ownership enforcement
+      allow create, update: if canWriteUserDoc(userId);
+
+      // Only authenticated document owner can delete their user profile
+      allow delete: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        (resource != null && 'email' in resource.data && isEmailOwner(resource.data.email))
+      );
+    }
+
+    // Pre-registration Email OTP Verifications
+    match /emailVerifications/{verificationId} {
+      // Prevent enumerating or deleting OTP verification documents
+      allow list, delete: if false;
+
+      // Single-document lookup by normalized email ID
+      allow get: if verificationId.size() > 3 && verificationId.size() <= 254;
+
+      // Validate OTP document structure and field types on create and update
+      allow create, update: if isValidEmailVerification(request.resource.data, verificationId);
+    }
+
+    // Outbound transactional email queue (write-only trigger collection)
+    match /mail/{mailId} {
+      allow read, update, delete: if false;
+      allow create: if isValidMailDocument(request.resource.data);
+    }
+
+    // Squads Hub: Main squad document and subcollections
     match /squads/{squadId} {
-      allow read, write: if true;
+      allow get, list: if true;
+      allow create: if isValidSquadCreate(request.resource.data, squadId);
+      allow update: if isValidSquadUpdate(request.resource.data, squadId);
+      allow delete: if isAuthenticated() &&
+                    resource != null &&
+                    ('createdBy' in resource.data) &&
+                    (resource.data.createdBy == request.auth.uid ||
+                     (hasAuthEmail() && resource.data.createdBy == request.auth.token.email.lower()));
 
       // Squad members
       match /members/{memberId} {
-        allow read, write: if true;
+        allow get, list: if true;
+        allow create, update: if squadId.size() > 0 &&
+                              squadId.size() <= 128 &&
+                              isValidSquadMember(request.resource.data, memberId);
+        allow delete: if isAuthenticated() && (
+          request.auth.uid == memberId ||
+          (resource != null && 'email' in resource.data && isEmailOwner(resource.data.email))
+        );
       }
 
       // Live Lock-In presence
       match /presence/{presenceId} {
-        allow read, write: if true;
+        allow get, list: if true;
+        allow create, update: if squadId.size() > 0 &&
+                              squadId.size() <= 128 &&
+                              isValidSquadSubdoc(request.resource.data, presenceId);
+        allow delete: if isAuthenticated() && request.auth.uid == presenceId;
       }
 
       // Squad activity feed
       match /activities/{activityId} {
-        allow read, write: if true;
+        allow get, list: if true;
+        allow create, update: if squadId.size() > 0 &&
+                              squadId.size() <= 128 &&
+                              isValidSquadSubdoc(request.resource.data, activityId);
+        allow delete: if false;
       }
 
       // Historical ghost racing sessions
       match /sessions/{sessionId} {
-        allow read, write: if true;
+        allow get, list: if true;
+        allow create, update: if squadId.size() > 0 &&
+                              squadId.size() <= 128 &&
+                              isValidSquadSubdoc(request.resource.data, sessionId);
+        allow delete: if false;
       }
     }
 
