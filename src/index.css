@@ -20,7 +20,7 @@ body {
 }
 
 #root {
-  padding: 12px 18px 48px 18px;
+  padding: 12px 18px 24px 18px;
   max-width: 1600px;
   margin: 0 auto;
 }
@@ -266,18 +266,18 @@ button.btn-danger {
 }
 
 .table-scroll {
-  max-height: calc(100vh - 520px);
+  max-height: calc(100vh - 560px);
   overflow-y: auto;
 }
 
 .table-scroll-sm {
-  max-height: calc(100vh - 590px);
+  max-height: calc(100vh - 640px);
 }
 
 @media (max-width: 720px) {
   .table-scroll,
   .table-scroll-sm {
-    max-height: 200px;
+    max-height: 200px !important;
   }
 }
 

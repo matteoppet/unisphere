@@ -259,3 +259,17 @@ export function groupStudyLogsByWeek(studyLogs = []) {
   });
 }
 
+export function calculateTableScrollMaxHeight(
+  viewportHeight,
+  elementTop,
+  viewportWidth = 1024,
+  bottomOffset = 150
+) {
+  if (viewportWidth <= 720) {
+    return 200;
+  }
+  const available = Math.floor(viewportHeight - elementTop - bottomOffset);
+  return Math.max(180, available);
+}
+
+

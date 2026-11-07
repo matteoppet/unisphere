@@ -7,6 +7,7 @@ import {
   getWeekDaysSummary,
   calculateWeeklyFocus,
   groupStudyLogsByWeek,
+  calculateTableScrollMaxHeight,
 } from './telemetry.js';
 
 describe('Focus Time formatting and weekly summary (#13)', () => {
@@ -154,11 +155,20 @@ describe('groupStudyLogsByWeek (#34)', () => {
     assert.match(dashHtml, /class="table-wrap table-scroll table-scroll-sm"/);
     assert.match(logsHtml, /class="table-wrap table-scroll"/);
     assert.match(css, /\.table-scroll\s*\{[\s\S]*?max-height:\s*calc\(100vh\s*-/);
-    assert.match(css, /\.table-scroll-sm\s*\{[\s\S]*?max-height:\s*calc\(100vh\s*-\s*590px\)/);
     assert.match(css, /@media\s*\(max-width:\s*720px\)[\s\S]*?\.table-scroll[\s\S]*?max-height:\s*200px/);
     assert.match(css, /\.week-separator-row\s+td\s*\{/);
     assert.match(appJs, /groupStudyLogsByWeek/);
+    assert.match(appJs, /calculateTableScrollMaxHeight/);
     assert.match(appJs, /week-separator-row/);
+  });
+
+  it('calculates viewport-fitted max-height keeping ~150px bottom margin on desktop and 3 logs (200px) on mobile', () => {
+    // Desktop: 950px window, table top at 435px, 150px bottom buffer -> 365px
+    assert.equal(calculateTableScrollMaxHeight(950, 435, 1280), 365);
+    // Mobile (<= 720px width): fixed 200px (~3 log rows)
+    assert.equal(calculateTableScrollMaxHeight(844, 400, 390), 200);
+    // Very short desktop window still keeps a sensible 180px floor
+    assert.equal(calculateTableScrollMaxHeight(500, 420, 1024), 180);
   });
 });
 

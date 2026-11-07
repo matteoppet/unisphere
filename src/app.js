@@ -50,6 +50,7 @@ import {
   getLocalDateString,
   getWeekDaysSummary,
   groupStudyLogsByWeek,
+  calculateTableScrollMaxHeight,
   updateStreak,
   calculateElo,
   generateSquadCode,
@@ -639,6 +640,18 @@ export function initApp() {
     bindDynamicViewEvents(effectiveRoute);
   }
 
+  function updateScrollableTablesMaxHeight() {
+    const scrollContainers = document.querySelectorAll('.table-scroll');
+    if (scrollContainers.length === 0) return;
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    scrollContainers.forEach((el) => {
+      const elementTop = el.getBoundingClientRect().top + window.scrollY;
+      const maxH = calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth);
+      el.style.maxHeight = `${maxH}px`;
+    });
+  }
+
   // --- Populate HTML Elements in Current Page ---
   function populateCurrentPageData() {
     const mainEl = document.getElementById('app-main');
@@ -663,6 +676,8 @@ export function initApp() {
     } else if (page === 'settings') {
       populateSettingsPage();
     }
+
+    updateScrollableTablesMaxHeight();
   }
 
   function populateLoginPage() {
@@ -2529,6 +2544,10 @@ export function initApp() {
 
   window.addEventListener('popstate', () => {
     void loadAndRenderPage(getRouteFromLocation(), false);
+  });
+
+  window.addEventListener('resize', () => {
+    updateScrollableTablesMaxHeight();
   });
 
   // Initial startup
