@@ -28,6 +28,9 @@ import {
   verifyEmailCode,
   loginRateLimiter,
   sanitizeResourceUrl,
+  sanitizeCsvCell,
+  sanitizeUserProfile,
+  sanitizeResourceLinksList,
   formatGoogleAuthError,
 } from './lib/authService.js';
 import {
@@ -183,7 +186,7 @@ export function initApp() {
   let profile = (() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_profile`);
-      if (saved) return JSON.parse(saved);
+      if (saved) return sanitizeUserProfile(JSON.parse(saved), INITIAL_PROFILE);
     } catch {}
     return { ...INITIAL_PROFILE };
   })();
@@ -243,10 +246,12 @@ export function initApp() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleaned = parsed.filter(
-            (r) =>
-              !['res-1', 'res-2', 'res-3', 'res-4'].includes(r.id) &&
-              !r.url?.includes('unirand.it')
+          const cleaned = sanitizeResourceLinksList(
+            parsed.filter(
+              (r) =>
+                !['res-1', 'res-2', 'res-3', 'res-4'].includes(r?.id) &&
+                !r?.url?.includes('unirand.it')
+            )
           );
           if (cleaned.length > 0) return cleaned;
         }
@@ -437,10 +442,12 @@ export function initApp() {
         if (typeof data.quickNotes === 'string') quickNotes = data.quickNotes;
         if (typeof data.checklist === 'string') checklist = data.checklist;
         if (Array.isArray(data.resourceLinks)) {
-          resourceLinks = data.resourceLinks.filter(
-            (r) =>
-              !['res-1', 'res-2', 'res-3', 'res-4'].includes(r.id) &&
-              !r.url?.includes('unirand.it')
+          resourceLinks = sanitizeResourceLinksList(
+            data.resourceLinks.filter(
+              (r) =>
+                !['res-1', 'res-2', 'res-3', 'res-4'].includes(r?.id) &&
+                !r?.url?.includes('unirand.it')
+            )
           );
         }
 
@@ -455,6 +462,25 @@ export function initApp() {
     setStatus('Ready', 0);
   }
 
+  function clearLocalWorkspaceStorage() {
+    const keysToRemove = [
+      `${STORAGE_KEY}_session_email`,
+      `${STORAGE_KEY}_profile`,
+      `${STORAGE_KEY}_courses`,
+      `${STORAGE_KEY}_logs`,
+      `${STORAGE_KEY}_assignments`,
+      `${STORAGE_KEY}_quick_notes`,
+      `${STORAGE_KEY}_checklist`,
+      `${STORAGE_KEY}_resource_links`,
+      'unisphere_workstation_v1_logs',
+    ];
+    for (const k of keysToRemove) {
+      try {
+        localStorage.removeItem(k);
+      } catch {}
+    }
+  }
+
   async function handleLogout() {
     if (userSnapshotUnsub) {
       userSnapshotUnsub();
@@ -465,13 +491,22 @@ export function initApp() {
       squadMembersUnsub = null;
     }
     try {
-      await signOut(auth);
+      if (auth) await signOut(auth);
     } catch {}
-    try {
-      localStorage.removeItem(`${STORAGE_KEY}_session_email`);
-    } catch {}
+    clearLocalWorkspaceStorage();
     sessionEmail = null;
     isAuthenticated = false;
+    verificationSentTo = null;
+    profile = { ...INITIAL_PROFILE };
+    courses = [...DEFAULT_STARTER_COURSES];
+    studyLogs = [...DEFAULT_STARTER_LOGS];
+    assignments = [];
+    quickNotes = '';
+    checklist = '';
+    resourceLinks = [...DEFAULT_STARTER_RESOURCES];
+    squads = [];
+    activeSquadId = null;
+    squadMembers = [];
     authNotice = { type: 'success', text: 'You have been logged out.' };
     await loadAndRenderPage('login', true);
     setStatus('Logged out');
@@ -520,6 +555,7 @@ export function initApp() {
 
   async function loadAndRenderPage(targetRoute, pushHistory = false) {
     const effectiveRoute = !isAuthenticated ? 'login' : targetRoute === 'login' ? 'dashboard' : targetRoute;
+    updateNavHighlight(effectiveRoute);
     const mainEl = document.getElementById('app-main');
     if (!mainEl) return;
 
@@ -746,13 +782,14 @@ export function initApp() {
         resourceLinks.length === 0
           ? `<li class="empty-cell">No resource links added yet.</li>`
           : resourceLinks
-              .map(
-                (r) => `
+              .map((r) => {
+                const safeHref = sanitizeResourceUrl(r.url) || '#';
+                return `
               <li>
-                <a href="${escapeHtml(r.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
+                <a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
                 <span class="item-meta">(<a href="#" data-delete-resource="${escapeHtml(r.id)}">Delete</a>)</span>
-              </li>`
-              )
+              </li>`;
+              })
               .join('');
     }
 
@@ -819,21 +856,25 @@ export function initApp() {
         filtered.length === 0
           ? `<tr><td colspan="7" class="empty-cell">No matching courses found.</td></tr>`
           : filtered
-              .map(
-                (c) => `
+              .map((c) => {
+                const validProfEmail =
+                  c.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c.email).trim())
+                    ? String(c.email).trim()
+                    : '';
+                return `
               <tr>
                 <td>${escapeHtml(c.title)}</td>
                 <td>Year ${escapeHtml(c.year)} / Sem ${escapeHtml(c.semester)}</td>
                 <td>${escapeHtml(formatStatusLabel(c.status))}</td>
                 <td>${escapeHtml(c.cfu)}</td>
-                <td>${c.email ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>` : '-'}</td>
+                <td>${validProfEmail ? `<a href="mailto:${escapeHtml(validProfEmail)}">${escapeHtml(validProfEmail)}</a>` : '-'}</td>
                 <td>${escapeHtml(c.officeHours || '-')}</td>
                 <td>
                   <a href="#" data-open-course="${escapeHtml(c.id)}">Open</a> |
                   <a href="#" data-delete-course="${escapeHtml(c.id)}">Delete</a>
                 </td>
-              </tr>`
-              )
+              </tr>`;
+              })
               .join('');
     }
   }
@@ -1012,7 +1053,7 @@ export function initApp() {
                 (m, idx) => `
               <tr>
                 <td>#${idx + 1}</td>
-                <td>${escapeHtml(m.displayName || m.email || 'Student')}</td>
+                <td>${escapeHtml(m.displayName || 'Student')}</td>
                 <td>${escapeHtml(formatStudyDuration(m.minutesThisWeek || 0))}</td>
                 <td>${escapeHtml(m.currentStreak || 0)} days</td>
                 <td>${escapeHtml(m.elo || 1000)}</td>
@@ -1030,6 +1071,10 @@ export function initApp() {
 
     setField('set-name', profile.name || '');
     setField('set-email', sessionEmail || profile.email || '');
+    const emailEl = document.getElementById('set-email');
+    if (emailEl) {
+      emailEl.readOnly = Boolean(isAuthenticated && sessionEmail);
+    }
     setField('set-student-id', profile.studentId || '');
     setField('set-institution', profile.institution || '');
     setField('set-degree-name', profile.degreeName || '');
@@ -1202,11 +1247,11 @@ export function initApp() {
   function exportLogsCsv() {
     const headers = ['Date', 'Subject', 'DurationMinutes', 'Tag', 'Notes'];
     const rows = studyLogs.map((l) => [
-      `"${(l.date || '').replace(/"/g, '""')}"`,
-      `"${(l.courseName || '').replace(/"/g, '""')}"`,
-      l.durationMinutes || 0,
-      `"${(l.tag || '').replace(/"/g, '""')}"`,
-      `"${(l.notes || '').replace(/"/g, '""')}"`,
+      sanitizeCsvCell(l.date || ''),
+      sanitizeCsvCell(l.courseName || ''),
+      Number(l.durationMinutes) || 0,
+      sanitizeCsvCell(l.tag || ''),
+      sanitizeCsvCell(l.notes || ''),
     ]);
     const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1220,13 +1265,13 @@ export function initApp() {
 
   function exportWorkspaceJson() {
     const payload = {
-      profile,
+      profile: sanitizeUserProfile(profile, INITIAL_PROFILE, sessionEmail || profile.email),
       courses,
       studyLogs,
       assignments,
       quickNotes,
       checklist,
-      resourceLinks,
+      resourceLinks: sanitizeResourceLinksList(resourceLinks),
       exportedAt: new Date().toISOString(),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -1248,34 +1293,17 @@ export function initApp() {
     } catch {}
 
     if (userData) {
-      profile = {
-        ...profile,
-        name: userData.name ?? profile.name,
-        studentId: userData.studentId ?? profile.studentId,
-        email: normalizedEmail,
-        degreeName: userData.degreeName ?? profile.degreeName,
-        degreeType: userData.degreeType ?? profile.degreeType,
-        totalTargetCFU: userData.totalTargetCFU ?? profile.totalTargetCFU,
-        academicYear: userData.academicYear ?? profile.academicYear,
-        institution: userData.institution ?? profile.institution,
-        xp: typeof userData.xp === 'number' ? userData.xp : profile.xp,
-        currentStreak:
-          typeof userData.currentStreak === 'number'
-            ? userData.currentStreak
-            : profile.currentStreak,
-        minutesStudiedThisWeek:
-          typeof userData.minutesStudiedThisWeek === 'number'
-            ? userData.minutesStudiedThisWeek
-            : profile.minutesStudiedThisWeek,
-      };
+      profile = sanitizeUserProfile(userData, profile, normalizedEmail);
       if (Array.isArray(userData.courses)) courses = userData.courses;
       if (Array.isArray(userData.studyLogs)) studyLogs = userData.studyLogs;
       if (Array.isArray(userData.assignments)) assignments = userData.assignments;
       if (typeof userData.quickNotes === 'string') quickNotes = userData.quickNotes;
       if (typeof userData.checklist === 'string') checklist = userData.checklist;
-      if (Array.isArray(userData.resourceLinks)) resourceLinks = userData.resourceLinks;
+      if (Array.isArray(userData.resourceLinks)) {
+        resourceLinks = sanitizeResourceLinksList(userData.resourceLinks);
+      }
     } else {
-      profile = { ...profile, email: normalizedEmail };
+      profile = sanitizeUserProfile(profile, INITIAL_PROFILE, normalizedEmail);
     }
 
     authNotice = null;
@@ -1347,7 +1375,22 @@ export function initApp() {
     }
   }
 
+  const boundElements = new WeakSet();
+  let isEmailAuthPending = false;
   let isGoogleSignInPending = false;
+
+  function getDocWithTimeout(docRef, timeoutMs = 10000) {
+    return Promise.race([
+      getDoc(docRef),
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error('Cloud connection timed out. Please check your internet connection and try again.')),
+          timeoutMs
+        )
+      ),
+    ]);
+  }
+
   async function handleGoogleSignIn() {
     if (isGoogleSignInPending) return;
     isGoogleSignInPending = true;
@@ -1410,15 +1453,22 @@ export function initApp() {
 
   function bindAuthEvents() {
     const loginForm = document.getElementById('form-auth-login');
-    if (loginForm && !loginForm.dataset.bound) {
-      loginForm.dataset.bound = 'true';
+    if (loginForm && !boundElements.has(loginForm)) {
+      boundElements.add(loginForm);
       loginForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const emailInput = document.getElementById('auth-login-email');
         const passInput = document.getElementById('auth-login-password');
         const normalizedEmail = emailInput?.value.trim().toLowerCase() || '';
         const password = passInput?.value || '';
-        if (!normalizedEmail || !password) return;
+        if (!normalizedEmail || !password) {
+          authNotice = {
+            type: 'error',
+            text: 'Please enter both your email address and password.',
+          };
+          populateLoginPage();
+          return;
+        }
 
         const rateStatus = loginRateLimiter.check(normalizedEmail);
         if (!rateStatus.allowed) {
@@ -1430,30 +1480,50 @@ export function initApp() {
           return;
         }
 
+        const submitBtn = loginForm.querySelector('button[type="submit"]');
+        const originalBtnText = submitBtn ? submitBtn.textContent : 'Log-In';
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Signing in...';
+        }
+        isEmailAuthPending = true;
+
         try {
           const docId = getEmailDocId(normalizedEmail);
           const userRef = doc(db, 'users', docId);
 
           let firebaseAuthSucceeded = false;
-          try {
-            await signInWithEmailAndPassword(auth, normalizedEmail, password);
-            firebaseAuthSucceeded = true;
-          } catch (fbErr) {
-            const fbCode = String(fbErr?.code || '');
-            if (fbCode === 'auth/too-many-requests') {
-              loginRateLimiter.consume(normalizedEmail);
-              authNotice = {
-                type: 'error',
-                text: 'Account temporarily locked due to too many failed attempts. Please try again later.',
-              };
-              populateLoginPage();
-              return;
+          if (auth) {
+            try {
+              await signInWithEmailAndPassword(auth, normalizedEmail, password);
+              firebaseAuthSucceeded = true;
+            } catch (fbErr) {
+              const fbCode = String(fbErr?.code || '');
+              if (fbCode === 'auth/too-many-requests') {
+                loginRateLimiter.consume(normalizedEmail);
+                authNotice = {
+                  type: 'error',
+                  text: 'Account temporarily locked due to too many failed attempts. Please try again later.',
+                };
+                populateLoginPage();
+                return;
+              }
             }
           }
 
-          const snap = await getDoc(userRef);
+          let snap = null;
+          try {
+            snap = await getDocWithTimeout(userRef, 10000);
+          } catch (docErr) {
+            if (firebaseAuthSucceeded) {
+              loginRateLimiter.reset(normalizedEmail);
+              completeCloudLogin(null, normalizedEmail);
+              return;
+            }
+            throw docErr;
+          }
 
-          if (!snap.exists()) {
+          if (!snap || !snap.exists()) {
             if (firebaseAuthSucceeded) {
               loginRateLimiter.reset(normalizedEmail);
               completeCloudLogin(null, normalizedEmail);
@@ -1504,9 +1574,11 @@ export function initApp() {
             }
 
             // Ensure legacy Firestore account also exists in Firebase Auth
-            try {
-              await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-            } catch {}
+            if (auth) {
+              try {
+                await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+              } catch {}
+            }
           } else if (data.passwordHash && !String(data.passwordHash).startsWith('pbkdf2$')) {
             const upgradedHash = await hashPassword(password);
             await setDoc(userRef, { passwordHash: upgradedHash }, { merge: true }).catch(() => {});
@@ -1521,13 +1593,19 @@ export function initApp() {
             text: err instanceof Error ? err.message : 'Sign-in failed.',
           };
           populateLoginPage();
+        } finally {
+          isEmailAuthPending = false;
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = originalBtnText;
+          }
         }
       });
     }
 
     const googleBtn = document.getElementById('btn-google-sso');
-    if (googleBtn && !googleBtn.dataset.bound) {
-      googleBtn.dataset.bound = 'true';
+    if (googleBtn && !boundElements.has(googleBtn)) {
+      boundElements.add(googleBtn);
       googleBtn.addEventListener('click', (e) => {
         e.preventDefault();
         void handleGoogleSignIn();
@@ -1535,8 +1613,8 @@ export function initApp() {
     }
 
     const otpBtn = document.getElementById('btn-send-otp');
-    if (otpBtn && !otpBtn.dataset.bound) {
-      otpBtn.dataset.bound = 'true';
+    if (otpBtn && !boundElements.has(otpBtn)) {
+      boundElements.add(otpBtn);
       otpBtn.addEventListener('click', async () => {
         const regEmail = document
           .getElementById('auth-reg-email')
@@ -1547,26 +1625,34 @@ export function initApp() {
           populateLoginPage();
           return;
         }
-        verificationSentTo = regEmail;
-        const res = await dispatchVerificationCode(regEmail, db);
-        if (res.success) {
-          authNotice = {
-            type: 'success',
-            text: `Verification code sent to ${regEmail}. Check your inbox.`,
-          };
-        } else {
-          authNotice = {
-            type: 'error',
-            text: res.error || 'Could not send verification code.',
-          };
+        const origText = otpBtn.textContent;
+        otpBtn.disabled = true;
+        otpBtn.textContent = 'Sending...';
+        try {
+          verificationSentTo = regEmail;
+          const res = await dispatchVerificationCode(regEmail, db);
+          if (res.success) {
+            authNotice = {
+              type: 'success',
+              text: `Verification code sent to ${regEmail}. Check your inbox.`,
+            };
+          } else {
+            authNotice = {
+              type: 'error',
+              text: res.error || 'Could not send verification code.',
+            };
+          }
+          populateLoginPage();
+        } finally {
+          otpBtn.disabled = false;
+          otpBtn.textContent = origText;
         }
-        populateLoginPage();
       });
     }
 
     const regForm = document.getElementById('form-auth-register');
-    if (regForm && !regForm.dataset.bound) {
-      regForm.dataset.bound = 'true';
+    if (regForm && !boundElements.has(regForm)) {
+      boundElements.add(regForm);
       regForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const regName = document.getElementById('auth-reg-name').value.trim();
@@ -1586,6 +1672,14 @@ export function initApp() {
           return;
         }
 
+        const regSubmitBtn = regForm.querySelector('button[type="submit"]');
+        const origRegBtnText = regSubmitBtn ? regSubmitBtn.textContent : 'Create Account';
+        if (regSubmitBtn) {
+          regSubmitBtn.disabled = true;
+          regSubmitBtn.textContent = 'Creating account...';
+        }
+        isEmailAuthPending = true;
+
         try {
           if (regCode) {
             const ver = await verifyEmailCode(regEmail, regCode, db);
@@ -1600,18 +1694,20 @@ export function initApp() {
           }
 
           let authUid = null;
-          try {
-            const cred = await createUserWithEmailAndPassword(auth, regEmail, regPass);
-            authUid = cred.user?.uid || null;
-            await updateProfile(cred.user, { displayName: regName });
-          } catch (fbErr) {
-            if (fbErr?.code === 'auth/email-already-in-use') {
-              authNotice = {
-                type: 'error',
-                text: 'An account with this email already exists. Please sign in on the left.',
-              };
-              populateLoginPage();
-              return;
+          if (auth) {
+            try {
+              const cred = await createUserWithEmailAndPassword(auth, regEmail, regPass);
+              authUid = cred.user?.uid || null;
+              await updateProfile(cred.user, { displayName: regName });
+            } catch (fbErr) {
+              if (fbErr?.code === 'auth/email-already-in-use') {
+                authNotice = {
+                  type: 'error',
+                  text: 'An account with this email already exists. Please sign in on the left.',
+                };
+                populateLoginPage();
+                return;
+              }
             }
           }
 
@@ -1650,6 +1746,12 @@ export function initApp() {
             text: err instanceof Error ? err.message : 'Registration error.',
           };
           populateLoginPage();
+        } finally {
+          isEmailAuthPending = false;
+          if (regSubmitBtn) {
+            regSubmitBtn.disabled = false;
+            regSubmitBtn.textContent = origRegBtnText;
+          }
         }
       });
     }
@@ -1758,8 +1860,7 @@ export function initApp() {
           await setDoc(doc(db, 'squads', squadId), newSquad);
           const member = {
             uid,
-            displayName: profile.name || sessionEmail || 'Student',
-            email: sessionEmail || profile.email,
+            displayName: profile.name || 'Student',
             color: '#3B77BC',
             elo: calculateElo(
               profile.minutesStudiedThisWeek || 0,
@@ -1808,8 +1909,7 @@ export function initApp() {
           const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
           const member = {
             uid,
-            displayName: profile.name || sessionEmail || 'Student',
-            email: sessionEmail || profile.email,
+            displayName: profile.name || 'Student',
             color: '#3B77BC',
             elo: calculateElo(
               profile.minutesStudiedThisWeek || 0,
@@ -1849,7 +1949,8 @@ export function initApp() {
       document.getElementById('form-settings-profile')?.addEventListener('submit', (e) => {
         e.preventDefault();
         const name = document.getElementById('set-name').value.trim();
-        const email = document.getElementById('set-email').value.trim();
+        const inputEmail = document.getElementById('set-email').value.trim().toLowerCase();
+        const email = sessionEmail || inputEmail;
         const studentId = document.getElementById('set-student-id').value.trim();
         const institution = document.getElementById('set-institution').value.trim();
         const degreeName = document.getElementById('set-degree-name').value.trim();
@@ -1895,7 +1996,13 @@ export function initApp() {
         reader.onload = (ev) => {
           try {
             const parsed = JSON.parse(String(ev.target?.result || '{}'));
-            if (parsed.profile) profile = parsed.profile;
+            if (parsed.profile && typeof parsed.profile === 'object') {
+              profile = sanitizeUserProfile(
+                parsed.profile,
+                profile,
+                sessionEmail || profile.email || null
+              );
+            }
             if (Array.isArray(parsed.courses)) courses = parsed.courses;
             if (Array.isArray(parsed.studyLogs)) studyLogs = parsed.studyLogs;
             if (Array.isArray(parsed.assignments)) {
@@ -1904,7 +2011,7 @@ export function initApp() {
             if (typeof parsed.quickNotes === 'string') quickNotes = parsed.quickNotes;
             if (typeof parsed.checklist === 'string') checklist = parsed.checklist;
             if (Array.isArray(parsed.resourceLinks)) {
-              resourceLinks = parsed.resourceLinks;
+              resourceLinks = sanitizeResourceLinksList(parsed.resourceLinks);
             }
             void pushWorkstationToCloud();
             populateCurrentPageData();
@@ -1938,10 +2045,16 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], #btn-google-sso'
+            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], #btn-google-sso, #btn-header-logout'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
+
+    if (target.id === 'btn-header-logout') {
+      e.preventDefault();
+      void handleLogout();
+      return;
+    }
 
     if (target.id === 'btn-google-sso') {
       e.preventDefault();
@@ -2072,8 +2185,8 @@ export function initApp() {
   // --- Modal Form Submissions ---
   function bindDialogFormEvents() {
     const courseForm = document.getElementById('form-course');
-    if (courseForm && !courseForm.dataset.bound) {
-      courseForm.dataset.bound = 'true';
+    if (courseForm && !boundElements.has(courseForm)) {
+      boundElements.add(courseForm);
       courseForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const id = document.getElementById('course-id').value.trim();
@@ -2143,8 +2256,8 @@ export function initApp() {
     }
 
     const logForm = document.getElementById('form-log');
-    if (logForm && !logForm.dataset.bound) {
-      logForm.dataset.bound = 'true';
+    if (logForm && !boundElements.has(logForm)) {
+      boundElements.add(logForm);
       logForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const subject = document.getElementById('log-subject').value.trim();
@@ -2189,8 +2302,8 @@ export function initApp() {
     }
 
     const resourceForm = document.getElementById('form-resource');
-    if (resourceForm && !resourceForm.dataset.bound) {
-      resourceForm.dataset.bound = 'true';
+    if (resourceForm && !boundElements.has(resourceForm)) {
+      boundElements.add(resourceForm);
       resourceForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const title = document.getElementById('resource-title').value.trim();
@@ -2220,8 +2333,8 @@ export function initApp() {
     }
 
     const assignmentForm = document.getElementById('form-assignment');
-    if (assignmentForm && !assignmentForm.dataset.bound) {
-      assignmentForm.dataset.bound = 'true';
+    if (assignmentForm && !boundElements.has(assignmentForm)) {
+      boundElements.add(assignmentForm);
       assignmentForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const id = document.getElementById('assignment-id').value.trim();
@@ -2311,47 +2424,48 @@ export function initApp() {
   }
 
   // --- Firebase Auth Listener & Browser History Navigation ---
-  getRedirectResult(auth)
-    .then((res) => {
-      if (res?.user) {
-        void completeGoogleUserSignIn(res.user);
-      }
-    })
-    .catch((err) => {
-      const classified = formatGoogleAuthError(err);
-      if (classified.code) {
-        authNotice = { type: 'error', text: classified.message };
-        populateLoginPage();
+  if (auth) {
+    getRedirectResult(auth)
+      .then((res) => {
+        if (res?.user) {
+          void completeGoogleUserSignIn(res.user);
+        }
+      })
+      .catch((err) => {
+        const classified = formatGoogleAuthError(err);
+        if (classified.code) {
+          authNotice = { type: 'error', text: classified.message };
+          populateLoginPage();
+        }
+      });
+
+    onAuthStateChanged(auth, (user) => {
+      if (isEmailAuthPending) return;
+      if (user?.email) {
+        const cleanEmail = user.email.trim().toLowerCase();
+        const wasUnauthenticated = !isAuthenticated;
+        sessionEmail = cleanEmail;
+        isAuthenticated = true;
+        try {
+          localStorage.setItem(`${STORAGE_KEY}_session_email`, cleanEmail);
+        } catch {}
+        setupRealtimeFirestoreSync();
+        if (wasUnauthenticated) {
+          void completeGoogleUserSignIn(user);
+        } else {
+          void loadAndRenderPage(getRouteFromLocation(), false);
+        }
       }
     });
-
-  onAuthStateChanged(auth, (user) => {
-    if (user?.email) {
-      const cleanEmail = user.email.trim().toLowerCase();
-      const wasUnauthenticated = !isAuthenticated;
-      sessionEmail = cleanEmail;
-      isAuthenticated = true;
-      try {
-        localStorage.setItem(`${STORAGE_KEY}_session_email`, cleanEmail);
-      } catch {}
-      setupRealtimeFirestoreSync();
-      if (wasUnauthenticated) {
-        void completeGoogleUserSignIn(user);
-      } else {
-        void loadAndRenderPage(getRouteFromLocation(), false);
-      }
-    }
-  });
+  }
 
   window.addEventListener('popstate', () => {
     void loadAndRenderPage(getRouteFromLocation(), false);
   });
 
   // Initial startup
-  document
-    .getElementById('btn-header-logout')
-    ?.addEventListener('click', () => void handleLogout());
   bindDialogFormEvents();
   setupRealtimeFirestoreSync();
-  void loadAndRenderPage(getRouteFromLocation(), false);
+  setStatus('Ready');
+  void loadAndRenderPage(getRouteFromLocation(), !isAuthenticated);
 }

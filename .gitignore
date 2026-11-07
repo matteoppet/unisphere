@@ -4,5 +4,13 @@ dist/
 coverage/
 .DS_Store
 *.log
+firebase-debug.log*
+firestore-debug.log*
 .env*
 !.env.example
+.vercel/
+.aistudio/
+*.pem
+*.key
+*.crt
+server.js

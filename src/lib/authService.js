@@ -8,6 +8,15 @@ export function getEmailDocId(email) {
   return String(email || '').trim().toLowerCase().replace(/\//g, '_');
 }
 
+export function redactEmail(email) {
+  const clean = String(email || '').trim().toLowerCase();
+  const atIdx = clean.indexOf('@');
+  if (atIdx <= 0) return '***';
+  const local = clean.slice(0, atIdx);
+  const domain = clean.slice(atIdx + 1);
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
 function getCrypto() {
   if (typeof globalThis !== 'undefined' && globalThis.crypto) return globalThis.crypto;
   if (typeof window !== 'undefined' && window.crypto) return window.crypto;
@@ -165,6 +174,17 @@ export async function sha256Hex(value) {
   return sha256Sync(normalized);
 }
 
+/**
+ * Computes a domain-separated, email-salted SHA-256 hash for a 6-digit OTP code
+ * so rainbow tables of the 900,000 6-digit numbers cannot reverse `codeHash`.
+ */
+export async function computeSaltedOtpHash(email, code, customSalt = '') {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const cleanCode = String(code || '').trim();
+  const saltPart = customSalt ? `${customSalt}:` : '';
+  return sha256Hex(`unisphere-otp-v2:${saltPart}${normalizedEmail}:${cleanCode}`);
+}
+
 async function derivePbkdf2Hex(password, saltHex, iterations = PBKDF2_ITERATIONS) {
   const normalized = String(password || '').trim();
   const cryptoObj = getCrypto();
@@ -193,7 +213,6 @@ async function derivePbkdf2Hex(password, saltHex, iterations = PBKDF2_ITERATIONS
       // Fallback if WebCrypto PBKDF2 is unavailable
     }
   }
-  // Iterated salted SHA-256 fallback if WebCrypto subtle is absent
   let state = `${saltHex}:${normalized}`;
   const fallbackRounds = Math.min(iterations, 5000);
   for (let i = 0; i < fallbackRounds; i++) {
@@ -247,7 +266,6 @@ export function generateVerificationCode() {
   const cryptoObj = getCrypto();
   if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
     const array = new Uint32Array(1);
-    // Rejection sampling to avoid modulo bias (max multiple of 900,000 under 2^32 is 4,294,800,000)
     const maxUnbiased = 4294800000;
     let rand = maxUnbiased;
     while (rand >= maxUnbiased) {
@@ -372,7 +390,7 @@ export function getSecurityHeaders() {
 export function sanitizeResourceUrl(rawUrl) {
   const trimmed = String(rawUrl || '').trim();
   if (!trimmed) return null;
-  if (/^(javascript|data|vbscript|file):/i.test(trimmed)) {
+  if (/^(javascript|data|vbscript|file|blob):/i.test(trimmed)) {
     return null;
   }
   const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
@@ -388,6 +406,82 @@ export function sanitizeResourceUrl(rawUrl) {
 }
 
 /**
+ * Neutralizes spreadsheet formula injection (CSV Injection / CWE-1236) in exported CSV cells.
+ */
+export function sanitizeCsvCell(value) {
+  const str = String(value ?? '').replace(/"/g, '""');
+  const safeStr = /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+  return `"${safeStr}"`;
+}
+
+/**
+ * Strips sensitive authentication fields (`passwordHash`, `authUid`, prototype keys)
+ * from profile objects before persisting to localStorage, exporting JSON backups, or importing.
+ */
+export function sanitizeUserProfile(rawProfile, fallbackProfile = {}, lockedEmail = null) {
+  if (!rawProfile || typeof rawProfile !== 'object') {
+    return { ...fallbackProfile };
+  }
+  const allowedFields = [
+    'name',
+    'studentId',
+    'email',
+    'degreeLevel',
+    'degreeName',
+    'degreeType',
+    'status',
+    'currentSession',
+    'academicYear',
+    'enrolledYear',
+    'totalTargetCFU',
+    'weeklyGoalHours',
+    'avatarUrl',
+    'logoUrl',
+    'thesisPointsExpected',
+    'institution',
+    'xp',
+    'currentStreak',
+    'minutesStudiedThisWeek',
+    'tasksCompletedThisWeek',
+    'lastActiveDate',
+    'activeSquadId',
+    'squadIds',
+  ];
+
+  const clean = { ...fallbackProfile };
+  for (const key of allowedFields) {
+    if (Object.prototype.hasOwnProperty.call(rawProfile, key) && rawProfile[key] !== undefined) {
+      clean[key] = rawProfile[key];
+    }
+  }
+  if (lockedEmail) {
+    clean.email = String(lockedEmail).trim().toLowerCase();
+  }
+  return clean;
+}
+
+/**
+ * Sanitizes an array of resource links, filtering out any invalid or malicious URLs (e.g., javascript:).
+ */
+export function sanitizeResourceLinksList(links) {
+  if (!Array.isArray(links)) return [];
+  const out = [];
+  for (const item of links) {
+    if (!item || typeof item !== 'object') continue;
+    const safeUrl = sanitizeResourceUrl(item.url);
+    if (!safeUrl) continue;
+    out.push({
+      id: String(item.id || `res-${Date.now()}-${out.length}`),
+      title: String(item.title || 'Resource').slice(0, 200),
+      url: safeUrl,
+      category: String(item.category || 'Portal').slice(0, 64),
+      createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+    });
+  }
+  return out;
+}
+
+/**
  * Classifies Firebase Google Sign-In errors to determine whether to fall back to signInWithRedirect
  * or display an actionable message.
  */
@@ -398,7 +492,7 @@ export function formatGoogleAuthError(err) {
   if (
     code === 'auth/popup-blocked' ||
     code === 'auth/operation-not-supported-in-this-environment' ||
-    rawMessage.toLowerCase().includes('popup') && rawMessage.toLowerCase().includes('blocked')
+    (rawMessage.toLowerCase().includes('popup') && rawMessage.toLowerCase().includes('blocked'))
   ) {
     return {
       code,
@@ -463,13 +557,16 @@ export async function dispatchVerificationCode(email, dbInstance) {
 
     const docId = getEmailDocId(normalized);
     const code = generateVerificationCode();
-    const codeHash = await sha256Hex(code);
+    const codeSalt = generateSaltHex(8);
+    const codeHash = await computeSaltedOtpHash(normalized, code, codeSalt);
     const expiresAt = Date.now() + 15 * 60 * 1000;
 
+    // Store ONLY the salted hash in Firestore — NEVER store the plaintext OTP code!
     const verRef = doc(dbInstance, 'emailVerifications', docId);
     await setDoc(verRef, {
       email: normalized,
-      code,
+      code: null,
+      codeSalt,
       codeHash,
       attempts: 0,
       maxAttempts: 5,
@@ -482,7 +579,7 @@ export async function dispatchVerificationCode(email, dbInstance) {
       await addDoc(collection(dbInstance, 'mail'), {
         to: [normalized],
         message: {
-          subject: `Your UniSphere Verification Code: ${code}`,
+          subject: 'Your UniSphere Verification Code',
           text: `Your UniSphere verification code is: ${code}\nThis code will expire in 15 minutes.`,
           html: `<div style="font-family: sans-serif; padding: 20px;"><h2>UniSphere Verification Code</h2><p>Here is your 6-digit verification code to confirm your email (<strong>${normalized.replace(/[<>&"']/g, '')}</strong>):</p><div style="font-size: 28px; letter-spacing: 6px; font-weight: bold; padding: 12px; border: 1px solid #333; text-align: center; margin: 16px 0;">${code}</div><p>This code will expire in 15 minutes.</p></div>`,
         },
@@ -581,11 +678,19 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
       };
     }
 
-    const inputCodeHash = await sha256Hex(cleanCode);
-    const matchesHash = data.codeHash && timingSafeEqualStr(data.codeHash, inputCodeHash);
-    const matchesPlain = data.code && timingSafeEqualStr(String(data.code), cleanCode);
+    const saltedCandidateHash = await computeSaltedOtpHash(
+      normalized,
+      cleanCode,
+      data.codeSalt || ''
+    );
+    const legacyUnsaltedHash = await sha256Hex(cleanCode);
 
-    if (!matchesHash && !matchesPlain) {
+    const matchesSalted =
+      data.codeHash && timingSafeEqualStr(data.codeHash, saltedCandidateHash);
+    const matchesLegacyHash =
+      !data.codeSalt && data.codeHash && timingSafeEqualStr(data.codeHash, legacyUnsaltedHash);
+
+    if (!matchesSalted && !matchesLegacyHash) {
       await setDoc(verRef, { attempts: attempts + 1 }, { merge: true }).catch(() => {});
       return {
         success: false,

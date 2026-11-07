@@ -46,11 +46,13 @@ function escapeHtml(value: string): string {
 
 function applySecurityHeaders(res: any) {
   if (!res || typeof res.setHeader !== 'function') return;
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
   res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   res.setHeader('Cache-Control', 'no-store');
 }
 
@@ -79,7 +81,12 @@ export default async function handler(req: any, res: any) {
 
     const { email, code } = req.body || {};
 
-    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    if (
+      !email ||
+      typeof email !== 'string' ||
+      email.trim().length > 254 ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+    ) {
       return res.status(400).json({ error: 'A valid email address is required' });
     }
 
@@ -106,22 +113,35 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({
         success: false,
         configured: false,
-        message: 'RESEND_API_KEY is not configured in environment.',
+        message: 'Email service is not configured in this environment.',
       });
     }
 
     const fromEmail = process.env.EMAIL_FROM || 'UniSphere <noreply@unispherelife.me>';
     const safeCode = escapeHtml(cleanCode);
 
-    const data = await resend.emails.send({
+    const result = await resend.emails.send({
       from: fromEmail,
       to: normalizedEmail,
       subject: 'Your UniSphere Verification Code',
-      html: `<p>Your verification code is: <strong>${safeCode}</strong></p>`,
+      html: `<p>Your verification code is: <strong>${safeCode}</strong></p><p>This single-use code expires in 15 minutes.</p>`,
     });
 
-    return res.status(200).json(data);
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || 'Failed to send email' });
+    if ((result as any)?.error) {
+      return res.status(502).json({
+        success: false,
+        error: 'Email provider could not deliver the verification message.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      id: (result as any)?.data?.id || (result as any)?.id || null,
+    });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to dispatch verification email.',
+    });
   }
 }

@@ -17,7 +17,7 @@ export function getUserDocId(email, uid) {
   if (email && email.trim()) {
     return getEmailDocId(email);
   }
-  if (auth.currentUser?.email) {
+  if (auth?.currentUser?.email) {
     return getEmailDocId(auth.currentUser.email);
   }
   if (uid && uid.trim()) {
@@ -75,22 +75,6 @@ export async function fetchUserSquads(currentUid, email) {
         console.warn('Error querying squads by memberUids (uid):', err);
       }
     }
-
-    if (email && email !== currentUid) {
-      try {
-        const qEmail = query(
-          collection(db, 'squads'),
-          where('memberUids', 'array-contains', email.toLowerCase().trim())
-        );
-        const emailSnap = await getDocs(qEmail);
-        emailSnap.forEach((d) => {
-          const sq = d.data();
-          if (sq && sq.id) foundSquadsMap.set(sq.id, sq);
-        });
-      } catch (err) {
-        console.warn('Error querying squads by memberUids (email):', err);
-      }
-    }
   } catch (err) {
     console.warn('Error syncing user squads from Firestore:', err);
   }
@@ -140,12 +124,13 @@ export async function removeSquadFromUserDoc(email, currentUid, squadId, nextAct
 
 export async function saveSquadMemberToCloud(squadId, member) {
   try {
-    const memberRef = doc(db, 'squads', squadId, 'members', member.uid);
-    await setDoc(memberRef, member, { merge: true });
+    const { email: _omitEmail, ...sanitizedMember } = member || {};
+    const memberRef = doc(db, 'squads', squadId, 'members', sanitizedMember.uid);
+    await setDoc(memberRef, sanitizedMember, { merge: true });
 
     const squadRef = doc(db, 'squads', squadId);
     await updateDoc(squadRef, {
-      memberUids: arrayUnion(member.uid, member.email || member.uid),
+      memberUids: arrayUnion(sanitizedMember.uid),
     }).catch(() => {});
   } catch (err) {
     console.warn('Failed to save squad member to cloud:', err);

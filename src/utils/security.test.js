@@ -1,12 +1,19 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   hashPassword,
   verifyPassword,
   generateVerificationCode,
+  computeSaltedOtpHash,
+  redactEmail,
   createRateLimiter,
   getSecurityHeaders,
   sanitizeResourceUrl,
+  sanitizeCsvCell,
+  sanitizeUserProfile,
+  sanitizeResourceLinksList,
   formatGoogleAuthError,
 } from '../lib/authService.js';
 
@@ -30,9 +37,7 @@ describe('Password Hashing & Verification (PBKDF2 + Legacy Compatibility)', () =
   });
 
   it('supports verifying legacy unsalted 64-char hex SHA-256 hashes for existing users', async () => {
-    // SHA-256 of 'legacyPass'
     const legacyHash = '70f96d6b05c701164a47f869021831d526bf4291322481d800bf35c0a8b1a7a5';
-    // Let's also compute real sha256 via WebCrypto to test exact legacy match
     const enc = new TextEncoder().encode('secret123');
     const buf = await globalThis.crypto.subtle.digest('SHA-256', enc);
     const hex = Array.from(new Uint8Array(buf))
@@ -45,7 +50,7 @@ describe('Password Hashing & Verification (PBKDF2 + Legacy Compatibility)', () =
   });
 });
 
-describe('CSPRNG Verification Code Generation', () => {
+describe('CSPRNG Verification Code & Salted OTP Hashing (#30)', () => {
   it('generates a 6-digit numeric string', () => {
     for (let i = 0; i < 25; i++) {
       const code = generateVerificationCode();
@@ -53,6 +58,23 @@ describe('CSPRNG Verification Code Generation', () => {
       const num = Number(code);
       assert.ok(num >= 100000 && num <= 999999);
     }
+  });
+
+  it('produces domain-separated, email-salted OTP hashes that differ across emails and salts', async () => {
+    const h1 = await computeSaltedOtpHash('alice@uni.edu', '123456', 'saltA');
+    const h2 = await computeSaltedOtpHash('bob@uni.edu', '123456', 'saltA');
+    const h3 = await computeSaltedOtpHash('alice@uni.edu', '123456', 'saltB');
+    const h1Repeat = await computeSaltedOtpHash('ALICE@uni.edu ', ' 123456 ', 'saltA');
+
+    assert.equal(h1.length, 64);
+    assert.notEqual(h1, h2);
+    assert.notEqual(h1, h3);
+    assert.equal(h1, h1Repeat);
+  });
+
+  it('redacts email addresses to prevent PII exposure in logs', () => {
+    assert.equal(redactEmail('student@uniroma3.it'), 's***@uniroma3.it');
+    assert.equal(redactEmail('invalid'), '***');
   });
 });
 
@@ -87,11 +109,9 @@ describe('Sliding-Window Rate Limiter', () => {
     limiter.consume('ip-1');
     assert.equal(limiter.consume('ip-1').allowed, false);
 
-    // Advance time past window
     now += 61_000;
     assert.equal(limiter.consume('ip-1').allowed, true);
 
-    // Exhaust again and test explicit reset
     limiter.consume('ip-1');
     assert.equal(limiter.consume('ip-1').allowed, false);
     limiter.reset('ip-1');
@@ -99,7 +119,7 @@ describe('Sliding-Window Rate Limiter', () => {
   });
 });
 
-describe('Security Headers & URL Sanitization', () => {
+describe('Security Headers, URL Sanitization, CSV Injection & Profile Stripping (#30)', () => {
   it('returns standard security headers including CSP, HSTS, X-Frame-Options, and nosniff', () => {
     const headers = getSecurityHeaders();
     assert.equal(headers['X-Content-Type-Options'], 'nosniff');
@@ -110,11 +130,96 @@ describe('Security Headers & URL Sanitization', () => {
     assert.ok(headers['Content-Security-Policy'].includes('https://apis.google.com'));
   });
 
-  it('rejects javascript: and data: URLs while allowing http: and https:', () => {
+  it('rejects javascript:, data:, vbscript:, file:, and blob: URLs while allowing http: and https:', () => {
     assert.equal(sanitizeResourceUrl('javascript:alert(1)'), null);
     assert.equal(sanitizeResourceUrl('data:text/html,<script>alert(1)</script>'), null);
+    assert.equal(sanitizeResourceUrl('blob:https://evil.example/123'), null);
     assert.equal(sanitizeResourceUrl('https://gomp.uniroma3.it/'), 'https://gomp.uniroma3.it/');
     assert.equal(sanitizeResourceUrl('gomp.uniroma3.it'), 'https://gomp.uniroma3.it/');
+  });
+
+  it('filters malicious URLs from imported or synced resourceLinks arrays', () => {
+    const cleaned = sanitizeResourceLinksList([
+      { id: '1', title: 'XSS', url: 'javascript:alert(document.cookie)' },
+      { id: '2', title: 'Safe Portal', url: 'https://gomp.uniroma3.it/' },
+    ]);
+    assert.equal(cleaned.length, 1);
+    assert.equal(cleaned[0].url, 'https://gomp.uniroma3.it/');
+  });
+
+  it('neutralizes CSV formula injection payloads in exported log cells', () => {
+    assert.equal(sanitizeCsvCell("=cmd|' /C calc'!A0"), `"'=cmd|' /C calc'!A0"`);
+    assert.equal(sanitizeCsvCell('+SUM(A1:A2)'), `"'+SUM(A1:A2)"`);
+    assert.equal(sanitizeCsvCell('-1+1'), `"'-1+1"`);
+    assert.equal(sanitizeCsvCell('@IMPORTXML()'), `"'@IMPORTXML()"`);
+    assert.equal(sanitizeCsvCell('Normal notes "quoted"'), `"Normal notes ""quoted"""`);
+  });
+
+  it('strips passwordHash, authUid, and unexpected fields when sanitizing user profiles', () => {
+    const dirtyProfile = {
+      name: 'Mario Rossi',
+      email: 'spoofed@evil.com',
+      studentId: '123456',
+      passwordHash: 'pbkdf2$100000$deadbeef$secret',
+      authUid: 'internal-uid-999',
+      isAdmin: true,
+    };
+    const sanitized = sanitizeUserProfile(
+      dirtyProfile,
+      { degreeType: 'Laurea Triennale' },
+      'mario@uni.edu'
+    );
+
+    assert.equal(sanitized.name, 'Mario Rossi');
+    assert.equal(sanitized.email, 'mario@uni.edu');
+    assert.equal('passwordHash' in sanitized, false);
+    assert.equal('authUid' in sanitized, false);
+    assert.equal('isAdmin' in sanitized, false);
+  });
+});
+
+describe('Firebase Config Fallback, Login Binding & Firestore Rules Hardening (#30)', () => {
+  const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+
+  it('ensures src/lib/firebase.js initializes with VITE_FIREBASE_* or fallback config without external JSON import', () => {
+    const firebaseSrc = fs.readFileSync(path.join(repoRoot, 'src/lib/firebase.js'), 'utf8');
+    assert.ok(
+      firebaseSrc.includes('DEFAULT_FIREBASE_CONFIG'),
+      'firebase.js must include inline DEFAULT_FIREBASE_CONFIG fallback so ES module loading never fails when .env is absent'
+    );
+    assert.ok(
+      firebaseSrc.includes('VITE_FIREBASE_API_KEY'),
+      'firebase.js must support VITE_FIREBASE_* environment variables'
+    );
+  });
+
+  it('ensures src/app.js uses WeakSet (boundElements) instead of dataset.bound so cached login HTML retains working listeners', () => {
+    const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+    assert.ok(
+      appSrc.includes('const boundElements = new WeakSet()'),
+      'app.js must track bound DOM elements in a WeakSet so pageHtmlCache never serializes data-bound="true"'
+    );
+    assert.ok(
+      !appSrc.includes('dataset.bound'),
+      'app.js must not use dataset.bound which breaks event binding after pageHtmlCache restore'
+    );
+  });
+
+  it('verifies firestore.rules prevents user enumeration, enforces schema validation, and forbids plaintext OTP codes', () => {
+    const rulesContent = fs.readFileSync(path.join(repoRoot, 'firestore.rules'), 'utf8');
+
+    assert.ok(
+      rulesContent.includes('allow list: if false;'),
+      'users list rule must be false to prevent collection-wide user enumeration'
+    );
+    assert.ok(
+      rulesContent.includes('allow get: if isUserDocOwner(userId) || isValidDocId(userId);'),
+      'users get rule must support authenticated owner and hybrid PBKDF2 login lookup'
+    );
+    assert.ok(
+      rulesContent.includes("(!('code' in data) || data.code == null)"),
+      'emailVerifications must forbid storing non-null plaintext code'
+    );
   });
 });
 

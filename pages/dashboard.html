@@ -385,7 +385,9 @@
           const distToMon = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
           let logs = [];
           try {
-            logs = JSON.parse(localStorage.getItem('unisphere_workstation_v1_logs') || '[]');
+            if (localStorage.getItem('unisphere_workspace_session_email')) {
+              logs = JSON.parse(localStorage.getItem('unisphere_workspace_logs') || '[]');
+            }
           } catch {}
           const days = dayNames.map((shortDay, i) => {
             const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + distToMon + i);
