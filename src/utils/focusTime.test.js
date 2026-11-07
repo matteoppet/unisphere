@@ -153,7 +153,8 @@ describe('groupStudyLogsByWeek (#34)', () => {
     assert.match(indexHtml, /class="table-wrap table-scroll table-scroll-sm"/);
     assert.match(dashHtml, /class="table-wrap table-scroll table-scroll-sm"/);
     assert.match(logsHtml, /class="table-wrap table-scroll"/);
-    assert.match(css, /\.table-scroll\s*\{/);
+    assert.match(css, /\.table-scroll\s*\{[\s\S]*?max-height:\s*calc\(100vh\s*-/);
+    assert.match(css, /\.table-scroll-sm\s*\{[\s\S]*?max-height:\s*calc\(100vh\s*-/);
     assert.match(css, /\.week-separator-row\s+td\s*\{/);
     assert.match(appJs, /groupStudyLogsByWeek/);
     assert.match(appJs, /week-separator-row/);

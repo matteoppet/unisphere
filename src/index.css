@@ -266,12 +266,12 @@ button.btn-danger {
 }
 
 .table-scroll {
-  max-height: 440px;
+  max-height: calc(100vh - 420px);
   overflow-y: auto;
 }
 
 .table-scroll-sm {
-  max-height: 280px;
+  max-height: calc(100vh - 460px);
 }
 
 .table-scroll thead th {
