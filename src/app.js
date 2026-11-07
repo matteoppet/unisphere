@@ -49,6 +49,7 @@ import {
   formatStudyDuration,
   getLocalDateString,
   getWeekDaysSummary,
+  groupStudyLogsByWeek,
   updateStreak,
   calculateElo,
   generateSquadCode,
@@ -756,19 +757,27 @@ export function initApp() {
 
     const logsTbody = document.getElementById('dash-logs-tbody');
     if (logsTbody) {
+      const weekGroups = groupStudyLogsByWeek(studyLogs);
       logsTbody.innerHTML =
-        studyLogs.length === 0
+        weekGroups.length === 0
           ? `<tr><td colspan="4" class="empty-cell">No session logs recorded yet.</td></tr>`
-          : studyLogs
-              .slice(0, 10)
+          : weekGroups
               .map(
-                (l) => `
+                (group) => `
+              <tr class="week-separator-row">
+                <td colspan="4">${escapeHtml(group.label)}</td>
+              </tr>
+              ${group.logs
+                .map(
+                  (l) => `
               <tr>
                 <td>${escapeHtml(formatReadableDate(l.date))}</td>
                 <td>${escapeHtml(l.courseName)}</td>
                 <td>${escapeHtml(formatStudyDuration(l.durationMinutes))}</td>
                 <td><a href="#" data-delete-log="${escapeHtml(l.id)}">Delete</a></td>
               </tr>`
+                )
+                .join('')}`
               )
               .join('');
     }
@@ -950,12 +959,19 @@ export function initApp() {
 
     const registryTbody = document.getElementById('logs-registry-tbody');
     if (registryTbody) {
+      const weekGroups = groupStudyLogsByWeek(filteredLogs);
       registryTbody.innerHTML =
-        filteredLogs.length === 0
+        weekGroups.length === 0
           ? `<tr><td colspan="6" class="empty-cell">No study session logs recorded.</td></tr>`
-          : filteredLogs
+          : weekGroups
               .map(
-                (l) => `
+                (group) => `
+              <tr class="week-separator-row">
+                <td colspan="6">${escapeHtml(group.label)}</td>
+              </tr>
+              ${group.logs
+                .map(
+                  (l) => `
               <tr>
                 <td>${escapeHtml(formatReadableDate(l.date))}</td>
                 <td>${escapeHtml(l.courseName)}</td>
@@ -964,6 +980,8 @@ export function initApp() {
                 <td>${escapeHtml(l.notes || '-')}</td>
                 <td><a href="#" data-delete-log="${escapeHtml(l.id)}">Delete</a></td>
               </tr>`
+                )
+                .join('')}`
               )
               .join('');
     }

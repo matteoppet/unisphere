@@ -265,6 +265,34 @@ button.btn-danger {
   overflow-x: auto;
 }
 
+.table-scroll {
+  max-height: 440px;
+  overflow-y: auto;
+}
+
+.table-scroll-sm {
+  max-height: 280px;
+}
+
+.table-scroll thead th {
+  position: sticky;
+  top: 0;
+  background-color: #ffffff;
+  z-index: 1;
+  box-shadow: inset 0 -1px 0 #e0e0e0;
+}
+
+.week-separator-row td {
+  background-color: #f7f7f7;
+  color: #555555;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 4px 8px;
+  border-top: 1px solid #dcdcdc;
+  border-bottom: 1px solid #dcdcdc;
+  letter-spacing: 0.01em;
+}
+
 .week-5day-tracker {
   margin-bottom: 14px;
   border: 1px solid #e2e2e2;

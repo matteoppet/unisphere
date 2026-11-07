@@ -1,10 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   formatStudyDuration,
   getLocalDateString,
   getWeekDaysSummary,
   calculateWeeklyFocus,
+  groupStudyLogsByWeek,
 } from './telemetry.js';
 
 describe('Focus Time formatting and weekly summary (#13)', () => {
@@ -99,4 +101,63 @@ describe('Weekly log per day widget includes Saturday (#32)', () => {
     assert.equal(saturdayEntry.hours, '1h 30m');
   });
 });
+
+describe('groupStudyLogsByWeek (#34)', () => {
+  it('returns empty array when given no logs', () => {
+    assert.deepEqual(groupStudyLogsByWeek([]), []);
+  });
+
+  it('sorts logs newest-first and groups Monday through Sunday into the same week', () => {
+    const logs = [
+      { id: '1', date: '2026-11-02', durationMinutes: 60, timestamp: 100 }, // Mon
+      { id: '2', date: '2026-11-08', durationMinutes: 90, timestamp: 200 }, // Sun (same week)
+      { id: '3', date: '2026-10-28', durationMinutes: 45, timestamp: 50 },  // Wed (prev week)
+      { id: '4', date: '2026-11-08', durationMinutes: 30, timestamp: 300 }, // Sun (later timestamp)
+    ];
+
+    const groups = groupStudyLogsByWeek(logs);
+    assert.equal(groups.length, 2);
+
+    assert.equal(groups[0].weekKey, '2026-11-02');
+    assert.equal(groups[0].totalMinutes, 180);
+    assert.equal(groups[0].totalDuration, '3h');
+    assert.equal(groups[0].label, 'Week of 2 Nov – 8 Nov · 3h');
+    assert.deepEqual(groups[0].logs.map((l) => l.id), ['4', '2', '1']);
+
+    assert.equal(groups[1].weekKey, '2026-10-26');
+    assert.equal(groups[1].totalMinutes, 45);
+    assert.equal(groups[1].totalDuration, '45m');
+    assert.equal(groups[1].label, 'Week of 26 Oct – 1 Nov · 45m');
+    assert.deepEqual(groups[1].logs.map((l) => l.id), ['3']);
+  });
+
+  it('handles malformed dates gracefully without throwing', () => {
+    const logs = [
+      { id: '1', date: 'invalid-date', durationMinutes: 30 },
+      { id: '2', date: '2026-11-03', durationMinutes: 60 },
+    ];
+    const groups = groupStudyLogsByWeek(logs);
+    assert.equal(groups.length, 2);
+    assert.equal(groups[0].weekKey, '2026-11-02');
+    assert.equal(groups[1].weekKey, 'other');
+    assert.equal(groups[1].label, 'Other · 30m');
+  });
+
+  it('wires scrollable containers and week-separator-row into index.html, dashboard.html, logs.html, index.css, and app.js', () => {
+    const indexHtml = fs.readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+    const dashHtml = fs.readFileSync(new URL('../../pages/dashboard.html', import.meta.url), 'utf8');
+    const logsHtml = fs.readFileSync(new URL('../../pages/logs.html', import.meta.url), 'utf8');
+    const css = fs.readFileSync(new URL('../index.css', import.meta.url), 'utf8');
+    const appJs = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+
+    assert.match(indexHtml, /class="table-wrap table-scroll table-scroll-sm"/);
+    assert.match(dashHtml, /class="table-wrap table-scroll table-scroll-sm"/);
+    assert.match(logsHtml, /class="table-wrap table-scroll"/);
+    assert.match(css, /\.table-scroll\s*\{/);
+    assert.match(css, /\.week-separator-row\s+td\s*\{/);
+    assert.match(appJs, /groupStudyLogsByWeek/);
+    assert.match(appJs, /week-separator-row/);
+  });
+});
+
 

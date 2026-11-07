@@ -141,3 +141,121 @@ export function calculateWeeklyFocus(
     remainingDuration,
   };
 }
+
+export function groupStudyLogsByWeek(studyLogs = []) {
+  if (!Array.isArray(studyLogs) || studyLogs.length === 0) return [];
+
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  function parseValidDate(dateStr) {
+    if (typeof dateStr !== 'string') return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+    if (!match) return null;
+    const year = Number(match[1]);
+    const monthIdx = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const d = new Date(year, monthIdx, day);
+    if (d.getFullYear() !== year || d.getMonth() !== monthIdx || d.getDate() !== day) {
+      return null;
+    }
+    return d;
+  }
+
+  const annotated = studyLogs.map((log, index) => {
+    const parsedDate = parseValidDate(log?.date);
+    return {
+      log,
+      index,
+      parsedDate,
+      dateKey: parsedDate ? log.date.trim() : '',
+      timestamp: Number(log?.timestamp) || 0,
+    };
+  });
+
+  annotated.sort((a, b) => {
+    if (a.parsedDate && !b.parsedDate) return -1;
+    if (!a.parsedDate && b.parsedDate) return 1;
+    if (a.parsedDate && b.parsedDate) {
+      if (a.dateKey !== b.dateKey) {
+        return b.dateKey.localeCompare(a.dateKey);
+      }
+      if (b.timestamp !== a.timestamp) {
+        return b.timestamp - a.timestamp;
+      }
+    }
+    return a.index - b.index;
+  });
+
+  const groupsMap = new Map();
+
+  for (const item of annotated) {
+    const { log, parsedDate } = item;
+    const mins = Number(log?.durationMinutes) || 0;
+
+    if (!parsedDate) {
+      let group = groupsMap.get('other');
+      if (!group) {
+        group = {
+          weekKey: 'other',
+          baseLabel: 'Other',
+          totalMinutes: 0,
+          logs: [],
+        };
+        groupsMap.set('other', group);
+      }
+      group.totalMinutes += mins;
+      group.logs.push(log);
+      continue;
+    }
+
+    const dayOfWeek = parsedDate.getDay();
+    const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(
+      parsedDate.getFullYear(),
+      parsedDate.getMonth(),
+      parsedDate.getDate() + distanceToMonday
+    );
+    const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+
+    const weekKey = getLocalDateString(monday);
+    let group = groupsMap.get(weekKey);
+    if (!group) {
+      const startFmt = `${monday.getDate()} ${monthNames[monday.getMonth()]}`;
+      const endFmt = `${sunday.getDate()} ${monthNames[sunday.getMonth()]}`;
+      group = {
+        weekKey,
+        baseLabel: `Week of ${startFmt} – ${endFmt}`,
+        totalMinutes: 0,
+        logs: [],
+      };
+      groupsMap.set(weekKey, group);
+    }
+    group.totalMinutes += mins;
+    group.logs.push(log);
+  }
+
+  return Array.from(groupsMap.values()).map((g) => {
+    const totalDuration = formatStudyDuration(g.totalMinutes);
+    return {
+      weekKey: g.weekKey,
+      label: `${g.baseLabel} · ${totalDuration}`,
+      totalMinutes: g.totalMinutes,
+      totalDuration,
+      logs: g.logs,
+    };
+  });
+}
+
