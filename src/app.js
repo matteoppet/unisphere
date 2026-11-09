@@ -89,56 +89,6 @@ const INITIAL_PROFILE = {
   squadIds: [],
 };
 
-const DEFAULT_STARTER_COURSES = [
-  {
-    id: 'course-analisi-1',
-    code: 'MAT-01',
-    title: 'Analisi 1',
-    shortTitle: 'Analisi 1',
-    email: '',
-    officeHours: '',
-    cfu: 12,
-    year: 1,
-    semester: 1,
-    status: 'active',
-    progress: 0,
-    color: '#3B77BC',
-    notes: '',
-  },
-];
-
-const DEFAULT_STARTER_LOGS = [
-  {
-    id: 'log-starter-1',
-    courseId: 'course-analisi-1',
-    courseName: 'Analisi 1',
-    durationMinutes: 90,
-    date: '2026-11-10',
-    timeRange: '2026-11-10',
-    notes: 'Limits, continuity, and derivatives review.',
-    rating: 5,
-    tag: 'Deep Work',
-    timestamp: Date.now(),
-  },
-];
-
-const DEFAULT_STARTER_RESOURCES = [
-  {
-    id: 'res-gomp',
-    title: 'Gomp Roma Tre',
-    url: 'https://gomp.uniroma3.it/',
-    category: 'Portal',
-    createdAt: Date.now(),
-  },
-  {
-    id: 'res-celestrack',
-    title: 'CelesTrack API',
-    url: 'https://celestrak.org/',
-    category: 'Tools',
-    createdAt: Date.now(),
-  },
-];
-
 const PAGE_PATHS = {
   login: '/pages/login.html',
   dashboard: '/pages/dashboard.html',
@@ -151,12 +101,18 @@ const PAGE_PATHS = {
 
 function sanitizeCourseList(list) {
   if (!Array.isArray(list)) return [];
-  return list.map((item) => sanitizeCourseItem(item)).filter(Boolean);
+  return list
+    .filter((item) => item?.id !== 'course-analisi-1')
+    .map((item) => sanitizeCourseItem(item))
+    .filter(Boolean);
 }
 
 function sanitizeStudyLogList(list) {
   if (!Array.isArray(list)) return [];
-  return list.map((item) => sanitizeStudyLogItem(item)).filter(Boolean);
+  return list
+    .filter((item) => item?.id !== 'log-starter-1')
+    .map((item) => sanitizeStudyLogItem(item))
+    .filter(Boolean);
 }
 
 function sanitizeAssignmentList(list) {
@@ -215,7 +171,7 @@ export function initApp() {
         if (Array.isArray(parsed)) return sanitizeCourseList(parsed);
       }
     } catch {}
-    return [...DEFAULT_STARTER_COURSES];
+    return [];
   })();
 
   let studyLogs = (() => {
@@ -226,7 +182,7 @@ export function initApp() {
         if (Array.isArray(parsed)) return sanitizeStudyLogList(parsed);
       }
     } catch {}
-    return [...DEFAULT_STARTER_LOGS];
+    return [];
   })();
 
   let assignments = (() => {
@@ -262,18 +218,18 @@ export function initApp() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const cleaned = sanitizeResourceLinksList(
+          return sanitizeResourceLinksList(
             parsed.filter(
               (r) =>
-                !['res-1', 'res-2', 'res-3', 'res-4'].includes(r?.id) &&
-                !r?.url?.includes('unirand.it')
+                !['res-1', 'res-2', 'res-3', 'res-4', 'res-gomp', 'res-celestrack'].includes(
+                  r?.id
+                ) && !r?.url?.includes('unirand.it')
             )
           );
-          if (cleaned.length > 0) return cleaned;
         }
       }
     } catch {}
-    return [...DEFAULT_STARTER_RESOURCES];
+    return [];
   })();
 
   let sessionEmail = (() => {
@@ -441,7 +397,7 @@ export function initApp() {
       resourceLinks = sanitizeResourceLinksList(
         data.resourceLinks.filter(
           (r) =>
-            !['res-1', 'res-2', 'res-3', 'res-4'].includes(r?.id) &&
+            !['res-1', 'res-2', 'res-3', 'res-4', 'res-gomp', 'res-celestrack'].includes(r?.id) &&
             !r?.url?.includes('unirand.it')
         )
       );
@@ -511,10 +467,9 @@ export function initApp() {
             }
 
             const isDefaultStarterState =
-              courses.length === 1 &&
-              courses[0]?.id === 'course-analisi-1' &&
+              courses.length === 0 &&
               Array.isArray(existingData?.courses) &&
-              existingData.courses.length > 1;
+              existingData.courses.length > 0;
             if (isDefaultStarterState) {
               profile = sanitizeUserProfile(existingData, profile, targetEmail);
               courses = sanitizeCourseList(existingData.courses);
@@ -658,12 +613,12 @@ export function initApp() {
     isAuthenticated = false;
     verificationSentTo = null;
     profile = { ...INITIAL_PROFILE };
-    courses = [...DEFAULT_STARTER_COURSES];
-    studyLogs = [...DEFAULT_STARTER_LOGS];
+    courses = [];
+    studyLogs = [];
     assignments = [];
     quickNotes = '';
     checklist = '';
-    resourceLinks = [...DEFAULT_STARTER_RESOURCES];
+    resourceLinks = [];
     squads = [];
     activeSquadId = null;
     squadMembers = [];
@@ -1514,25 +1469,31 @@ export function initApp() {
       authUid: googleUser.uid || docId,
       email: mail,
       name: sanitizeTextInput(googleUser.displayName || profile.name || mail.split('@')[0], 100),
-      studentId: profile.studentId || '',
+      studentId: '',
       authProvider: 'google',
       emailVerified: true,
-      degreeName: profile.degreeName || '',
-      institution: profile.institution || '',
-      degreeType: profile.degreeType || 'Laurea Triennale',
-      totalTargetCFU: profile.totalTargetCFU || 180,
-      academicYear: profile.academicYear || 'Year 1',
-      courses: sanitizeCourseList(courses),
-      studyLogs: sanitizeStudyLogList(studyLogs),
-      assignments: sanitizeAssignmentList(assignments),
-      quickNotes,
-      checklist,
-      resourceLinks: sanitizeResourceLinksList(resourceLinks),
+      degreeName: '',
+      institution: '',
+      degreeType: INITIAL_PROFILE.degreeType,
+      totalTargetCFU: INITIAL_PROFILE.totalTargetCFU,
+      academicYear: INITIAL_PROFILE.academicYear,
+      courses: [],
+      studyLogs: [],
+      assignments: [],
+      quickNotes: '',
+      checklist: '',
+      resourceLinks: [],
       createdAt: new Date().toISOString(),
       updatedAt: Date.now(),
     });
 
     if (!db) {
+      courses = [];
+      studyLogs = [];
+      assignments = [];
+      quickNotes = '';
+      checklist = '';
+      resourceLinks = [];
       completeCloudLogin(fallbackRecord, mail);
       return;
     }
@@ -1559,6 +1520,14 @@ export function initApp() {
         return;
       }
 
+      clearLocalWorkspaceStorage();
+      profile = { ...INITIAL_PROFILE };
+      courses = [];
+      studyLogs = [];
+      assignments = [];
+      quickNotes = '';
+      checklist = '';
+      resourceLinks = [];
       await setDoc(userRef, fallbackRecord, { merge: true });
       completeCloudLogin(fallbackRecord, mail);
     } catch (firestoreErr) {
@@ -1917,25 +1886,34 @@ export function initApp() {
           const docId = getEmailDocId(regEmail);
           const passwordHash = await hashPassword(regPass);
 
+          clearLocalWorkspaceStorage();
+          profile = { ...INITIAL_PROFILE };
+          courses = [];
+          studyLogs = [];
+          assignments = [];
+          quickNotes = '';
+          checklist = '';
+          resourceLinks = [];
+
           const newRecord = {
             uid: docId,
             authUid: authUid || docId,
             email: regEmail,
             name: regName,
-            studentId: profile.studentId || '',
+            studentId: '',
             passwordHash,
             emailVerified: Boolean(regCode),
             degreeName: regDegree,
             institution: regInstitution,
-            degreeType: profile.degreeType || 'Laurea Triennale',
+            degreeType: INITIAL_PROFILE.degreeType,
             totalTargetCFU: regCFU,
-            academicYear: profile.academicYear || 'Year 1',
-            courses,
-            studyLogs,
-            assignments,
-            quickNotes,
-            checklist,
-            resourceLinks,
+            academicYear: INITIAL_PROFILE.academicYear,
+            courses: [],
+            studyLogs: [],
+            assignments: [],
+            quickNotes: '',
+            checklist: '',
+            resourceLinks: [],
             createdAt: new Date().toISOString(),
             updatedAt: Date.now(),
           };

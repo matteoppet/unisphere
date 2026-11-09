@@ -447,3 +447,45 @@ describe('Google Sign-In Error Classification', () => {
     assert.ok(closed.message.includes('closed'));
   });
 });
+
+describe('Clean New User Registration Without Pre-Loaded Data (#35)', () => {
+  const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+
+  it('does not pre-load starter courses, study logs, or resources for new users in src/app.js', () => {
+    const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+
+    assert.ok(
+      !appSrc.includes('DEFAULT_STARTER_COURSES'),
+      'app.js must not define or use DEFAULT_STARTER_COURSES'
+    );
+    assert.ok(
+      !appSrc.includes('DEFAULT_STARTER_LOGS'),
+      'app.js must not define or use DEFAULT_STARTER_LOGS'
+    );
+    assert.ok(
+      !appSrc.includes('DEFAULT_STARTER_RESOURCES'),
+      'app.js must not define or use DEFAULT_STARTER_RESOURCES'
+    );
+    assert.ok(
+      !appSrc.includes('Limits, continuity, and derivatives review.'),
+      'app.js must not contain pre-loaded starter study log entries'
+    );
+  });
+
+  it('initializes new accounts with empty courses, studyLogs, assignments, and resourceLinks on registration', () => {
+    const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+
+    const regIndex = appSrc.indexOf('const newRecord = {');
+    assert.notEqual(regIndex, -1, 'newRecord declaration must exist in registration handler');
+    const regBlock = appSrc.slice(regIndex, regIndex + 900);
+
+    assert.ok(regBlock.includes('courses: []'), 'newRecord must initialize courses to []');
+    assert.ok(regBlock.includes('studyLogs: []'), 'newRecord must initialize studyLogs to []');
+    assert.ok(regBlock.includes('assignments: []'), 'newRecord must initialize assignments to []');
+    assert.ok(
+      regBlock.includes('resourceLinks: []'),
+      'newRecord must initialize resourceLinks to []'
+    );
+  });
+});
+
