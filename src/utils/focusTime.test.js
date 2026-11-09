@@ -177,6 +177,12 @@ describe('groupStudyLogsByWeek (#34)', () => {
     // Very short desktop window still keeps a sensible 180px floor
     assert.equal(calculateTableScrollMaxHeight(500, 420, 1024), 180);
   });
+
+  it('applies a visible subtle box-shadow to .dashboard-summary and .card widgets in index.css', () => {
+    const css = fs.readFileSync(new URL('../index.css', import.meta.url), 'utf8');
+    assert.match(css, /\.dashboard-summary\s*\{[\s\S]*?box-shadow:\s*0\s+4px\s+14px\s+rgba\(0,\s*0,\s*0,\s*0\.1\)/);
+    assert.match(css, /\.card\s*\{[\s\S]*?box-shadow:\s*0\s+4px\s+14px\s+rgba\(0,\s*0,\s*0,\s*0\.1\)/);
+  });
 });
 
 
