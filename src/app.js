@@ -13,6 +13,7 @@ import {
 import {
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   setDoc,
   collection,
@@ -38,6 +39,8 @@ import {
   sanitizeCourseItem,
   sanitizeStudyLogItem,
   sanitizeAssignmentItem,
+  stripUndefinedDeep,
+  reconcileStudyLogs,
 } from './lib/authService.js';
 import {
   fetchUserSquads,
@@ -307,10 +310,50 @@ export function initApp() {
 
   // Firestore real-time listener management
   let userSnapshotUnsub = null;
+  let activeSyncDocId = null;
   let hasInitialServerSnapshot = false;
+  let lastCloudPullMs = 0;
   const syncClientId = `client-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   // --- Helpers ---
+  function getSyncedLogIds() {
+    try {
+      const raw = localStorage.getItem(`${STORAGE_KEY}_synced_log_ids`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveSyncedLogIds(logs) {
+    try {
+      if (Array.isArray(logs)) {
+        const ids = logs.map((l) => l?.id).filter((id) => id && id !== 'log-starter-1');
+        localStorage.setItem(`${STORAGE_KEY}_synced_log_ids`, JSON.stringify(ids));
+      }
+    } catch {}
+  }
+
+  function hasPendingLocalSync() {
+    try {
+      return localStorage.getItem(`${STORAGE_KEY}_pending_sync`) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  function setPendingLocalSync(pending) {
+    try {
+      if (pending) {
+        localStorage.setItem(`${STORAGE_KEY}_pending_sync`, '1');
+      } else {
+        localStorage.removeItem(`${STORAGE_KEY}_pending_sync`);
+      }
+    } catch {}
+  }
+
   function setStatus(msg, autoResetMs = 3000) {
     const el = document.getElementById('sync-status');
     if (!el) return;
@@ -342,7 +385,104 @@ export function initApp() {
     }
   }
 
+  async function fetchFreshUserDoc(userRef) {
+    try {
+      return await getDocFromServer(userRef);
+    } catch {
+      return await getDoc(userRef);
+    }
+  }
+
+  function applyRemoteWorkspaceData(data, targetEmail, { isInitialHydration = false } = {}) {
+    if (!data) return false;
+    if (!isInitialHydration && data.updatedBy === syncClientId) return false;
+
+    const pendingSync = hasPendingLocalSync();
+    let shouldPushMergedToCloud = false;
+
+    profile = sanitizeUserProfile(data, profile, targetEmail);
+
+    if (Array.isArray(data.courses)) {
+      courses = sanitizeCourseList(data.courses);
+    }
+
+    if (Array.isArray(data.studyLogs)) {
+      const sanitizedRemoteLogs = sanitizeStudyLogList(data.studyLogs);
+      if (isInitialHydration || pendingSync) {
+        const { logs: mergedLogs, hasUnsyncedLocalAdditions } = reconcileStudyLogs(
+          studyLogs,
+          sanitizedRemoteLogs,
+          data.updatedAt,
+          pendingSync,
+          getSyncedLogIds()
+        );
+        studyLogs = mergedLogs;
+        if (hasUnsyncedLocalAdditions) {
+          shouldPushMergedToCloud = true;
+        } else {
+          saveSyncedLogIds(studyLogs);
+        }
+      } else {
+        studyLogs = sanitizedRemoteLogs;
+        saveSyncedLogIds(studyLogs);
+      }
+    }
+
+    if (Array.isArray(data.assignments)) {
+      assignments = sanitizeAssignmentList(data.assignments);
+    }
+    if (typeof data.quickNotes === 'string') {
+      quickNotes = sanitizeTextInput(data.quickNotes, 5000, true);
+    }
+    if (typeof data.checklist === 'string') {
+      checklist = sanitizeTextInput(data.checklist, 5000, true);
+    }
+    if (Array.isArray(data.resourceLinks)) {
+      resourceLinks = sanitizeResourceLinksList(
+        data.resourceLinks.filter(
+          (r) =>
+            !['res-1', 'res-2', 'res-3', 'res-4'].includes(r?.id) &&
+            !r?.url?.includes('unirand.it')
+        )
+      );
+    }
+
+    saveToLocalStorage();
+    populateCurrentPageData();
+
+    if (shouldPushMergedToCloud) {
+      hasInitialServerSnapshot = true;
+      void pushWorkstationToCloud();
+    }
+
+    return true;
+  }
+
+  async function pullWorkstationFromCloud({ force = false } = {}) {
+    const targetEmail = sessionEmail || profile.email;
+    if (!isAuthenticated || !targetEmail || !db) return;
+
+    const now = Date.now();
+    if (!force && now - lastCloudPullMs < 1000) return;
+    lastCloudPullMs = now;
+
+    const docId = getEmailDocId(targetEmail);
+    const userRef = doc(db, 'users', docId);
+
+    try {
+      const snap = await fetchFreshUserDoc(userRef);
+      const wasInitial = !hasInitialServerSnapshot;
+      hasInitialServerSnapshot = true;
+      if (snap && snap.exists()) {
+        applyRemoteWorkspaceData(snap.data(), targetEmail, { isInitialHydration: wasInitial });
+      }
+    } catch (err) {
+      console.warn('Cloud sync pull notice:', err);
+    }
+  }
+
   async function pushWorkstationToCloud() {
+    setPendingLocalSync(true);
     saveToLocalStorage();
     const targetEmail = sessionEmail || profile.email;
     if (!isAuthenticated || !targetEmail || !db) return;
@@ -354,87 +494,105 @@ export function initApp() {
       // before the initial server snapshot has been received.
       if (!hasInitialServerSnapshot) {
         try {
-          const existingSnap = await getDoc(userRef);
+          const existingSnap = await fetchFreshUserDoc(userRef);
           if (existingSnap.exists()) {
             const existingData = existingSnap.data();
+            hasInitialServerSnapshot = true;
+
+            if (Array.isArray(existingData?.studyLogs)) {
+              const { logs: mergedLogs } = reconcileStudyLogs(
+                studyLogs,
+                existingData.studyLogs,
+                existingData.updatedAt,
+                true,
+                getSyncedLogIds()
+              );
+              studyLogs = mergedLogs;
+            }
+
             const isDefaultStarterState =
               courses.length === 1 &&
               courses[0]?.id === 'course-analisi-1' &&
               Array.isArray(existingData?.courses) &&
               existingData.courses.length > 1;
             if (isDefaultStarterState) {
-              hasInitialServerSnapshot = true;
               profile = sanitizeUserProfile(existingData, profile, targetEmail);
               courses = sanitizeCourseList(existingData.courses);
-              if (Array.isArray(existingData.studyLogs)) {
-                studyLogs = sanitizeStudyLogList(existingData.studyLogs);
-              }
               if (Array.isArray(existingData.assignments)) {
                 assignments = sanitizeAssignmentList(existingData.assignments);
               }
               saveToLocalStorage();
               populateCurrentPageData();
-              return;
             }
           }
         } catch {}
       }
 
-      await setDoc(
-        userRef,
-        {
-          name: profile.name,
-          studentId: profile.studentId,
-          email: targetEmail.toLowerCase().trim(),
-          degreeLevel: profile.degreeLevel || '',
-          degreeName: profile.degreeName,
-          degreeType: profile.degreeType,
-          totalTargetCFU: profile.totalTargetCFU,
-          enrolledYear: profile.enrolledYear,
-          academicYear: profile.academicYear,
-          institution: profile.institution || '',
-          status: profile.status,
-          currentSession: profile.currentSession,
-          weeklyGoalHours: profile.weeklyGoalHours,
-          avatarUrl: profile.avatarUrl || '',
-          logoUrl: profile.logoUrl || '',
-          thesisPointsExpected: profile.thesisPointsExpected || 0,
-          courses,
-          studyLogs,
-          assignments,
-          quickNotes,
-          checklist,
-          resourceLinks,
-          activeSquadId: profile.activeSquadId || null,
-          squadIds: profile.squadIds || [],
-          xp: profile.xp ?? 0,
-          currentStreak: profile.currentStreak ?? 0,
-          minutesStudiedThisWeek: profile.minutesStudiedThisWeek ?? 0,
-          tasksCompletedThisWeek: profile.tasksCompletedThisWeek ?? 0,
-          lastActiveDate: profile.lastActiveDate ?? null,
-          updatedAt: Date.now(),
-          updatedBy: syncClientId,
-        },
-        { merge: true }
-      );
+      const payload = stripUndefinedDeep({
+        name: profile.name || '',
+        studentId: profile.studentId || '',
+        email: targetEmail.toLowerCase().trim(),
+        degreeLevel: profile.degreeLevel || '',
+        degreeName: profile.degreeName || '',
+        degreeType: profile.degreeType || 'Laurea Triennale',
+        totalTargetCFU: Number(profile.totalTargetCFU) || 180,
+        enrolledYear: profile.enrolledYear ?? '',
+        academicYear: profile.academicYear || 'Year 1',
+        institution: profile.institution || '',
+        status: profile.status || 'Enrolled',
+        currentSession: profile.currentSession || 'Current Semester',
+        weeklyGoalHours: Number(profile.weeklyGoalHours) || 20,
+        avatarUrl: profile.avatarUrl || '',
+        logoUrl: profile.logoUrl || '',
+        thesisPointsExpected: Number(profile.thesisPointsExpected) || 0,
+        courses: sanitizeCourseList(courses),
+        studyLogs: sanitizeStudyLogList(studyLogs),
+        assignments: sanitizeAssignmentList(assignments),
+        quickNotes: typeof quickNotes === 'string' ? quickNotes : '',
+        checklist: typeof checklist === 'string' ? checklist : '',
+        resourceLinks: sanitizeResourceLinksList(resourceLinks),
+        activeSquadId: profile.activeSquadId || null,
+        squadIds: Array.isArray(profile.squadIds) ? profile.squadIds : [],
+        xp: profile.xp ?? 0,
+        currentStreak: profile.currentStreak ?? 0,
+        minutesStudiedThisWeek: Math.min(10080, Math.max(0, Number(profile.minutesStudiedThisWeek) || 0)),
+        tasksCompletedThisWeek: profile.tasksCompletedThisWeek ?? 0,
+        lastActiveDate: profile.lastActiveDate || null,
+        updatedAt: Date.now(),
+        updatedBy: syncClientId,
+      });
+
+      await setDoc(userRef, payload, { merge: true });
+      setPendingLocalSync(false);
+      saveSyncedLogIds(studyLogs);
     } catch (err) {
       console.warn('Cloud sync push notice:', err);
     }
   }
 
-  function setupRealtimeFirestoreSync() {
-    if (userSnapshotUnsub) {
-      userSnapshotUnsub();
-      userSnapshotUnsub = null;
-    }
-
+  function setupRealtimeFirestoreSync(forceResubscribe = false) {
     const targetEmail = sessionEmail || profile.email;
     if (!isAuthenticated || !targetEmail || !db) {
+      if (userSnapshotUnsub) {
+        userSnapshotUnsub();
+        userSnapshotUnsub = null;
+      }
+      activeSyncDocId = null;
       setStatus('Ready', 0);
       return;
     }
 
     const docId = getEmailDocId(targetEmail);
+    if (!forceResubscribe && userSnapshotUnsub && activeSyncDocId === docId) {
+      return;
+    }
+
+    if (userSnapshotUnsub) {
+      userSnapshotUnsub();
+      userSnapshotUnsub = null;
+    }
+
+    activeSyncDocId = docId;
     const userRef = doc(db, 'users', docId);
     hasInitialServerSnapshot = false;
 
@@ -444,41 +602,19 @@ export function initApp() {
       (snapshot) => {
         if (snapshot.metadata.hasPendingWrites) return;
         if (snapshot.metadata.fromCache && !hasInitialServerSnapshot) return;
+        const wasInitial = !hasInitialServerSnapshot;
         hasInitialServerSnapshot = true;
 
         if (!snapshot.exists()) return;
         const data = snapshot.data();
-        if (!data || data.updatedBy === syncClientId) return;
-
-        profile = sanitizeUserProfile(data, profile, targetEmail);
-
-        if (Array.isArray(data.courses)) courses = sanitizeCourseList(data.courses);
-        if (Array.isArray(data.studyLogs)) studyLogs = sanitizeStudyLogList(data.studyLogs);
-        if (Array.isArray(data.assignments)) assignments = sanitizeAssignmentList(data.assignments);
-        if (typeof data.quickNotes === 'string') {
-          quickNotes = sanitizeTextInput(data.quickNotes, 5000, true);
-        }
-        if (typeof data.checklist === 'string') {
-          checklist = sanitizeTextInput(data.checklist, 5000, true);
-        }
-        if (Array.isArray(data.resourceLinks)) {
-          resourceLinks = sanitizeResourceLinksList(
-            data.resourceLinks.filter(
-              (r) =>
-                !['res-1', 'res-2', 'res-3', 'res-4'].includes(r?.id) &&
-                !r?.url?.includes('unirand.it')
-            )
-          );
-        }
-
-        saveToLocalStorage();
-        populateCurrentPageData();
+        applyRemoteWorkspaceData(data, targetEmail, { isInitialHydration: wasInitial });
       },
       (err) => {
         console.warn('Firestore real-time listener notice:', err);
       }
     );
 
+    void pullWorkstationFromCloud({ force: true });
     setStatus('Ready', 0);
   }
 
@@ -492,6 +628,8 @@ export function initApp() {
       `${STORAGE_KEY}_quick_notes`,
       `${STORAGE_KEY}_checklist`,
       `${STORAGE_KEY}_resource_links`,
+      `${STORAGE_KEY}_synced_log_ids`,
+      `${STORAGE_KEY}_pending_sync`,
       'unisphere_workstation_v1_logs',
     ];
     for (const k of keysToRemove) {
@@ -506,6 +644,8 @@ export function initApp() {
       userSnapshotUnsub();
       userSnapshotUnsub = null;
     }
+    activeSyncDocId = null;
+    hasInitialServerSnapshot = false;
     if (squadMembersUnsub) {
       squadMembersUnsub();
       squadMembersUnsub = null;
@@ -1344,27 +1484,14 @@ export function initApp() {
     } catch {}
 
     if (userData) {
-      profile = sanitizeUserProfile(userData, profile, normalizedEmail);
-      if (Array.isArray(userData.courses)) courses = sanitizeCourseList(userData.courses);
-      if (Array.isArray(userData.studyLogs)) studyLogs = sanitizeStudyLogList(userData.studyLogs);
-      if (Array.isArray(userData.assignments)) {
-        assignments = sanitizeAssignmentList(userData.assignments);
-      }
-      if (typeof userData.quickNotes === 'string') {
-        quickNotes = sanitizeTextInput(userData.quickNotes, 5000, true);
-      }
-      if (typeof userData.checklist === 'string') {
-        checklist = sanitizeTextInput(userData.checklist, 5000, true);
-      }
-      if (Array.isArray(userData.resourceLinks)) {
-        resourceLinks = sanitizeResourceLinksList(userData.resourceLinks);
-      }
+      hasInitialServerSnapshot = true;
+      applyRemoteWorkspaceData(userData, normalizedEmail, { isInitialHydration: true });
     } else {
       profile = sanitizeUserProfile(profile, INITIAL_PROFILE, normalizedEmail);
+      saveToLocalStorage();
     }
 
     authNotice = null;
-    saveToLocalStorage();
     setupRealtimeFirestoreSync();
     void loadAndRenderPage('dashboard', true);
     setStatus(`Logged in as ${normalizedEmail}`);
@@ -1382,7 +1509,7 @@ export function initApp() {
     }
 
     const docId = getEmailDocId(mail);
-    const fallbackRecord = {
+    const fallbackRecord = stripUndefinedDeep({
       uid: docId,
       authUid: googleUser.uid || docId,
       email: mail,
@@ -1395,15 +1522,15 @@ export function initApp() {
       degreeType: profile.degreeType || 'Laurea Triennale',
       totalTargetCFU: profile.totalTargetCFU || 180,
       academicYear: profile.academicYear || 'Year 1',
-      courses,
-      studyLogs,
-      assignments,
+      courses: sanitizeCourseList(courses),
+      studyLogs: sanitizeStudyLogList(studyLogs),
+      assignments: sanitizeAssignmentList(assignments),
       quickNotes,
       checklist,
-      resourceLinks,
+      resourceLinks: sanitizeResourceLinksList(resourceLinks),
       createdAt: new Date().toISOString(),
       updatedAt: Date.now(),
-    };
+    });
 
     if (!db) {
       completeCloudLogin(fallbackRecord, mail);
@@ -1413,19 +1540,21 @@ export function initApp() {
     const userRef = doc(db, 'users', docId);
 
     try {
-      const snap = await getDoc(userRef);
+      const snap = await fetchFreshUserDoc(userRef);
       if (snap.exists()) {
         const existingData = snap.data();
-        await setDoc(
-          userRef,
-          {
-            authUid: googleUser.uid || existingData.authUid || docId,
-            authProvider: existingData.authProvider || 'google',
-            emailVerified: true,
-            updatedAt: Date.now(),
-          },
-          { merge: true }
-        ).catch(() => {});
+        const targetAuthUid = googleUser.uid || existingData.authUid || docId;
+        if (existingData.authUid !== targetAuthUid || !existingData.emailVerified) {
+          await setDoc(
+            userRef,
+            {
+              authUid: targetAuthUid,
+              authProvider: existingData.authProvider || 'google',
+              emailVerified: true,
+            },
+            { merge: true }
+          ).catch(() => {});
+        }
         completeCloudLogin(existingData, mail);
         return;
       }
@@ -2077,6 +2206,7 @@ export function initApp() {
       });
 
       document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
+        await pullWorkstationFromCloud({ force: true });
         await pushWorkstationToCloud();
         setStatus('Synchronized with Firebase');
       });
@@ -2548,6 +2678,55 @@ export function initApp() {
 
   window.addEventListener('resize', () => {
     updateScrollableTablesMaxHeight();
+  });
+
+  const handleInstantWakeSync = () => {
+    if (!isAuthenticated) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    if (hasPendingLocalSync()) {
+      void pushWorkstationToCloud();
+    } else {
+      void pullWorkstationFromCloud();
+    }
+  };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      handleInstantWakeSync();
+    }
+  });
+
+  window.addEventListener('focus', () => {
+    handleInstantWakeSync();
+  });
+
+  window.addEventListener('online', () => {
+    setupRealtimeFirestoreSync(true);
+    if (hasPendingLocalSync()) {
+      void pushWorkstationToCloud();
+    } else {
+      void pullWorkstationFromCloud({ force: true });
+    }
+  });
+
+  window.addEventListener('storage', (e) => {
+    if (!e.key || !e.key.startsWith(STORAGE_KEY)) return;
+    try {
+      if (e.key === `${STORAGE_KEY}_logs` && e.newValue) {
+        studyLogs = sanitizeStudyLogList(JSON.parse(e.newValue));
+      } else if (e.key === `${STORAGE_KEY}_courses` && e.newValue) {
+        courses = sanitizeCourseList(JSON.parse(e.newValue));
+      } else if (e.key === `${STORAGE_KEY}_assignments` && e.newValue) {
+        assignments = sanitizeAssignmentList(JSON.parse(e.newValue));
+      } else if (e.key === `${STORAGE_KEY}_profile` && e.newValue) {
+        profile = sanitizeUserProfile(JSON.parse(e.newValue), profile, sessionEmail);
+      } else if (e.key === `${STORAGE_KEY}_quick_notes` && e.newValue !== null) {
+        quickNotes = sanitizeTextInput(e.newValue, 5000, true);
+      } else if (e.key === `${STORAGE_KEY}_resource_links` && e.newValue) {
+        resourceLinks = sanitizeResourceLinksList(JSON.parse(e.newValue));
+      }
+      populateCurrentPageData();
+    } catch {}
   });
 
   // Initial startup

@@ -21,6 +21,8 @@ import {
   sanitizeCourseItem,
   sanitizeStudyLogItem,
   sanitizeAssignmentItem,
+  stripUndefinedDeep,
+  reconcileStudyLogs,
 } from '../lib/authService.js';
 
 describe('Password Hashing & Verification (PBKDF2 + Legacy Compatibility)', () => {
@@ -310,6 +312,125 @@ describe('Form Input Sanitization & XSS Protection (#31)', () => {
     assert.equal(cleanAsg.status, 'todo');
     assert.equal(cleanAsg.grade, 30);
     assert.equal(cleanAsg.notes, 'Room A');
+  });
+
+  it('never produces undefined property values in sanitizeStudyLogItem or sanitizeAssignmentItem so Firestore setDoc never rejects payloads', () => {
+    const logWithoutCourseId = sanitizeStudyLogItem({
+      id: 'log-mobile-1',
+      courseName: 'Analisi 1',
+      durationMinutes: 90,
+      date: '2026-11-09',
+    });
+    assert.equal('courseId' in logWithoutCourseId, false);
+    for (const [, val] of Object.entries(logWithoutCourseId)) {
+      assert.notEqual(val, undefined);
+    }
+
+    const ungradedAsg = sanitizeAssignmentItem({
+      id: 'asg-ungraded',
+      title: 'Exam 1',
+      courseName: 'Analisi 1',
+      dueDate: '2026-11-25',
+    });
+    assert.equal('grade' in ungradedAsg, false);
+    assert.equal('examParts' in ungradedAsg, false);
+    assert.equal('completedAt' in ungradedAsg, false);
+    for (const [, val] of Object.entries(ungradedAsg)) {
+      assert.notEqual(val, undefined);
+    }
+
+    const stripped = stripUndefinedDeep({
+      a: 1,
+      b: undefined,
+      nested: [{ x: 'ok', y: undefined }],
+    });
+    assert.deepEqual(stripped, { a: 1, nested: [{ x: 'ok' }] });
+  });
+});
+
+describe('Instant Multi-Device Cloud Sync & Mobile-to-PC Log Reconciliation', () => {
+  const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+
+  it('initializes Firebase and Firestore with fallback config when env vars are unset', async () => {
+    const fb = await import('../lib/firebase.js');
+    assert.equal(fb.isFirebaseConfigured, true);
+    assert.ok(fb.db, 'Firestore db instance must be initialized for cloud sync');
+    assert.ok(fb.auth, 'Firebase auth instance must be initialized');
+    assert.equal(fb.firebaseConfig.projectId, 'straight-correlate-dh7nb');
+    assert.equal(
+      fb.firebaseConfig.firestoreDatabaseId,
+      'ai-studio-almaacademiclife-7bdc7a09-4da4-40fb-90da-adfb41a72019'
+    );
+  });
+
+  it('preserves unsynced mobile study logs during initial cloud hydration and flags them for immediate push', () => {
+    const remoteLogs = [
+      {
+        id: 'log-1000',
+        courseName: 'Analisi 1',
+        durationMinutes: 60,
+        date: '2026-11-07',
+        timestamp: 1000,
+      },
+    ];
+    const localMobileLogs = [
+      {
+        id: 'log-2000',
+        courseName: 'Fisica 1',
+        durationMinutes: 90,
+        date: '2026-11-09',
+        timestamp: 2000,
+      },
+      ...remoteLogs,
+    ];
+
+    const result = reconcileStudyLogs(localMobileLogs, remoteLogs, 1500, false, null);
+    assert.equal(result.hasUnsyncedLocalAdditions, true);
+    assert.equal(result.logs.length, 2);
+    assert.equal(result.logs[0].id, 'log-2000');
+    assert.equal(result.logs[1].id, 'log-1000');
+  });
+
+  it('does not resurrect logs that were previously synced and then deleted on another device', () => {
+    const remoteLogsAfterDelete = [
+      {
+        id: 'log-1000',
+        courseName: 'Analisi 1',
+        durationMinutes: 60,
+        date: '2026-11-07',
+        timestamp: 1000,
+      },
+    ];
+    const staleLocalLogs = [
+      {
+        id: 'log-1500',
+        courseName: 'Fisica 1',
+        durationMinutes: 45,
+        date: '2026-11-08',
+        timestamp: 1500,
+      },
+      ...remoteLogsAfterDelete,
+    ];
+
+    const result = reconcileStudyLogs(
+      staleLocalLogs,
+      remoteLogsAfterDelete,
+      3000,
+      false,
+      ['log-1500', 'log-1000']
+    );
+    assert.equal(result.hasUnsyncedLocalAdditions, false);
+    assert.equal(result.logs.length, 1);
+    assert.equal(result.logs[0].id, 'log-1000');
+  });
+
+  it('wires instant server sync on visibilitychange, focus, online, and storage events in src/app.js', () => {
+    const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+    assert.ok(appSrc.includes('getDocFromServer'), 'app.js must use getDocFromServer for instant cloud pull');
+    assert.ok(appSrc.includes('visibilitychange'), 'app.js must sync on visibilitychange');
+    assert.ok(appSrc.includes("addEventListener('focus'"), 'app.js must sync on window focus');
+    assert.ok(appSrc.includes("addEventListener('online'"), 'app.js must sync on network online');
+    assert.ok(appSrc.includes('reconcileStudyLogs'), 'app.js must reconcile unsynced study logs');
   });
 });
 

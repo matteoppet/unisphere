@@ -471,6 +471,7 @@ export function sanitizeCourseItem(raw) {
 
 /**
  * Sanitizes a StudyLog item from form submission or JSON/Firestore restoration.
+ * Never includes properties with `undefined` values so Firestore `setDoc()` never throws.
  */
 export function sanitizeStudyLogItem(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -488,13 +489,15 @@ export function sanitizeStudyLogItem(raw) {
   const tag = allowedTags.includes(raw.tag) ? raw.tag : 'Deep Work';
   const notes = sanitizeTextInput(raw.notes, 1000, true);
   const id = sanitizeTextInput(raw.id || `log-${Date.now()}`, 80);
-  const courseId = raw.courseId ? sanitizeTextInput(raw.courseId, 80) : undefined;
+  const courseId = raw.courseId ? sanitizeTextInput(raw.courseId, 80) : '';
   const rating = Math.min(5, Math.max(1, Number(raw.rating) || 5));
-  const timestamp = typeof raw.timestamp === 'number' && Number.isFinite(raw.timestamp) ? raw.timestamp : Date.now();
+  const timestamp =
+    typeof raw.timestamp === 'number' && Number.isFinite(raw.timestamp)
+      ? raw.timestamp
+      : Date.now();
 
-  return {
+  const cleaned = {
     id,
-    courseId,
     courseName,
     durationMinutes,
     date,
@@ -504,10 +507,15 @@ export function sanitizeStudyLogItem(raw) {
     tag,
     timestamp,
   };
+  if (courseId) {
+    cleaned.courseId = courseId;
+  }
+  return cleaned;
 }
 
 /**
  * Sanitizes an Assignment/Exam item from form submission or JSON/Firestore restoration.
+ * Never includes properties with `undefined` values so Firestore `setDoc()` never throws.
  */
 export function sanitizeAssignmentItem(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -525,39 +533,144 @@ export function sanitizeAssignmentItem(raw) {
   const notes = sanitizeTextInput(raw.notes, 1000, true);
   const id = sanitizeTextInput(raw.id || `asg-${Date.now()}`, 80);
 
-  let grade = undefined;
-  if (raw.grade !== undefined && raw.grade !== null && raw.grade !== '') {
-    const numGrade = Number(raw.grade);
-    if (Number.isFinite(numGrade)) {
-      grade = Math.min(30, Math.max(0, numGrade));
-    }
-  }
-
-  let examParts = undefined;
-  if (Array.isArray(raw.examParts) && raw.examParts.length > 0) {
-    examParts = raw.examParts.slice(0, 2).map((part, idx) => {
-      const pGrade =
-        part && part.grade !== undefined && part.grade !== null && part.grade !== ''
-          ? Math.min(30, Math.max(0, Number(part.grade)))
-          : undefined;
-      return {
-        label: sanitizeTextInput(part?.label || `Esonero ${idx + 1}`, 40),
-        grade: Number.isFinite(pGrade) ? pGrade : undefined,
-      };
-    });
-  }
-
-  return {
+  const cleaned = {
     id,
     title,
     courseName,
     type,
     dueDate,
     status,
-    grade,
-    examParts,
     notes,
-    completedAt: typeof raw.completedAt === 'number' ? raw.completedAt : undefined,
+  };
+
+  if (raw.grade !== undefined && raw.grade !== null && raw.grade !== '') {
+    const numGrade = Number(raw.grade);
+    if (Number.isFinite(numGrade)) {
+      cleaned.grade = Math.min(30, Math.max(0, numGrade));
+    }
+  }
+
+  if (Array.isArray(raw.examParts) && raw.examParts.length > 0) {
+    cleaned.examParts = raw.examParts.slice(0, 2).map((part, idx) => {
+      const pGrade =
+        part && part.grade !== undefined && part.grade !== null && part.grade !== ''
+          ? Math.min(30, Math.max(0, Number(part.grade)))
+          : undefined;
+      const cleanPart = {
+        label: sanitizeTextInput(part?.label || `Esonero ${idx + 1}`, 40),
+      };
+      if (Number.isFinite(pGrade)) {
+        cleanPart.grade = pGrade;
+      }
+      return cleanPart;
+    });
+  }
+
+  if (typeof raw.completedAt === 'number' && Number.isFinite(raw.completedAt)) {
+    cleaned.completedAt = raw.completedAt;
+  }
+
+  return cleaned;
+}
+
+/**
+ * Recursively strips `undefined` property values from objects and arrays before Firestore writes.
+ */
+export function stripUndefinedDeep(value) {
+  if (Array.isArray(value)) {
+    return value.filter((item) => item !== undefined).map((item) => stripUndefinedDeep(item));
+  }
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (v !== undefined) {
+        out[k] = stripUndefinedDeep(v);
+      }
+    }
+    return out;
+  }
+  return value;
+}
+
+export function parseTimestampMs(val) {
+  if (typeof val === 'number' && Number.isFinite(val)) return val;
+  if (typeof val === 'string' && val.trim()) {
+    const asNum = Number(val);
+    if (Number.isFinite(asNum)) return asNum;
+    const parsed = Date.parse(val);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  if (val && typeof val.toMillis === 'function') {
+    return val.toMillis();
+  }
+  return 0;
+}
+
+/**
+ * Reconciles local study logs with remote Firestore study logs during hydration.
+ * Preserves unsynced local logs (such as logs added on mobile while offline or before cloud push completed)
+ * without resurrecting logs that were previously synced and subsequently deleted on another device.
+ */
+export function reconcileStudyLogs(
+  localLogs = [],
+  remoteLogs = [],
+  remoteUpdatedAt = 0,
+  hasPendingLocalSync = false,
+  syncedLogIds = null
+) {
+  const cleanRemote = Array.isArray(remoteLogs)
+    ? remoteLogs.map((item) => sanitizeStudyLogItem(item)).filter(Boolean)
+    : [];
+  const cleanLocal = Array.isArray(localLogs)
+    ? localLogs.map((item) => sanitizeStudyLogItem(item)).filter(Boolean)
+    : [];
+
+  const remoteIds = new Set(cleanRemote.map((l) => l.id));
+  const previouslySyncedSet = Array.isArray(syncedLogIds) ? new Set(syncedLogIds) : null;
+  const remoteUpdatedMs = parseTimestampMs(remoteUpdatedAt);
+  const maxRemoteLogTs = cleanRemote.reduce(
+    (max, l) => Math.max(max, parseTimestampMs(l.timestamp)),
+    0
+  );
+
+  const localIds = new Set(cleanLocal.map((l) => l.id));
+  const isLocalSupersetOfRemote =
+    cleanRemote.length > 0 && cleanRemote.every((r) => localIds.has(r.id));
+
+  const unsyncedLocalLogs = cleanLocal.filter((l) => {
+    if (!l || l.id === 'log-starter-1') return false;
+    if (remoteIds.has(l.id)) return false;
+
+    // If this device previously synced this log ID with Firestore and it is no longer in remoteLogs,
+    // it was deleted on another device — do not resurrect it.
+    if (previouslySyncedSet && previouslySyncedSet.has(l.id)) {
+      return false;
+    }
+
+    if (hasPendingLocalSync) return true;
+
+    // If syncedLogIds tracking exists and this log ID is not in it, it was created locally and never synced.
+    if (previouslySyncedSet && !previouslySyncedSet.has(l.id)) {
+      return true;
+    }
+
+    const logTs = parseTimestampMs(l.timestamp);
+    if (remoteUpdatedMs > 0 && logTs > remoteUpdatedMs) return true;
+    if (maxRemoteLogTs > 0 && logTs > maxRemoteLogTs && isLocalSupersetOfRemote) return true;
+    if (cleanRemote.length === 0 && logTs > 0) return true;
+    return false;
+  });
+
+  if (unsyncedLocalLogs.length === 0) {
+    return {
+      logs: cleanRemote,
+      hasUnsyncedLocalAdditions: false,
+    };
+  }
+
+  return {
+    logs: [...unsyncedLocalLogs, ...cleanRemote],
+    hasUnsyncedLocalAdditions: true,
   };
 }
 
