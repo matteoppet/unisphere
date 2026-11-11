@@ -6,8 +6,8 @@ export function calculateElo(minutesThisWeek = 0, tasksThisWeek = 0, streak = 0)
   return base + timeWeight + taskWeight + streakWeight;
 }
 
-export function updateStreak(currentStreak = 0, lastActiveDate) {
-  const today = new Date().toISOString().split('T')[0];
+export function updateStreak(currentStreak = 0, lastActiveDate, referenceDate = new Date()) {
+  const today = getLocalDateString(referenceDate);
   if (!lastActiveDate) {
     return { streak: 1, today };
   }
@@ -319,6 +319,173 @@ export function addMinutesToTimeString(timeStr = '14:00', minutesToAdd = 0) {
   const resM = String(normalized % 60).padStart(2, '0');
   return `${resH}:${resM}`;
 }
+
+export function calculateStreakFromLogs(studyLogs = [], referenceDate = new Date()) {
+  if (!Array.isArray(studyLogs) || studyLogs.length === 0) {
+    return 0;
+  }
+
+  const activeDates = new Set();
+  for (const log of studyLogs) {
+    if (log && Number(log.durationMinutes) > 0 && typeof log.date === 'string') {
+      const trimmed = log.date.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        activeDates.add(trimmed);
+      }
+    }
+  }
+
+  if (activeDates.size === 0) return 0;
+
+  const todayStr = getLocalDateString(referenceDate);
+  const yesterday = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate() - 1
+  );
+  const yesterdayStr = getLocalDateString(yesterday);
+
+  let cursorDate;
+  if (activeDates.has(todayStr)) {
+    cursorDate = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth(),
+      referenceDate.getDate()
+    );
+  } else if (activeDates.has(yesterdayStr)) {
+    cursorDate = yesterday;
+  } else {
+    return 0;
+  }
+
+  let streak = 0;
+  while (true) {
+    const dateStr = getLocalDateString(cursorDate);
+    if (activeDates.has(dateStr)) {
+      streak += 1;
+      cursorDate.setDate(cursorDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
+
+export function calculateCurrentStreak(
+  studyLogs = [],
+  profile = {},
+  referenceDate = new Date()
+) {
+  const fromLogs = calculateStreakFromLogs(studyLogs, referenceDate);
+  if (fromLogs > 0) {
+    return fromLogs;
+  }
+  if (!Array.isArray(studyLogs) || studyLogs.length === 0) {
+    const todayStr = getLocalDateString(referenceDate);
+    const yesterday = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth(),
+      referenceDate.getDate() - 1
+    );
+    const yesterdayStr = getLocalDateString(yesterday);
+    if (profile?.lastActiveDate === todayStr || profile?.lastActiveDate === yesterdayStr) {
+      return Math.max(1, Number(profile.currentStreak) || 1);
+    }
+  }
+  return 0;
+}
+
+export function getStartOfWeek(referenceDate = new Date()) {
+  const d = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate()
+  );
+  const dayOfWeek = d.getDay();
+  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  d.setDate(d.getDate() + distanceToMonday);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+export function countCompletedTasksThisWeek(assignments = [], referenceDate = new Date()) {
+  if (!Array.isArray(assignments)) return 0;
+  const startOfWeekMs = getStartOfWeek(referenceDate).getTime();
+
+  return assignments.filter((a) => {
+    if (a?.status !== 'completed') return false;
+    const completedAt = Number(a.completedAt);
+    if (!completedAt || isNaN(completedAt)) {
+      return true;
+    }
+    return completedAt >= startOfWeekMs;
+  }).length;
+}
+
+export function parseMemberTimestamp(val) {
+  if (!val) return null;
+  if (typeof val?.toDate === 'function') {
+    try {
+      return val.toDate();
+    } catch {}
+  }
+  if (typeof val === 'number') return new Date(val);
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (val instanceof Date && !isNaN(val.getTime())) return val;
+  return null;
+}
+
+export function getMemberEffectiveTelemetry(member = {}, referenceDate = new Date()) {
+  const updatedDate =
+    parseMemberTimestamp(member.updatedAt) || parseMemberTimestamp(member.joinedAt);
+
+  const startOfWeek = getStartOfWeek(referenceDate);
+  const startOfWeekStr = getLocalDateString(startOfWeek);
+
+  const yesterday = new Date(
+    referenceDate.getFullYear(),
+    referenceDate.getMonth(),
+    referenceDate.getDate() - 1
+  );
+  const todayStr = getLocalDateString(referenceDate);
+  const yesterdayStr = getLocalDateString(yesterday);
+
+  let updatedDateStr = updatedDate ? getLocalDateString(updatedDate) : null;
+  if (updatedDateStr && updatedDateStr > todayStr) {
+    updatedDateStr = todayStr;
+  }
+
+  // Active in current week (Monday to Sunday)
+  const isCurrentWeek = Boolean(updatedDateStr && updatedDateStr >= startOfWeekStr);
+
+  // Active today or yesterday
+  const isStreakActive = Boolean(
+    updatedDateStr && (updatedDateStr === todayStr || updatedDateStr === yesterdayStr)
+  );
+
+  const minutesThisWeek = isCurrentWeek ? (Number(member.minutesThisWeek) || 0) : 0;
+  const tasksThisWeek = isCurrentWeek ? (Number(member.tasksThisWeek) || 0) : 0;
+  const currentStreak = isStreakActive ? (Number(member.currentStreak) || 0) : 0;
+
+  const elo = (isCurrentWeek && isStreakActive && typeof member.elo === 'number')
+    ? member.elo
+    : calculateElo(minutesThisWeek, tasksThisWeek, currentStreak);
+
+  return {
+    ...member,
+    minutesThisWeek,
+    tasksThisWeek,
+    currentStreak,
+    elo,
+    isCurrentWeek,
+    isStreakActive,
+  };
+}
+
 
 
 

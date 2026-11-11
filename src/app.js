@@ -58,6 +58,9 @@ import {
   calculateDurationFromRange,
   addMinutesToTimeString,
   updateStreak,
+  calculateCurrentStreak,
+  countCompletedTasksThisWeek,
+  getMemberEffectiveTelemetry,
   calculateElo,
   generateSquadCode,
 } from './utils/telemetry.js';
@@ -406,7 +409,17 @@ export function initApp() {
       );
     }
 
+    // Recalculate dynamic weekly metrics from actual logs
+    const currentWeekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+    const currentStreak = calculateCurrentStreak(studyLogs, profile);
+    profile = {
+      ...profile,
+      minutesStudiedThisWeek: currentWeekMinutes,
+      currentStreak,
+    };
+
     saveToLocalStorage();
+    void syncUserSquadTelemetry();
     populateCurrentPageData();
 
     if (shouldPushMergedToCloud) {
@@ -1191,7 +1204,47 @@ export function initApp() {
       lbHeader.textContent = `Weekly Leaderboard ${activeSquad ? `— ${activeSquad.name} (Code: ${activeSquad.code})` : ''}`;
     }
 
-    const sortedMembers = [...squadMembers].sort((a, b) => (b.elo || 0) - (a.elo || 0));
+    const email = sessionEmail || profile.email;
+    const myUid = getEmailDocId(email || auth?.currentUser?.email || 'local_student');
+    const myWeekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+    const myStreak = calculateCurrentStreak(studyLogs, profile);
+    const myTasksThisWeek = countCompletedTasksThisWeek(assignments);
+    const myElo = calculateElo(myWeekMinutes, myTasksThisWeek, myStreak);
+
+    // Evaluate each squad member's effective telemetry (resetting prior week study time and broken streaks)
+    const processedMembersMap = new Map();
+    for (const m of squadMembers) {
+      if (!m || !m.uid) continue;
+      if (m.uid === myUid) {
+        processedMembersMap.set(myUid, {
+          ...m,
+          displayName: sanitizeTextInput(profile.name || m.displayName || 'Student', 100),
+          minutesThisWeek: myWeekMinutes,
+          currentStreak: myStreak,
+          tasksThisWeek: myTasksThisWeek,
+          elo: myElo,
+        });
+      } else {
+        processedMembersMap.set(m.uid, getMemberEffectiveTelemetry(m));
+      }
+    }
+
+    // If activeSquad exists and current user belongs to it, ensure current user is present
+    if (activeSquad && !processedMembersMap.has(myUid)) {
+      processedMembersMap.set(myUid, {
+        uid: myUid,
+        displayName: sanitizeTextInput(profile.name || 'Student', 100),
+        color: '#3B77BC',
+        minutesThisWeek: myWeekMinutes,
+        currentStreak: myStreak,
+        tasksThisWeek: myTasksThisWeek,
+        elo: myElo,
+      });
+    }
+
+    const sortedMembers = Array.from(processedMembersMap.values()).sort(
+      (a, b) => (b.elo || 0) - (a.elo || 0) || (b.minutesThisWeek || 0) - (a.minutesThisWeek || 0)
+    );
     const lbTbody = document.getElementById('squads-leaderboard-tbody');
     if (lbTbody) {
       lbTbody.innerHTML =
@@ -1256,6 +1309,58 @@ export function initApp() {
   }
 
   // --- Squads Real-time Helpers ---
+  async function syncUserSquadTelemetry(targetSquadId = null) {
+    if (!db) return;
+    const email = sessionEmail || profile.email;
+    if (!email && !auth?.currentUser) return;
+    const uid = getEmailDocId(email || auth?.currentUser?.email || 'local_student');
+
+    const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+    const streak = calculateCurrentStreak(studyLogs, profile);
+    const tasksThisWeek = countCompletedTasksThisWeek(assignments);
+    const elo = calculateElo(weekMinutes, tasksThisWeek, streak);
+    const now = new Date().toISOString();
+
+    profile = {
+      ...profile,
+      minutesStudiedThisWeek: weekMinutes,
+      currentStreak: streak,
+      tasksCompletedThisWeek: tasksThisWeek,
+      lastActiveDate: streak > 0 ? (profile.lastActiveDate || getLocalDateString()) : profile.lastActiveDate,
+    };
+
+    const memberPayload = {
+      uid,
+      displayName: sanitizeTextInput(profile.name || 'Student', 100),
+      color: '#3B77BC',
+      elo,
+      minutesThisWeek: Math.min(10080, Math.max(0, weekMinutes)),
+      tasksThisWeek: Math.min(10000, Math.max(0, tasksThisWeek)),
+      currentStreak: Math.min(10000, Math.max(0, streak)),
+      updatedAt: now,
+    };
+
+    const targetSquadIds = targetSquadId
+      ? [targetSquadId]
+      : Array.from(
+          new Set([
+            ...squads.map((s) => s.id),
+            ...(Array.isArray(profile.squadIds) ? profile.squadIds : []),
+            ...(activeSquadId ? [activeSquadId] : []),
+          ])
+        ).filter(Boolean);
+
+    if (targetSquadIds.length === 0) return;
+
+    for (const sqId of targetSquadIds) {
+      try {
+        await saveSquadMemberToCloud(sqId, memberPayload);
+      } catch (err) {
+        console.warn(`Failed to sync squad member telemetry for squad ${sqId}:`, err);
+      }
+    }
+  }
+
   async function loadUserSquads() {
     const email = sessionEmail || profile.email;
     const uid = email ? getEmailDocId(email) : 'local_student';
@@ -1272,6 +1377,7 @@ export function initApp() {
           activeSquadId = result?.activeSquadId || squads[0].id;
         }
         subscribeToSquadMembers(activeSquadId);
+        void syncUserSquadTelemetry(activeSquadId);
       }
       populateCurrentPageData();
     } catch (err) {
@@ -2123,19 +2229,20 @@ export function initApp() {
           if (db) {
             await setDoc(doc(db, 'squads', squadId), newSquad);
           }
+          const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+          const streak = calculateCurrentStreak(studyLogs, profile);
+          const tasksThisWeek = countCompletedTasksThisWeek(assignments);
+          const now = new Date().toISOString();
           const member = {
             uid,
             displayName: sanitizeTextInput(profile.name || 'Student', 100),
             color: '#3B77BC',
-            elo: calculateElo(
-              profile.minutesStudiedThisWeek || 0,
-              profile.tasksCompletedThisWeek || 0,
-              profile.currentStreak || 0
-            ),
-            minutesThisWeek: profile.minutesStudiedThisWeek || 0,
-            tasksThisWeek: profile.tasksCompletedThisWeek || 0,
-            currentStreak: profile.currentStreak || 0,
-            joinedAt: new Date().toISOString(),
+            elo: calculateElo(weekMinutes, tasksThisWeek, streak),
+            minutesThisWeek: Math.min(10080, Math.max(0, weekMinutes)),
+            tasksThisWeek: Math.min(10000, Math.max(0, tasksThisWeek)),
+            currentStreak: Math.min(10000, Math.max(0, streak)),
+            joinedAt: now,
+            updatedAt: now,
           };
           await saveSquadMemberToCloud(squadId, member);
           await syncSquadToUserDoc(sessionEmail || profile.email, uid, squadId, true);
@@ -2174,19 +2281,20 @@ export function initApp() {
           }
           const foundSquad = snap.docs[0].data();
           const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+          const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+          const streak = calculateCurrentStreak(studyLogs, profile);
+          const tasksThisWeek = countCompletedTasksThisWeek(assignments);
+          const now = new Date().toISOString();
           const member = {
             uid,
             displayName: sanitizeTextInput(profile.name || 'Student', 100),
             color: '#3B77BC',
-            elo: calculateElo(
-              profile.minutesStudiedThisWeek || 0,
-              profile.tasksCompletedThisWeek || 0,
-              profile.currentStreak || 0
-            ),
-            minutesThisWeek: profile.minutesStudiedThisWeek || 0,
-            tasksThisWeek: profile.tasksCompletedThisWeek || 0,
-            currentStreak: profile.currentStreak || 0,
-            joinedAt: new Date().toISOString(),
+            elo: calculateElo(weekMinutes, tasksThisWeek, streak),
+            minutesThisWeek: Math.min(10080, Math.max(0, weekMinutes)),
+            tasksThisWeek: Math.min(10000, Math.max(0, tasksThisWeek)),
+            currentStreak: Math.min(10000, Math.max(0, streak)),
+            joinedAt: now,
+            updatedAt: now,
           };
           await saveSquadMemberToCloud(foundSquad.id, member);
           await syncSquadToUserDoc(sessionEmail || profile.email, uid, foundSquad.id, true);
@@ -2291,7 +2399,16 @@ export function initApp() {
               );
             }
             if (Array.isArray(parsed.courses)) courses = sanitizeCourseList(parsed.courses);
-            if (Array.isArray(parsed.studyLogs)) studyLogs = sanitizeStudyLogList(parsed.studyLogs);
+            if (Array.isArray(parsed.studyLogs)) {
+              studyLogs = sanitizeStudyLogList(parsed.studyLogs);
+              const currentStreak = calculateCurrentStreak(studyLogs, profile);
+              const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+              profile = {
+                ...profile,
+                currentStreak,
+                minutesStudiedThisWeek: weekMinutes,
+              };
+            }
             if (Array.isArray(parsed.assignments)) {
               assignments = sanitizeAssignmentList(parsed.assignments);
             }
@@ -2305,6 +2422,7 @@ export function initApp() {
               resourceLinks = sanitizeResourceLinksList(parsed.resourceLinks);
             }
             void pushWorkstationToCloud();
+            void syncUserSquadTelemetry();
             populateCurrentPageData();
             setStatus('Backup restored from JSON');
           } catch {
@@ -2324,6 +2442,7 @@ export function initApp() {
         checklist = '';
         resourceLinks = [];
         void pushWorkstationToCloud();
+        void syncUserSquadTelemetry();
         populateCurrentPageData();
         setStatus('All data cleared');
       });
@@ -2389,7 +2508,15 @@ export function initApp() {
     if (deleteLogId) {
       e.preventDefault();
       studyLogs = studyLogs.filter((l) => l.id !== deleteLogId);
+      const currentStreak = calculateCurrentStreak(studyLogs, profile);
+      const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+      profile = {
+        ...profile,
+        currentStreak,
+        minutesStudiedThisWeek: weekMinutes,
+      };
       void pushWorkstationToCloud();
+      void syncUserSquadTelemetry();
       populateCurrentPageData();
       setStatus('Session log deleted');
       return;
@@ -2426,6 +2553,7 @@ export function initApp() {
         };
       });
       void pushWorkstationToCloud();
+      void syncUserSquadTelemetry();
       populateCurrentPageData();
       setStatus('Updated status');
       return;
@@ -2436,6 +2564,7 @@ export function initApp() {
       e.preventDefault();
       assignments = assignments.filter((a) => a.id !== deleteAssignmentId);
       void pushWorkstationToCloud();
+      void syncUserSquadTelemetry();
       populateCurrentPageData();
       setStatus('Deleted item');
       return;
@@ -2448,6 +2577,7 @@ export function initApp() {
       profile = { ...profile, activeSquadId: selectSquadId };
       void pushWorkstationToCloud();
       subscribeToSquadMembers(selectSquadId);
+      void syncUserSquadTelemetry(selectSquadId);
       populateSquadsPage();
       return;
     }
@@ -2558,17 +2688,19 @@ export function initApp() {
         studyLogs = [newLog, ...studyLogs];
 
         const xpGained = Math.max(20, Math.round(newLog.durationMinutes * 2));
-        const { streak, today } = updateStreak(profile.currentStreak || 0, profile.lastActiveDate);
+        const currentStreak = calculateCurrentStreak(studyLogs, profile);
+        const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
         profile = {
           ...profile,
           xp: (profile.xp || 0) + xpGained,
-          currentStreak: streak,
-          minutesStudiedThisWeek: (profile.minutesStudiedThisWeek || 0) + newLog.durationMinutes,
-          lastActiveDate: today,
+          currentStreak,
+          minutesStudiedThisWeek: weekMinutes,
+          lastActiveDate: newLog.date || getLocalDateString(),
         };
 
         document.getElementById('modal-log')?.close();
         void pushWorkstationToCloud();
+        void syncUserSquadTelemetry();
         populateCurrentPageData();
         setStatus(
           `Added session log: ${newLog.courseName} (${formatStudyDuration(newLog.durationMinutes)})`

@@ -11,6 +11,11 @@ import {
   calculateDurationFromHoursMinutes,
   calculateDurationFromRange,
   addMinutesToTimeString,
+  calculateStreakFromLogs,
+  calculateCurrentStreak,
+  countCompletedTasksThisWeek,
+  getMemberEffectiveTelemetry,
+  getStartOfWeek,
 } from './telemetry.js';
 
 describe('Focus Time formatting and weekly summary (#13)', () => {
@@ -264,6 +269,170 @@ describe('Session time input modes and duration calculation (#41)', () => {
     assert.match(appJs, /log-duration-preview/);
   });
 });
+
+describe('Study Time (Week) and Streak calculation and weekly reset for Squads (#40)', () => {
+  const refWednesday = new Date(2026, 10, 11, 14, 0, 0); // 2026-11-11 (Wed)
+
+  describe('calculateStreakFromLogs', () => {
+    it('returns 0 for empty or invalid logs', () => {
+      assert.equal(calculateStreakFromLogs([], refWednesday), 0);
+      assert.equal(calculateStreakFromLogs(null, refWednesday), 0);
+      assert.equal(calculateStreakFromLogs([{ date: 'invalid', durationMinutes: 60 }], refWednesday), 0);
+      assert.equal(calculateStreakFromLogs([{ date: '2026-11-11', durationMinutes: 0 }], refWednesday), 0);
+    });
+
+    it('calculates consecutive streak ending today', () => {
+      const logs = [
+        { id: '1', date: '2026-11-11', durationMinutes: 60 }, // Wed (today)
+        { id: '2', date: '2026-11-10', durationMinutes: 45 }, // Tue (yesterday)
+        { id: '3', date: '2026-11-09', durationMinutes: 30 }, // Mon (2 days ago)
+      ];
+      assert.equal(calculateStreakFromLogs(logs, refWednesday), 3);
+    });
+
+    it('maintains streak ending yesterday if user has not studied today yet', () => {
+      const logs = [
+        { id: '1', date: '2026-11-10', durationMinutes: 45 }, // Tue (yesterday)
+        { id: '2', date: '2026-11-09', durationMinutes: 30 }, // Mon (2 days ago)
+      ];
+      assert.equal(calculateStreakFromLogs(logs, refWednesday), 2);
+    });
+
+    it('resets streak to 0 if last study date was 2 or more days ago', () => {
+      const logs = [
+        { id: '1', date: '2026-11-09', durationMinutes: 60 }, // Mon (2 days ago, missed Tue 10)
+        { id: '2', date: '2026-11-08', durationMinutes: 45 },
+      ];
+      assert.equal(calculateStreakFromLogs(logs, refWednesday), 0);
+    });
+
+    it('counts multiple sessions on the same date as 1 day in streak without inflating count', () => {
+      const logs = [
+        { id: '1', date: '2026-11-11', durationMinutes: 30 },
+        { id: '2', date: '2026-11-11', durationMinutes: 60 },
+        { id: '3', date: '2026-11-10', durationMinutes: 45 },
+      ];
+      assert.equal(calculateStreakFromLogs(logs, refWednesday), 2);
+    });
+  });
+
+  describe('calculateCurrentStreak', () => {
+    it('uses calculateStreakFromLogs when studyLogs exist', () => {
+      const logs = [{ id: '1', date: '2026-11-11', durationMinutes: 30 }];
+      const profile = { currentStreak: 10, lastActiveDate: '2026-10-01' };
+      assert.equal(calculateCurrentStreak(logs, profile, refWednesday), 1);
+    });
+
+    it('falls back to profile.lastActiveDate when studyLogs is empty and activity is today or yesterday', () => {
+      assert.equal(
+        calculateCurrentStreak([], { currentStreak: 5, lastActiveDate: '2026-11-11' }, refWednesday),
+        5
+      );
+      assert.equal(
+        calculateCurrentStreak([], { currentStreak: 4, lastActiveDate: '2026-11-10' }, refWednesday),
+        4
+      );
+    });
+
+    it('resets to 0 when studyLogs is empty and profile.lastActiveDate is older than yesterday', () => {
+      assert.equal(
+        calculateCurrentStreak([], { currentStreak: 8, lastActiveDate: '2026-11-08' }, refWednesday),
+        0
+      );
+    });
+  });
+
+  describe('getMemberEffectiveTelemetry', () => {
+    // Current week: Mon 2026-11-09 through Sun 2026-11-15
+    it('preserves minutesThisWeek and streak for member active in current week', () => {
+      const member = {
+        uid: 'user1@test.com',
+        displayName: 'Alice',
+        minutesThisWeek: 180,
+        currentStreak: 4,
+        tasksThisWeek: 2,
+        elo: 1350,
+        updatedAt: '2026-11-11T10:00:00.000Z',
+      };
+      const effective = getMemberEffectiveTelemetry(member, refWednesday);
+      assert.equal(effective.minutesThisWeek, 180);
+      assert.equal(effective.currentStreak, 4);
+      assert.equal(effective.tasksThisWeek, 2);
+      assert.equal(effective.elo, 1350);
+      assert.equal(effective.isCurrentWeek, true);
+      assert.equal(effective.isStreakActive, true);
+    });
+
+    it('resets minutesThisWeek to 0 and elo to 1000 for member updated in a prior week', () => {
+      const member = {
+        uid: 'user2@test.com',
+        displayName: 'Bob',
+        minutesThisWeek: 300,
+        currentStreak: 5,
+        tasksThisWeek: 3,
+        elo: 1500,
+        updatedAt: '2026-11-05T12:00:00.000Z', // Thursday of previous week
+      };
+      const effective = getMemberEffectiveTelemetry(member, refWednesday);
+      assert.equal(effective.minutesThisWeek, 0);
+      assert.equal(effective.currentStreak, 0);
+      assert.equal(effective.tasksThisWeek, 0);
+      assert.equal(effective.elo, 1000); // 1000 base + 0
+      assert.equal(effective.isCurrentWeek, false);
+      assert.equal(effective.isStreakActive, false);
+    });
+
+    it('handles transition from Sunday to Monday: resets weekly study time to 0 but maintains active streak', () => {
+      const mondayMorning = new Date(2026, 10, 9, 8, 30, 0); // Monday 2026-11-09 08:30
+      const member = {
+        uid: 'user3@test.com',
+        displayName: 'Charlie',
+        minutesThisWeek: 420,
+        currentStreak: 7,
+        tasksThisWeek: 4,
+        elo: 1600,
+        updatedAt: '2026-11-08T22:00:00.000Z', // Sunday 2026-11-08 (yesterday, prior week)
+      };
+      const effective = getMemberEffectiveTelemetry(member, mondayMorning);
+      assert.equal(effective.minutesThisWeek, 0); // New week -> 0m
+      assert.equal(effective.tasksThisWeek, 0);   // New week -> 0 tasks
+      assert.equal(effective.currentStreak, 7);  // Active yesterday -> streak alive!
+      assert.equal(effective.isCurrentWeek, false);
+      assert.equal(effective.isStreakActive, true);
+    });
+
+    it('breaks streak on Tuesday if user was last active Sunday', () => {
+      const tuesdayMorning = new Date(2026, 10, 10, 8, 30, 0); // Tuesday 2026-11-10
+      const member = {
+        uid: 'user3@test.com',
+        displayName: 'Charlie',
+        minutesThisWeek: 420,
+        currentStreak: 7,
+        updatedAt: '2026-11-08T22:00:00.000Z', // Sunday 2026-11-08
+      };
+      const effective = getMemberEffectiveTelemetry(member, tuesdayMorning);
+      assert.equal(effective.minutesThisWeek, 0);
+      assert.equal(effective.currentStreak, 0);
+      assert.equal(effective.isCurrentWeek, false);
+      assert.equal(effective.isStreakActive, false);
+    });
+  });
+
+  describe('Integration in src/app.js', () => {
+    const appJs = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+
+    it('wires getMemberEffectiveTelemetry and calculateCurrentStreak into src/app.js', () => {
+      assert.match(appJs, /getMemberEffectiveTelemetry/);
+      assert.match(appJs, /calculateCurrentStreak/);
+    });
+
+    it('wires syncUserSquadTelemetry on study log add and study log delete', () => {
+      assert.match(appJs, /syncUserSquadTelemetry/);
+      assert.match(appJs, /saveSquadMemberToCloud/);
+    });
+  });
+});
+
 
 
 
