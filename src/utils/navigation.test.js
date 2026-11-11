@@ -17,7 +17,7 @@ describe('Topbar Navigation Layout and Responsiveness (#37)', () => {
   });
 
   test('verifies .nav-list switches to vertical column on mobile (<= 720px)', () => {
-    const mobileQueryRegex = /@media\s*\(\s*max-width:\s*720px\s*\)\s*\{([^@]*?)\}/g;
+    const mobileQueryRegex = /@media\s*\(\s*max-width:\s*720px\s*\)\s*\{([^@]*)\}/g;
     let match;
     let foundNavInMobile = false;
 

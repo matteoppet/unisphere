@@ -54,11 +54,17 @@ body {
 
 .nav-list {
   margin: 0 0 14px 0;
-  padding-left: 26px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
 }
 
 .nav-list li {
-  margin: 2px 0;
+  margin: 0;
 }
 
 a {
@@ -165,6 +171,12 @@ h3 {
 }
 
 @media (max-width: 720px) {
+  .nav-list {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
   .grid-3,
   .grid-2 {
     grid-template-columns: 1fr;
