@@ -8,6 +8,8 @@ import {
   calculateWeeklyFocus,
   groupStudyLogsByWeek,
   calculateTableScrollMaxHeight,
+  calculateDurationFromHoursMinutes,
+  calculateDurationFromRange,
 } from './telemetry.js';
 
 describe('Focus Time formatting and weekly summary (#13)', () => {
@@ -184,5 +186,42 @@ describe('groupStudyLogsByWeek (#34)', () => {
     assert.match(css, /\.card\s*\{[\s\S]*?box-shadow:\s*0\s+4px\s+14px\s+rgba\(0,\s*0,\s*0,\s*0\.1\)/);
   });
 });
+
+describe('Session time input modes and duration calculation (#41)', () => {
+  it('calculates duration from hours and minutes', () => {
+    assert.equal(calculateDurationFromHoursMinutes(1, 30), 90);
+    assert.equal(calculateDurationFromHoursMinutes(0, 45), 45);
+    assert.equal(calculateDurationFromHoursMinutes(2, 0), 120);
+    assert.equal(calculateDurationFromHoursMinutes(0, 0), 0);
+    assert.equal(calculateDurationFromHoursMinutes('1', '15'), 75);
+    assert.equal(calculateDurationFromHoursMinutes(-1, -10), 0);
+    assert.equal(calculateDurationFromHoursMinutes(15, 0), 720); // clamped to 720 min (12 hours)
+  });
+
+  it('calculates duration from a time range within the same day', () => {
+    assert.equal(calculateDurationFromRange('09:00', '10:30'), 90);
+    assert.equal(calculateDurationFromRange('14:15', '16:45'), 150);
+    assert.equal(calculateDurationFromRange('08:00', '08:45'), 45);
+    assert.equal(calculateDurationFromRange('10:00', '10:00'), 0);
+  });
+
+  it('calculates duration from a time range crossing midnight', () => {
+    // 23:00 to 00:30 is 1h 30m (90 min)
+    assert.equal(calculateDurationFromRange('23:00', '00:30'), 90);
+    // 22:30 to 01:15 is 2h 45m (165 min)
+    assert.equal(calculateDurationFromRange('22:30', '01:15'), 165);
+    // 23:45 to 00:15 is 30 min
+    assert.equal(calculateDurationFromRange('23:45', '00:15'), 30);
+  });
+
+  it('handles invalid, empty, or malformed time ranges safely', () => {
+    assert.equal(calculateDurationFromRange('', '10:00'), 0);
+    assert.equal(calculateDurationFromRange('09:00', ''), 0);
+    assert.equal(calculateDurationFromRange(null, undefined), 0);
+    assert.equal(calculateDurationFromRange('abc', 'def'), 0);
+    assert.equal(calculateDurationFromRange('25:00', '26:00'), 0);
+  });
+});
+
 
 

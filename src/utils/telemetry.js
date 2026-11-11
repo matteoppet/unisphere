@@ -272,4 +272,38 @@ export function calculateTableScrollMaxHeight(
   return Math.max(180, available);
 }
 
+export function calculateDurationFromHoursMinutes(hours, minutes) {
+  const h = Math.max(0, parseInt(hours, 10) || 0);
+  const m = Math.max(0, parseInt(minutes, 10) || 0);
+  const total = h * 60 + m;
+  return Math.min(720, Math.max(0, total));
+}
+
+export function calculateDurationFromRange(startTimeStr, endTimeStr) {
+  if (typeof startTimeStr !== 'string' || typeof endTimeStr !== 'string') return 0;
+  const startMatch = /^(\d{1,2}):(\d{2})$/.exec(startTimeStr.trim());
+  const endMatch = /^(\d{1,2}):(\d{2})$/.exec(endTimeStr.trim());
+  if (!startMatch || !endMatch) return 0;
+
+  const startH = parseInt(startMatch[1], 10);
+  const startM = parseInt(startMatch[2], 10);
+  const endH = parseInt(endMatch[1], 10);
+  const endM = parseInt(endMatch[2], 10);
+
+  if (startH < 0 || startH > 23 || startM < 0 || startM > 59) return 0;
+  if (endH < 0 || endH > 23 || endM < 0 || endM > 59) return 0;
+
+  const startTotal = startH * 60 + startM;
+  const endTotal = endH * 60 + endM;
+
+  let diff = endTotal - startTotal;
+  if (diff < 0) {
+    // Crosses midnight, e.g. 23:00 to 01:00
+    diff += 24 * 60;
+  }
+
+  return Math.min(720, Math.max(0, diff));
+}
+
+
 
