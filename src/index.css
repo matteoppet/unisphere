@@ -385,6 +385,7 @@ input[type="password"],
 input[type="url"],
 input[type="number"],
 input[type="date"],
+input[type="time"],
 input[type="search"],
 select,
 textarea {
@@ -490,3 +491,52 @@ dialog h3 {
   color: #005500;
   background-color: #f4fff4;
 }
+
+/* Session Log Time Mode Switcher (#41) */
+.log-time-mode-toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.log-time-tab {
+  flex: 1;
+  font-size: 13px;
+  padding: 5px 8px;
+  background-color: #f0f0f0;
+  border: 1px solid #cccccc;
+  color: #444444;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: inherit;
+  transition: all 0.15s ease;
+}
+
+.log-time-tab:hover {
+  background-color: #e4e4e4;
+  color: #111111;
+}
+
+.log-time-tab.active {
+  background-color: #3B77BC;
+  border-color: #2b5d95;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+.log-time-panel {
+  display: block;
+}
+
+.log-time-panel.hidden {
+  display: none !important;
+}
+
+.log-duration-preview {
+  display: inline-block;
+  font-size: 12px;
+  color: #2b5d95;
+  font-weight: 600;
+  margin-top: 6px;
+}
+

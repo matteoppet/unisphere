@@ -91,15 +91,46 @@
             <input type="text" id="log-subject" list="course-suggestions" required placeholder="e.g. Analisi 1" />
             <datalist id="course-suggestions"></datalist>
           </div>
-          <div class="form-grid-2">
-            <div class="form-row">
-              <label for="log-date">Date *</label>
-              <input type="date" id="log-date" required />
+          <div class="form-row">
+            <label for="log-date">Date *</label>
+            <input type="date" id="log-date" required />
+          </div>
+          <div class="form-row">
+            <label>Duration *</label>
+            <div class="log-time-mode-toggle" role="tablist">
+              <button type="button" class="log-time-tab active" data-time-mode="minutes">Minutes</button>
+              <button type="button" class="log-time-tab" data-time-mode="hours-minutes">Hours &amp; Min</button>
+              <button type="button" class="log-time-tab" data-time-mode="range">Time Range</button>
             </div>
-            <div class="form-row">
-              <label for="log-minutes">Duration (minutes) *</label>
-              <input type="number" id="log-minutes" min="5" max="720" step="5" value="90" required />
+            <input type="hidden" id="log-minutes" name="log-minutes" value="90" />
+            <div id="log-mode-minutes" class="log-time-panel">
+              <input type="number" id="log-minutes-input" min="5" max="720" step="5" value="90" placeholder="e.g. 90" />
             </div>
+            <div id="log-mode-hours-minutes" class="log-time-panel hidden">
+              <div class="form-grid-2">
+                <div>
+                  <label for="log-hours" style="font-size: 12px; font-weight: normal; color: #555;">Hours</label>
+                  <input type="number" id="log-hours" min="0" max="12" step="1" value="1" placeholder="Hours" />
+                </div>
+                <div>
+                  <label for="log-subminutes" style="font-size: 12px; font-weight: normal; color: #555;">Minutes</label>
+                  <input type="number" id="log-subminutes" min="0" max="59" step="5" value="30" placeholder="Minutes" />
+                </div>
+              </div>
+            </div>
+            <div id="log-mode-range" class="log-time-panel hidden">
+              <div class="form-grid-2">
+                <div>
+                  <label for="log-start-time" style="font-size: 12px; font-weight: normal; color: #555;">Start Time</label>
+                  <input type="time" id="log-start-time" value="14:00" />
+                </div>
+                <div>
+                  <label for="log-end-time" style="font-size: 12px; font-weight: normal; color: #555;">End Time</label>
+                  <input type="time" id="log-end-time" value="15:30" />
+                </div>
+              </div>
+            </div>
+            <div id="log-duration-preview" class="log-duration-preview">Calculated: 1h 30m (90 min)</div>
           </div>
           <div class="form-row">
             <label for="log-tag">Session Tag</label>
