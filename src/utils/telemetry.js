@@ -281,8 +281,8 @@ export function calculateDurationFromHoursMinutes(hours, minutes) {
 
 export function calculateDurationFromRange(startTimeStr, endTimeStr) {
   if (typeof startTimeStr !== 'string' || typeof endTimeStr !== 'string') return 0;
-  const startMatch = /^(\d{1,2}):(\d{2})$/.exec(startTimeStr.trim());
-  const endMatch = /^(\d{1,2}):(\d{2})$/.exec(endTimeStr.trim());
+  const startMatch = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(startTimeStr.trim());
+  const endMatch = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(endTimeStr.trim());
   if (!startMatch || !endMatch) return 0;
 
   const startH = parseInt(startMatch[1], 10);
@@ -307,7 +307,7 @@ export function calculateDurationFromRange(startTimeStr, endTimeStr) {
 
 export function addMinutesToTimeString(timeStr = '14:00', minutesToAdd = 0) {
   if (typeof timeStr !== 'string') return '14:00';
-  const match = /^(\d{1,2}):(\d{2})$/.exec(timeStr.trim());
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(timeStr.trim());
   if (!match) return '14:00';
   const h = parseInt(match[1], 10);
   const m = parseInt(match[2], 10);

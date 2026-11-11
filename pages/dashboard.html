@@ -224,35 +224,35 @@
           </div>
           <div class="form-row">
             <label>Duration *</label>
-            <div class="log-time-mode-toggle" role="tablist">
-              <button type="button" class="log-time-tab active" data-time-mode="minutes">Minutes</button>
-              <button type="button" class="log-time-tab" data-time-mode="hours-minutes">Hours &amp; Min</button>
-              <button type="button" class="log-time-tab" data-time-mode="range">Time Range</button>
+            <div class="log-time-mode-toggle" role="tablist" aria-label="Duration input mode">
+              <button type="button" class="log-time-tab active" data-time-mode="minutes" role="tab" id="tab-log-minutes" aria-selected="true" aria-controls="log-mode-minutes">Minutes</button>
+              <button type="button" class="log-time-tab" data-time-mode="hours-minutes" role="tab" id="tab-log-hours-minutes" aria-selected="false" aria-controls="log-mode-hours-minutes">Hours &amp; Min</button>
+              <button type="button" class="log-time-tab" data-time-mode="range" role="tab" id="tab-log-range" aria-selected="false" aria-controls="log-mode-range">Time Range</button>
             </div>
             <input type="hidden" id="log-minutes" name="log-minutes" value="90" />
-            <div id="log-mode-minutes" class="log-time-panel">
+            <div id="log-mode-minutes" class="log-time-panel" role="tabpanel" aria-labelledby="tab-log-minutes">
               <input type="number" id="log-minutes-input" min="5" max="720" step="5" value="90" placeholder="e.g. 90" />
             </div>
-            <div id="log-mode-hours-minutes" class="log-time-panel hidden">
+            <div id="log-mode-hours-minutes" class="log-time-panel hidden" role="tabpanel" aria-labelledby="tab-log-hours-minutes">
               <div class="form-grid-2">
                 <div>
-                  <label for="log-hours" style="font-size: 12px; font-weight: normal; color: #555;">Hours</label>
+                  <label for="log-hours" class="log-sublabel">Hours</label>
                   <input type="number" id="log-hours" min="0" max="12" step="1" value="1" placeholder="Hours" />
                 </div>
                 <div>
-                  <label for="log-subminutes" style="font-size: 12px; font-weight: normal; color: #555;">Minutes</label>
+                  <label for="log-subminutes" class="log-sublabel">Minutes</label>
                   <input type="number" id="log-subminutes" min="0" max="59" step="5" value="30" placeholder="Minutes" />
                 </div>
               </div>
             </div>
-            <div id="log-mode-range" class="log-time-panel hidden">
+            <div id="log-mode-range" class="log-time-panel hidden" role="tabpanel" aria-labelledby="tab-log-range">
               <div class="form-grid-2">
                 <div>
-                  <label for="log-start-time" style="font-size: 12px; font-weight: normal; color: #555;">Start Time</label>
+                  <label for="log-start-time" class="log-sublabel">Start Time</label>
                   <input type="time" id="log-start-time" value="14:00" />
                 </div>
                 <div>
-                  <label for="log-end-time" style="font-size: 12px; font-weight: normal; color: #555;">End Time</label>
+                  <label for="log-end-time" class="log-sublabel">End Time</label>
                   <input type="time" id="log-end-time" value="15:30" />
                 </div>
               </div>

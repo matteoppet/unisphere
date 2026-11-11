@@ -1393,7 +1393,8 @@ export function initApp() {
     if (panelHoursMin) panelHoursMin.classList.toggle('hidden', mode !== 'hours-minutes');
     if (panelRange) panelRange.classList.toggle('hidden', mode !== 'range');
 
-    const canonicalVal = parseInt(document.getElementById('log-minutes')?.value, 10) || 90;
+    const parsed = parseInt(document.getElementById('log-minutes')?.value, 10);
+    const canonicalVal = Number.isFinite(parsed) ? parsed : 90;
     syncLogModeInputsFromMinutes(canonicalVal, mode);
   }
 
@@ -2580,7 +2581,7 @@ export function initApp() {
       boundElements.add(logModal);
 
       logModal.addEventListener('click', (e) => {
-        const tab = e.target.closest('.log-time-tab');
+        const tab = e.target.closest?.('.log-time-tab');
         if (tab) {
           e.preventDefault();
           const mode = tab.getAttribute('data-time-mode');

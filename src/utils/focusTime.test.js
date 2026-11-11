@@ -249,6 +249,10 @@ describe('Session time input modes and duration calculation (#41)', () => {
       assert.match(html, /id="log-start-time"/);
       assert.match(html, /id="log-end-time"/);
       assert.match(html, /id="log-duration-preview"/);
+      assert.match(html, /role="tablist"/);
+      assert.match(html, /role="tab"/);
+      assert.match(html, /role="tabpanel"/);
+      assert.match(html, /class="log-sublabel"/);
     }
   });
 
