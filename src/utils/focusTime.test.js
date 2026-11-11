@@ -10,6 +10,7 @@ import {
   calculateTableScrollMaxHeight,
   calculateDurationFromHoursMinutes,
   calculateDurationFromRange,
+  addMinutesToTimeString,
 } from './telemetry.js';
 
 describe('Focus Time formatting and weekly summary (#13)', () => {
@@ -221,7 +222,45 @@ describe('Session time input modes and duration calculation (#41)', () => {
     assert.equal(calculateDurationFromRange('abc', 'def'), 0);
     assert.equal(calculateDurationFromRange('25:00', '26:00'), 0);
   });
+
+  it('adds minutes to time string accurately including day wrapping', () => {
+    assert.equal(addMinutesToTimeString('14:00', 90), '15:30');
+    assert.equal(addMinutesToTimeString('09:15', 45), '10:00');
+    assert.equal(addMinutesToTimeString('23:15', 75), '00:30');
+    assert.equal(addMinutesToTimeString('invalid', 60), '14:00');
+  });
+
+  it('verifies #modal-log markup in index.html, dashboard.html, and logs.html contains 3 input modes and duration preview', () => {
+    const files = [
+      new URL('../../index.html', import.meta.url),
+      new URL('../../pages/dashboard.html', import.meta.url),
+      new URL('../../pages/logs.html', import.meta.url),
+    ];
+
+    for (const fileUrl of files) {
+      const html = fs.readFileSync(fileUrl, 'utf8');
+      assert.match(html, /class="log-time-mode-toggle"/);
+      assert.match(html, /data-time-mode="minutes"/);
+      assert.match(html, /data-time-mode="hours-minutes"/);
+      assert.match(html, /data-time-mode="range"/);
+      assert.match(html, /id="log-minutes-input"/);
+      assert.match(html, /id="log-hours"/);
+      assert.match(html, /id="log-subminutes"/);
+      assert.match(html, /id="log-start-time"/);
+      assert.match(html, /id="log-end-time"/);
+      assert.match(html, /id="log-duration-preview"/);
+    }
+  });
+
+  it('wires mode switching and duration calculations in src/app.js', () => {
+    const appJs = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+    assert.match(appJs, /calculateDurationFromHoursMinutes/);
+    assert.match(appJs, /calculateDurationFromRange/);
+    assert.match(appJs, /log-time-tab/);
+    assert.match(appJs, /log-duration-preview/);
+  });
 });
+
 
 
 

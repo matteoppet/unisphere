@@ -54,6 +54,9 @@ import {
   getWeekDaysSummary,
   groupStudyLogsByWeek,
   calculateTableScrollMaxHeight,
+  calculateDurationFromHoursMinutes,
+  calculateDurationFromRange,
+  addMinutesToTimeString,
   updateStreak,
   calculateElo,
   generateSquadCode,
@@ -1333,14 +1336,89 @@ export function initApp() {
     dialog.showModal();
   }
 
+  let activeLogTimeMode = 'minutes';
+
+  function updateLogDurationPreview(mins) {
+    const canonicalInput = document.getElementById('log-minutes');
+    if (canonicalInput) canonicalInput.value = mins;
+    const preview = document.getElementById('log-duration-preview');
+    if (preview) {
+      if (mins >= 5) {
+        preview.textContent = `Calculated: ${formatStudyDuration(mins)} (${mins} min)`;
+        preview.style.color = '#2b5d95';
+      } else {
+        preview.textContent = 'Please enter a valid duration (minimum 5 min)';
+        preview.style.color = '#aa0000';
+      }
+    }
+  }
+
+  function syncLogModeInputsFromMinutes(mins, targetMode) {
+    if (targetMode === 'minutes') {
+      const input = document.getElementById('log-minutes-input');
+      if (input && mins > 0) input.value = mins;
+    } else if (targetMode === 'hours-minutes') {
+      const hoursInput = document.getElementById('log-hours');
+      const subminutesInput = document.getElementById('log-subminutes');
+      if (hoursInput) hoursInput.value = Math.floor(mins / 60);
+      if (subminutesInput) subminutesInput.value = mins % 60;
+    } else if (targetMode === 'range') {
+      const startInput = document.getElementById('log-start-time');
+      const endInput = document.getElementById('log-end-time');
+      const currentStart = startInput?.value || '14:00';
+      if (startInput) startInput.value = currentStart;
+      if (endInput) {
+        endInput.value = addMinutesToTimeString(currentStart, mins > 0 ? mins : 90);
+      }
+    }
+    updateLogDurationPreview(mins);
+  }
+
+  function setLogTimeMode(mode) {
+    activeLogTimeMode = mode;
+    const modal = document.getElementById('modal-log');
+    if (!modal) return;
+
+    modal.querySelectorAll('.log-time-tab').forEach((tab) => {
+      const isActive = tab.getAttribute('data-time-mode') === mode;
+      tab.classList.toggle('active', isActive);
+      tab.setAttribute('aria-selected', String(isActive));
+    });
+
+    const panelMinutes = document.getElementById('log-mode-minutes');
+    const panelHoursMin = document.getElementById('log-mode-hours-minutes');
+    const panelRange = document.getElementById('log-mode-range');
+
+    if (panelMinutes) panelMinutes.classList.toggle('hidden', mode !== 'minutes');
+    if (panelHoursMin) panelHoursMin.classList.toggle('hidden', mode !== 'hours-minutes');
+    if (panelRange) panelRange.classList.toggle('hidden', mode !== 'range');
+
+    const canonicalVal = parseInt(document.getElementById('log-minutes')?.value, 10) || 90;
+    syncLogModeInputsFromMinutes(canonicalVal, mode);
+  }
+
   function openLogModal() {
     const dialog = document.getElementById('modal-log');
     if (!dialog) return;
     document.getElementById('log-subject').value = courses[0]?.title || '';
     document.getElementById('log-date').value = getLocalDateString();
-    document.getElementById('log-minutes').value = 90;
     document.getElementById('log-tag').value = 'Deep Work';
     document.getElementById('log-notes').value = '';
+
+    const defaultMinutes = 90;
+    setLogTimeMode('minutes');
+    const minInput = document.getElementById('log-minutes-input');
+    if (minInput) minInput.value = defaultMinutes;
+    const hoursInput = document.getElementById('log-hours');
+    if (hoursInput) hoursInput.value = 1;
+    const subminInput = document.getElementById('log-subminutes');
+    if (subminInput) subminInput.value = 30;
+    const startTimeInput = document.getElementById('log-start-time');
+    if (startTimeInput) startTimeInput.value = '14:00';
+    const endTimeInput = document.getElementById('log-end-time');
+    if (endTimeInput) endTimeInput.value = '15:30';
+    updateLogDurationPreview(defaultMinutes);
+
     dialog.showModal();
   }
 
@@ -2447,7 +2525,17 @@ export function initApp() {
         e.preventDefault();
         const rawSubject = sanitizeTextInput(document.getElementById('log-subject').value, 120);
         const date = document.getElementById('log-date').value;
+        const durationMinutes = parseInt(document.getElementById('log-minutes')?.value, 10) || 0;
         if (!rawSubject || !date) return;
+
+        if (durationMinutes < 5) {
+          const preview = document.getElementById('log-duration-preview');
+          if (preview) {
+            preview.textContent = 'Minimum duration is 5 minutes';
+            preview.style.color = '#aa0000';
+          }
+          return;
+        }
 
         const matchedCourse = courses.find(
           (c) => c.title.toLowerCase() === rawSubject.toLowerCase()
@@ -2456,7 +2544,7 @@ export function initApp() {
           id: `log-${Date.now()}`,
           courseId: matchedCourse?.id,
           courseName: matchedCourse ? matchedCourse.title : rawSubject,
-          durationMinutes: document.getElementById('log-minutes').value,
+          durationMinutes,
           date,
           notes: document.getElementById('log-notes').value,
           rating: 5,
@@ -2485,6 +2573,60 @@ export function initApp() {
           `Added session log: ${newLog.courseName} (${formatStudyDuration(newLog.durationMinutes)})`
         );
       });
+    }
+
+    const logModal = document.getElementById('modal-log');
+    if (logModal && !boundElements.has(logModal)) {
+      boundElements.add(logModal);
+
+      logModal.addEventListener('click', (e) => {
+        const tab = e.target.closest('.log-time-tab');
+        if (tab) {
+          e.preventDefault();
+          const mode = tab.getAttribute('data-time-mode');
+          if (mode) setLogTimeMode(mode);
+        }
+      });
+
+      const minutesInput = document.getElementById('log-minutes-input');
+      const handleMinutesChange = () => {
+        const val = Math.min(720, Math.max(0, parseInt(minutesInput?.value, 10) || 0));
+        updateLogDurationPreview(val);
+      };
+      minutesInput?.addEventListener('input', handleMinutesChange);
+      minutesInput?.addEventListener('change', handleMinutesChange);
+
+      const hoursInput = document.getElementById('log-hours');
+      const subminutesInput = document.getElementById('log-subminutes');
+      const handleHoursMinutesChange = () => {
+        const total = calculateDurationFromHoursMinutes(hoursInput?.value, subminutesInput?.value);
+        updateLogDurationPreview(total);
+      };
+      hoursInput?.addEventListener('input', handleHoursMinutesChange);
+      hoursInput?.addEventListener('change', handleHoursMinutesChange);
+      subminutesInput?.addEventListener('input', handleHoursMinutesChange);
+      subminutesInput?.addEventListener('change', handleHoursMinutesChange);
+
+      const startTimeInput = document.getElementById('log-start-time');
+      const endTimeInput = document.getElementById('log-end-time');
+      const handleRangeChange = () => {
+        const start = startTimeInput?.value;
+        const end = endTimeInput?.value;
+        if (!start || !end) {
+          updateLogDurationPreview(0);
+          return;
+        }
+        const diff = calculateDurationFromRange(start, end);
+        if (diff > 0) {
+          updateLogDurationPreview(diff);
+        } else {
+          updateLogDurationPreview(0);
+        }
+      };
+      startTimeInput?.addEventListener('input', handleRangeChange);
+      startTimeInput?.addEventListener('change', handleRangeChange);
+      endTimeInput?.addEventListener('input', handleRangeChange);
+      endTimeInput?.addEventListener('change', handleRangeChange);
     }
 
     const resourceForm = document.getElementById('form-resource');

@@ -305,5 +305,21 @@ export function calculateDurationFromRange(startTimeStr, endTimeStr) {
   return Math.min(720, Math.max(0, diff));
 }
 
+export function addMinutesToTimeString(timeStr = '14:00', minutesToAdd = 0) {
+  if (typeof timeStr !== 'string') return '14:00';
+  const match = /^(\d{1,2}):(\d{2})$/.exec(timeStr.trim());
+  if (!match) return '14:00';
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return '14:00';
+
+  const total = (h * 60 + m + (parseInt(minutesToAdd, 10) || 0)) % (24 * 60);
+  const normalized = total < 0 ? total + 24 * 60 : total;
+  const resH = String(Math.floor(normalized / 60)).padStart(2, '0');
+  const resM = String(normalized % 60).padStart(2, '0');
+  return `${resH}:${resM}`;
+}
+
+
 
 
