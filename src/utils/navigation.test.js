@@ -33,7 +33,7 @@ describe('Topbar Navigation Layout and Responsiveness (#37)', () => {
   });
 
   test('verifies all main navigation markup files use #nav-list with class nav-list', () => {
-    const pages = ['index.html', 'pages/dashboard.html', 'pages/courses.html', 'pages/logs.html', 'pages/assignments.html', 'pages/squads.html', 'pages/settings.html'];
+    const pages = ['index.html', 'pages/dashboard.html', 'pages/courses.html', 'pages/logs.html', 'pages/assignments.html', 'pages/squads.html', 'pages/settings.html', 'pages/login.html'];
     for (const page of pages) {
       const content = fs.readFileSync(path.resolve(page), 'utf8');
       assert.ok(content.includes('id="nav-list"') && content.includes('class="nav-list"'), `${page} must contain #nav-list with class="nav-list"`);
