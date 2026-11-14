@@ -46,7 +46,17 @@ import {
   fetchUserSquads,
   syncSquadToUserDoc,
   removeSquadFromUserDoc,
+  leaveSquadCleanly,
   saveSquadMemberToCloud,
+  updateSquadAdminDetails,
+  removeMemberFromSquad,
+  deleteSquadCompletely,
+  setMemberLiveStatus,
+  clearMemberLiveStatus,
+  addSquadFeedNote,
+  deleteSquadFeedNote,
+  updateSquadNextSession,
+  nudgeSquadMember,
 } from './lib/squadService.js';
 import {
   formatStudyDuration,
@@ -61,6 +71,16 @@ import {
   calculateCurrentStreak,
   countCompletedTasksThisWeek,
   getMemberEffectiveTelemetry,
+  getWeeklyDailyMinutesMap,
+  getWeeklySubjectMinutesMap,
+  aggregateSquadWeeklyDays,
+  aggregateSquadSubjectHours,
+  getMemberWeekDaysSummary,
+  formatLiveElapsed,
+  canManageSquad,
+  sortSquadMembers,
+  deduplicateSquadMembers,
+  isCurrentUserRemovedFromSquad,
   calculateElo,
   generateSquadCode,
 } from './utils/telemetry.js';
@@ -261,7 +281,15 @@ export function initApp() {
   let squads = [];
   let activeSquadId = profile.activeSquadId || null;
   let squadMembers = [];
+  let squadPresence = [];
+  let squadActivities = [];
+  let squadMembersSort = 'hours';
+  let myLiveSession = null;
+  let squadDocUnsub = null;
   let squadMembersUnsub = null;
+  let squadPresenceUnsub = null;
+  let squadActivitiesUnsub = null;
+  let liveTimerInterval = null;
 
   // Auth UI state
   let authNotice = null;
@@ -610,6 +638,29 @@ export function initApp() {
     }
   }
 
+  function cleanupSquadListeners() {
+    if (squadDocUnsub) {
+      squadDocUnsub();
+      squadDocUnsub = null;
+    }
+    if (squadMembersUnsub) {
+      squadMembersUnsub();
+      squadMembersUnsub = null;
+    }
+    if (squadPresenceUnsub) {
+      squadPresenceUnsub();
+      squadPresenceUnsub = null;
+    }
+    if (squadActivitiesUnsub) {
+      squadActivitiesUnsub();
+      squadActivitiesUnsub = null;
+    }
+    if (liveTimerInterval) {
+      window.clearInterval(liveTimerInterval);
+      liveTimerInterval = null;
+    }
+  }
+
   async function handleLogout() {
     if (userSnapshotUnsub) {
       userSnapshotUnsub();
@@ -617,10 +668,7 @@ export function initApp() {
     }
     activeSyncDocId = null;
     hasInitialServerSnapshot = false;
-    if (squadMembersUnsub) {
-      squadMembersUnsub();
-      squadMembersUnsub = null;
-    }
+    cleanupSquadListeners();
     try {
       if (auth) await signOut(auth);
     } catch {}
@@ -638,6 +686,9 @@ export function initApp() {
     squads = [];
     activeSquadId = null;
     squadMembers = [];
+    squadPresence = [];
+    squadActivities = [];
+    myLiveSession = null;
     authNotice = { type: 'success', text: 'You have been logged out.' };
     await loadAndRenderPage('login', true);
     setStatus('Logged out');
@@ -740,9 +791,8 @@ export function initApp() {
 
     if (isAuthenticated && effectiveRoute === 'squads') {
       void loadUserSquads();
-    } else if (squadMembersUnsub && effectiveRoute !== 'squads') {
-      squadMembersUnsub();
-      squadMembersUnsub = null;
+    } else if (effectiveRoute !== 'squads') {
+      cleanupSquadListeners();
     }
 
     updateNavHighlight(effectiveRoute);
@@ -752,15 +802,22 @@ export function initApp() {
   }
 
   function updateScrollableTablesMaxHeight() {
-    const scrollContainers = document.querySelectorAll('.table-scroll');
-    if (scrollContainers.length === 0) return;
     const viewportHeight = window.innerHeight;
     const viewportWidth = window.innerWidth;
+    const scrollContainers = document.querySelectorAll('.table-scroll');
     scrollContainers.forEach((el) => {
       const elementTop = el.getBoundingClientRect().top + window.scrollY;
       const maxH = calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth);
       el.style.maxHeight = `${maxH}px`;
     });
+
+    const squadFeedEl = document.getElementById('squad-feed-list');
+    if (squadFeedEl && !squadFeedEl.closest('[hidden]')) {
+      const elementTop = squadFeedEl.getBoundingClientRect().top + window.scrollY;
+      const feedH = calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth, 200);
+      squadFeedEl.style.minHeight = `${feedH}px`;
+      squadFeedEl.style.maxHeight = `${feedH}px`;
+    }
   }
 
   // --- Populate HTML Elements in Current Page ---
@@ -1173,12 +1230,508 @@ export function initApp() {
     }
   }
 
+  function formatFeedRelativeTime(val) {
+    if (!val) return 'Just now';
+    const d = typeof val === 'number' ? new Date(val) : new Date(String(val));
+    if (isNaN(d.getTime())) return 'Recently';
+    const diffSec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+    if (diffSec < 60) return 'Just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return 'Yesterday';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]}`;
+  }
+
+  function getMySquadIdentity() {
+    const email = sessionEmail || profile.email || auth?.currentUser?.email || '';
+    const myUid = getEmailDocId(email || 'local_student');
+    return {
+      myUid,
+      myDisplayName: sanitizeTextInput(profile.name || 'Student', 100),
+      authUid: auth?.currentUser?.uid || '',
+      studentId: profile.studentId || '',
+      email,
+    };
+  }
+
+  function isCurrentUserSquadCreator(squad) {
+    if (!squad) return false;
+    const identity = getMySquadIdentity();
+    return canManageSquad(squad, identity.myUid, {
+      authUid: identity.authUid,
+      studentId: identity.studentId,
+      email: identity.email,
+      displayName: identity.myDisplayName,
+    });
+  }
+
+  const cleanedStaleMemberKeys = new Set();
+  const removedSquadMemberKeys = new Set();
+
+  function getProcessedSquadMembers(activeSquad) {
+    const identity = getMySquadIdentity();
+    const { myUid } = identity;
+    const myWeekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+    const myStreak = calculateCurrentStreak(studyLogs, profile);
+    const myTasksThisWeek = countCompletedTasksThisWeek(assignments);
+    const myElo = calculateElo(myWeekMinutes, myTasksThisWeek, myStreak);
+    const myDailyMinutes = getWeeklyDailyMinutesMap(studyLogs);
+    const mySubjectMinutes = getWeeklySubjectMinutesMap(studyLogs);
+
+    const { members: dedupedMembers, staleLegacyUids } = deduplicateSquadMembers(
+      squadMembers,
+      identity
+    );
+
+    if (activeSquad?.id && staleLegacyUids.length > 0) {
+      for (const staleUid of staleLegacyUids) {
+        const cleanKey = `${activeSquad.id}:${staleUid}`;
+        if (!cleanedStaleMemberKeys.has(cleanKey)) {
+          cleanedStaleMemberKeys.add(cleanKey);
+          void removeMemberFromSquad(activeSquad.id, staleUid, '', false);
+        }
+      }
+    }
+
+    const removedUidsInCloud = new Map();
+    const removedNamesInCloud = new Map();
+    const rejoinedUidsInCloud = new Map();
+    for (const act of squadActivities) {
+      if (!act) continue;
+      const actTs = Date.parse(String(act.updatedAt || act.createdAt || '')) || Date.now();
+      if (act.type === 'member_removed' && act.status === 'removed') {
+        if (act.uid) {
+          const k = String(act.uid).trim().toLowerCase();
+          removedUidsInCloud.set(k, Math.max(removedUidsInCloud.get(k) || 0, actTs));
+        }
+        if (act.displayName && act.displayName !== 'Removed Member') {
+          const k = String(act.displayName).trim().toLowerCase();
+          removedNamesInCloud.set(k, Math.max(removedNamesInCloud.get(k) || 0, actTs));
+        }
+      } else if (act.type === 'member_rejoined' && act.uid) {
+        const k = String(act.uid).trim().toLowerCase();
+        rejoinedUidsInCloud.set(k, Math.max(rejoinedUidsInCloud.get(k) || 0, actTs));
+      }
+    }
+
+    const processedMembersMap = new Map();
+    for (const m of dedupedMembers) {
+      if (!m || !m.uid) continue;
+      if (m.uid === myUid) {
+        processedMembersMap.set(myUid, {
+          ...m,
+          uid: myUid,
+          displayName: sanitizeTextInput(profile.name || m.displayName || 'Student', 100),
+          minutesThisWeek: myWeekMinutes,
+          currentStreak: myStreak,
+          tasksThisWeek: myTasksThisWeek,
+          dailyMinutes: myDailyMinutes,
+          subjectMinutes: mySubjectMinutes,
+          status: myLiveSession ? 'live' : m.status || 'online',
+          liveSubject: myLiveSession ? myLiveSession.subject : m.liveSubject || null,
+          liveStartedAt: myLiveSession ? myLiveSession.startedAt : m.liveStartedAt || null,
+          elo: myElo,
+          isCurrentWeek: true,
+          isStreakActive: myStreak > 0,
+        });
+      } else {
+        const normMemberUid = String(m.uid).trim().toLowerCase();
+        const normMemberName = String(m.displayName || '').trim().toLowerCase();
+        const joinedAtMs = Date.parse(String(m.joinedAt || '')) || 0;
+        const rejoinedAtMs = rejoinedUidsInCloud.get(normMemberUid) || 0;
+        const effectiveJoinedAt = Math.max(joinedAtMs, rejoinedAtMs);
+        const removedUidAt = removedUidsInCloud.get(normMemberUid) || 0;
+        const removedNameAt = normMemberName ? removedNamesInCloud.get(normMemberName) || 0 : 0;
+        const latestRemovedAt = Math.max(removedUidAt, removedNameAt);
+        if (
+          (activeSquad?.id && removedSquadMemberKeys.has(`${activeSquad.id}:${normMemberUid}`)) ||
+          (latestRemovedAt > 0 && effectiveJoinedAt <= latestRemovedAt)
+        ) {
+          continue;
+        }
+        processedMembersMap.set(m.uid, getMemberEffectiveTelemetry(m));
+      }
+    }
+
+    if (activeSquad && !processedMembersMap.has(myUid)) {
+      processedMembersMap.set(myUid, {
+        uid: myUid,
+        displayName: sanitizeTextInput(profile.name || 'Student', 100),
+        color: '#3B77BC',
+        minutesThisWeek: myWeekMinutes,
+        currentStreak: myStreak,
+        tasksThisWeek: myTasksThisWeek,
+        dailyMinutes: myDailyMinutes,
+        subjectMinutes: mySubjectMinutes,
+        status: myLiveSession ? 'live' : 'online',
+        liveSubject: myLiveSession ? myLiveSession.subject : null,
+        liveStartedAt: myLiveSession ? myLiveSession.startedAt : null,
+        elo: myElo,
+        isCurrentWeek: true,
+        isStreakActive: myStreak > 0,
+      });
+    }
+
+    return {
+      myUid,
+      myWeekMinutes,
+      myStreak,
+      myTasksThisWeek,
+      myElo,
+      allMembers: activeSquad ? Array.from(processedMembersMap.values()) : [],
+    };
+  }
+
   function populateSquadsPage() {
     const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
     if (activeSquad && activeSquad.id !== activeSquadId) {
       activeSquadId = activeSquad.id;
+    } else if (!activeSquad) {
+      activeSquadId = null;
     }
 
+    if (
+      activeSquad &&
+      isCurrentUserRemovedFromSquad(
+        activeSquad,
+        squadMembers,
+        squadActivities,
+        getMySquadIdentity()
+      )
+    ) {
+      void performLeaveSquad(activeSquad.id);
+      return;
+    }
+
+    const { myUid, myWeekMinutes, myStreak, allMembers } = getProcessedSquadMembers(activeSquad);
+
+    // 1. Header Links (#36 Admin Panel only for creator, Leave Squad when in squad)
+    const adminBtn = document.getElementById('btn-open-admin-panel');
+    if (adminBtn) {
+      adminBtn.hidden = !isCurrentUserSquadCreator(activeSquad);
+    }
+    const leaveBtn = document.getElementById('btn-leave-active-squad');
+    if (leaveBtn) {
+      leaveBtn.hidden = !activeSquad;
+    }
+
+    const emptyStateEl = document.getElementById('squads-empty-state');
+    if (emptyStateEl) {
+      emptyStateEl.hidden = Boolean(activeSquad);
+    }
+    const activeWidgetsEl = document.getElementById('squads-active-widgets');
+    if (activeWidgetsEl) {
+      activeWidgetsEl.hidden = !activeSquad;
+    }
+
+    // 2. Top Summary Bar
+    const summaryNameEl = document.getElementById('squad-summary-name');
+    if (summaryNameEl) {
+      summaryNameEl.textContent = activeSquad ? activeSquad.name : 'No Active Squad';
+    }
+
+    const activeSelectEl = document.getElementById('squad-active-select');
+    if (activeSelectEl) {
+      if (squads.length > 1) {
+        activeSelectEl.hidden = false;
+        activeSelectEl.innerHTML = squads
+          .map(
+            (s) =>
+              `<option value="${escapeHtml(s.id)}" ${s.id === activeSquadId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`
+          )
+          .join('');
+      } else {
+        activeSelectEl.hidden = true;
+        activeSelectEl.innerHTML = '';
+      }
+    }
+
+    const descEl = document.getElementById('squad-summary-description');
+    if (descEl) {
+      if (activeSquad?.description) {
+        descEl.hidden = false;
+        descEl.textContent = activeSquad.description;
+      } else {
+        descEl.hidden = true;
+        descEl.textContent = '';
+      }
+    }
+
+    const squadTotalMinutes = allMembers.reduce(
+      (sum, m) => sum + (Number(m.minutesThisWeek) || 0),
+      0
+    );
+    const squadGoalHours = Math.max(1, Number(activeSquad?.weeklyGoalHours) || 60);
+    const squadGoalMinutes = squadGoalHours * 60;
+    const squadGoalPct = activeSquad
+      ? Math.min(100, Math.round((squadTotalMinutes / squadGoalMinutes) * 100))
+      : 0;
+
+    const summaryWeeklyEl = document.getElementById('squad-summary-weekly-time');
+    if (summaryWeeklyEl) {
+      summaryWeeklyEl.textContent = `${formatStudyDuration(squadTotalMinutes)} / ${squadGoalHours}h`;
+    }
+
+    const summaryMyTimeEl = document.getElementById('squad-summary-my-time');
+    if (summaryMyTimeEl) {
+      summaryMyTimeEl.textContent = formatStudyDuration(myWeekMinutes);
+    }
+
+    const summaryStreakEl = document.getElementById('squad-summary-my-streak');
+    if (summaryStreakEl) {
+      summaryStreakEl.textContent = `${myStreak} days`;
+    }
+
+    const summaryCodeEl = document.getElementById('squad-summary-code');
+    if (summaryCodeEl) {
+      summaryCodeEl.textContent = activeSquad ? activeSquad.code : '-';
+    }
+
+    // 3. Left Card: Live Library & Hours by Subject
+    const progressFillEl = document.getElementById('squad-goal-progress-fill');
+    if (progressFillEl) {
+      progressFillEl.style.width = `${squadGoalPct}%`;
+    }
+    const progressLabelEl = document.getElementById('squad-goal-progress-label');
+    if (progressLabelEl) {
+      progressLabelEl.textContent = `${formatStudyDuration(squadTotalMinutes)} of ${squadGoalHours}h weekly goal`;
+    }
+    const progressPctEl = document.getElementById('squad-goal-progress-pct');
+    if (progressPctEl) {
+      progressPctEl.textContent = `${squadGoalPct}%`;
+    }
+
+    // Build unified live studiers list from squadPresence + members with status === 'live'
+    const liveMap = new Map();
+    for (const p of squadPresence) {
+      if (p && p.uid && p.status === 'live') {
+        liveMap.set(p.uid, p);
+      }
+    }
+    for (const m of allMembers) {
+      if (m && m.uid && m.status === 'live' && m.liveSubject && !liveMap.has(m.uid)) {
+        liveMap.set(m.uid, {
+          uid: m.uid,
+          displayName: m.displayName || 'Student',
+          status: 'live',
+          subject: m.liveSubject,
+          startedAt: m.liveStartedAt || m.updatedAt,
+        });
+      }
+    }
+    if (myLiveSession && activeSquad) {
+      liveMap.set(myUid, {
+        uid: myUid,
+        displayName: sanitizeTextInput(profile.name || 'Student', 100),
+        status: 'live',
+        subject: myLiveSession.subject,
+        startedAt: myLiveSession.startedAt,
+      });
+    }
+
+    const liveStudiers = Array.from(liveMap.values());
+    const isMeLive = liveMap.has(myUid);
+
+    const goLiveBtn = document.getElementById('btn-go-live-toggle');
+    if (goLiveBtn) {
+      goLiveBtn.disabled = !activeSquad;
+      if (isMeLive) {
+        const myLiveEntry = liveMap.get(myUid);
+        const elapsed = formatLiveElapsed(myLiveEntry?.startedAt);
+        goLiveBtn.textContent = `End Live (${elapsed.formatted})`;
+      } else {
+        goLiveBtn.textContent = 'Go Live';
+      }
+    }
+
+    const liveSummaryEl = document.getElementById('squad-live-library-summary');
+    if (liveSummaryEl) {
+      if (!activeSquad) {
+        liveSummaryEl.textContent = 'Create or join a squad to enter the Live Library.';
+      } else if (liveStudiers.length === 0) {
+        liveSummaryEl.textContent =
+          'No one is studying live right now. Click Go Live to open a study table!';
+      } else {
+        liveSummaryEl.textContent = `${liveStudiers.length} member${liveStudiers.length === 1 ? '' : 's'} currently studying in the Live Library:`;
+      }
+    }
+
+    const liveListEl = document.getElementById('squad-live-library-list');
+    if (liveListEl) {
+      if (!activeSquad || liveStudiers.length === 0) {
+        liveListEl.innerHTML = '';
+      } else {
+        liveListEl.innerHTML = liveStudiers
+          .map((liveItem) => {
+            const memberRecord = allMembers.find((m) => m.uid === liveItem.uid);
+            const weeklyMins = Number(memberRecord?.minutesThisWeek) || 0;
+            const elapsed = formatLiveElapsed(liveItem.startedAt);
+            const isCurrentUser = liveItem.uid === myUid;
+            return `
+              <li class="live-library-item">
+                <div class="live-library-user">
+                  <div>
+                    <span class="live-badge-dot" aria-hidden="true"></span>
+                    <strong>${escapeHtml(liveItem.displayName || 'Student')}${isCurrentUser ? ' (You)' : ''}</strong>
+                    — <span class="live-library-meta">${escapeHtml(liveItem.subject || 'General Study')}</span>
+                  </div>
+                  <div class="live-library-submeta">
+                    Studying live for <strong>${escapeHtml(elapsed.formatted)}</strong> · Weekly total: ${escapeHtml(formatStudyDuration(weeklyMins))}
+                  </div>
+                </div>
+                ${
+                  isCurrentUser
+                    ? `<div><button type="button" data-stop-live="true">Finish &amp; Log</button></div>`
+                    : ''
+                }
+              </li>`;
+          })
+          .join('');
+      }
+    }
+
+    // 4. Right Card: Squad Members & 7-Day Weekly Tracker
+    const sortSelectEl = document.getElementById('squad-members-sort');
+    if (sortSelectEl) {
+      sortSelectEl.value = squadMembersSort;
+    }
+
+    const squadWeekDays = aggregateSquadWeeklyDays(allMembers);
+    const squad7DayThead = document.getElementById('squad-7day-thead');
+    if (squad7DayThead) {
+      squad7DayThead.innerHTML = squadWeekDays
+        .map(
+          (d) =>
+            `<th>${escapeHtml(d.shortDay)}<span class="day-sub">${escapeHtml(d.formattedDate)}</span></th>`
+        )
+        .join('');
+    }
+
+    const squad7DayTbody = document.getElementById('squad-7day-tbody');
+    if (squad7DayTbody) {
+      squad7DayTbody.innerHTML = squadWeekDays
+        .map(
+          (d) =>
+            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
+        )
+        .join('');
+    }
+
+    const sortedMembers = sortSquadMembers(allMembers, squadMembersSort);
+    const membersTbody = document.getElementById('squad-members-tbody');
+    if (membersTbody) {
+      membersTbody.innerHTML =
+        !activeSquad || sortedMembers.length === 0
+          ? `<tr><td colspan="5" class="empty-cell">${
+              activeSquad
+                ? 'No members found in this squad.'
+                : 'Click "+ Create or Join a Squad" above to get started.'
+            }</td></tr>`
+          : sortedMembers
+              .map((m) => {
+                const isMe = m.uid === myUid;
+                const liveEntry = liveMap.get(m.uid);
+                let statusHtml = '<span class="status-offline">Offline</span>';
+                if (liveEntry) {
+                  statusHtml = `<span class="status-live">Live · ${escapeHtml(liveEntry.subject || 'General Study')}</span>`;
+                } else if (isMe || m.isStreakActive || m.status === 'online') {
+                  statusHtml = '<span class="status-online">Online</span>';
+                }
+
+                return `
+              <tr>
+                <td>
+                  <a href="#" class="member-name-link" data-open-friend-calendar="${escapeHtml(m.uid)}" title="View 7-day study calendar">
+                    <strong>${escapeHtml(m.displayName || 'Student')}${isMe ? ' (You)' : ''}</strong>
+                  </a>
+                </td>
+                <td>${statusHtml}</td>
+                <td>${escapeHtml(formatStudyDuration(m.minutesThisWeek || 0))}</td>
+                <td>${escapeHtml(m.currentStreak || 0)} days</td>
+                <td>
+                  ${
+                    isMe
+                      ? `<span class="item-meta" style="margin-left: 0;">You · <a href="#" data-open-friend-calendar="${escapeHtml(m.uid)}">Calendar</a></span>`
+                      : `<a href="#" data-nudge-member="${escapeHtml(m.uid)}" data-nudge-name="${escapeHtml(m.displayName || 'Student')}">Nudge</a> · <a href="#" data-open-friend-calendar="${escapeHtml(m.uid)}">Calendar</a>`
+                  }
+                </td>
+              </tr>`;
+              })
+              .join('');
+    }
+
+    // 5. Bottom Card: Squad Feed (Bold author names) & Next Group Session
+    const visibleFeedActivities = squadActivities.filter(
+      (item) =>
+        item &&
+        item.type !== 'member_removed' &&
+        item.type !== 'member_rejoined' &&
+        item.type !== 'member_active' &&
+        !String(item.id || '').startsWith('removed_')
+    );
+    const feedListEl = document.getElementById('squad-feed-list');
+    if (feedListEl) {
+      if (!activeSquad || visibleFeedActivities.length === 0) {
+        feedListEl.innerHTML = `<li class="empty-cell">${
+          activeSquad
+            ? 'No recent notes or shared resources yet. Click "Add Note" to share with your squad.'
+            : 'Join or create a squad to view the Squad Feed.'
+        }</li>`;
+      } else {
+        feedListEl.innerHTML = visibleFeedActivities
+          .map((item) => {
+            const safeUrl = item.url ? sanitizeResourceUrl(item.url) : null;
+            const openActionHtml = safeUrl
+              ? `(<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">Open</a>)`
+              : `(<a href="#" data-open-squad-note="${escapeHtml(item.id)}">Open</a>)`;
+            const courseSuffix = item.courseName ? ` — ${escapeHtml(item.courseName)}` : '';
+            return `
+              <li>
+                <strong>${escapeHtml(item.displayName || 'Student')}</strong> ${escapeHtml(item.text || '')}${courseSuffix}
+                <span class="item-meta">· ${escapeHtml(formatFeedRelativeTime(item.createdAt))} ${openActionHtml} (<a href="#" data-delete-squad-note="${escapeHtml(item.id)}">Delete</a>)</span>
+              </li>`;
+          })
+          .join('');
+      }
+    }
+
+    const nextSession = activeSquad?.nextSession || null;
+    const nextSessionTitleEl = document.getElementById('squad-next-session-title');
+    const nextSessionAttendeesEl = document.getElementById('squad-next-session-attendees');
+    const attendBtn = document.getElementById('btn-toggle-session-attending');
+
+    if (nextSessionTitleEl) {
+      if (nextSession && (nextSession.title || nextSession.when)) {
+        nextSessionTitleEl.textContent = `${nextSession.title || 'Group Session'}${
+          nextSession.when ? ` — ${nextSession.when}` : ''
+        }`;
+      } else {
+        nextSessionTitleEl.textContent = 'No group session scheduled yet';
+      }
+    }
+    if (nextSessionAttendeesEl) {
+      const attendees = Array.isArray(nextSession?.attendees) ? nextSession.attendees : [];
+      nextSessionAttendeesEl.textContent =
+        attendees.length > 0
+          ? `${attendees.join(', ')} attending`
+          : activeSquad
+          ? 'Be the first to join this session'
+          : 'Join a squad to schedule group sessions';
+    }
+    if (attendBtn) {
+      attendBtn.disabled = !activeSquad;
+      const myName = sanitizeTextInput(profile.name || 'Student', 100);
+      const attendeeUids = Array.isArray(nextSession?.attendeeUids) ? nextSession.attendeeUids : [];
+      const attendees = Array.isArray(nextSession?.attendees) ? nextSession.attendees : [];
+      const isAttending = attendeeUids.includes(myUid) || attendees.includes(myName);
+      attendBtn.textContent = isAttending ? "I'm In ✓" : "I'm In";
+    }
+
+    // 6. Populate Modal Tables (#modal-squad-create-join & #modal-squad-admin)
     const squadsTbody = document.getElementById('squads-list-tbody');
     if (squadsTbody) {
       squadsTbody.innerHTML =
@@ -1199,70 +1752,35 @@ export function initApp() {
               .join('');
     }
 
-    const lbHeader = document.getElementById('squads-leaderboard-header');
-    if (lbHeader) {
-      lbHeader.textContent = `Weekly Leaderboard ${activeSquad ? `— ${activeSquad.name} (Code: ${activeSquad.code})` : ''}`;
-    }
-
-    const email = sessionEmail || profile.email;
-    const myUid = getEmailDocId(email || auth?.currentUser?.email || 'local_student');
-    const myWeekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
-    const myStreak = calculateCurrentStreak(studyLogs, profile);
-    const myTasksThisWeek = countCompletedTasksThisWeek(assignments);
-    const myElo = calculateElo(myWeekMinutes, myTasksThisWeek, myStreak);
-
-    // Evaluate each squad member's effective telemetry (resetting prior week study time and broken streaks)
-    const processedMembersMap = new Map();
-    for (const m of squadMembers) {
-      if (!m || !m.uid) continue;
-      if (m.uid === myUid) {
-        processedMembersMap.set(myUid, {
-          ...m,
-          displayName: sanitizeTextInput(profile.name || m.displayName || 'Student', 100),
-          minutesThisWeek: myWeekMinutes,
-          currentStreak: myStreak,
-          tasksThisWeek: myTasksThisWeek,
-          elo: myElo,
-        });
-      } else {
-        processedMembersMap.set(m.uid, getMemberEffectiveTelemetry(m));
-      }
-    }
-
-    // If activeSquad exists and current user belongs to it, ensure current user is present
-    if (activeSquad && !processedMembersMap.has(myUid)) {
-      processedMembersMap.set(myUid, {
-        uid: myUid,
-        displayName: sanitizeTextInput(profile.name || 'Student', 100),
-        color: '#3B77BC',
-        minutesThisWeek: myWeekMinutes,
-        currentStreak: myStreak,
-        tasksThisWeek: myTasksThisWeek,
-        elo: myElo,
-      });
-    }
-
-    const sortedMembers = Array.from(processedMembersMap.values()).sort(
-      (a, b) => (b.elo || 0) - (a.elo || 0) || (b.minutesThisWeek || 0) - (a.minutesThisWeek || 0)
-    );
-    const lbTbody = document.getElementById('squads-leaderboard-tbody');
-    if (lbTbody) {
-      lbTbody.innerHTML =
-        !activeSquad || sortedMembers.length === 0
-          ? `<tr><td colspan="5" class="empty-cell">${activeSquad ? 'No members found in this squad.' : 'Select or create a squad to view its leaderboard.'}</td></tr>`
+    const adminMembersTbody = document.getElementById('admin-members-tbody');
+    if (adminMembersTbody && activeSquad) {
+      adminMembersTbody.innerHTML =
+        sortedMembers.length === 0
+          ? `<tr><td colspan="4" class="empty-cell">No members in squad.</td></tr>`
           : sortedMembers
-              .map(
-                (m, idx) => `
+              .map((m) => {
+                const isCreator =
+                  m.uid === myUid
+                    ? isCurrentUserSquadCreator(activeSquad)
+                    : canManageSquad(activeSquad, m.uid);
+                return `
               <tr>
-                <td>#${idx + 1}</td>
-                <td>${escapeHtml(m.displayName || 'Student')}</td>
+                <td><strong>${escapeHtml(m.displayName || 'Student')}</strong></td>
                 <td>${escapeHtml(formatStudyDuration(m.minutesThisWeek || 0))}</td>
-                <td>${escapeHtml(m.currentStreak || 0)} days</td>
-                <td>${escapeHtml(m.elo || 1000)}</td>
-              </tr>`
-              )
+                <td>${isCreator ? 'Creator / Admin' : 'Member'}</td>
+                <td>
+                  ${
+                    isCreator
+                      ? '<span class="item-meta" style="margin-left:0;">Creator</span>'
+                      : `<a href="#" class="squad-leave-link" data-admin-remove-member="${escapeHtml(m.uid)}" data-admin-remove-name="${escapeHtml(m.displayName || 'Student')}">Remove</a>`
+                  }
+                </td>
+              </tr>`;
+              })
               .join('');
     }
+
+    updateScrollableTablesMaxHeight();
   }
 
   function populateSettingsPage() {
@@ -1319,6 +1837,8 @@ export function initApp() {
     const streak = calculateCurrentStreak(studyLogs, profile);
     const tasksThisWeek = countCompletedTasksThisWeek(assignments);
     const elo = calculateElo(weekMinutes, tasksThisWeek, streak);
+    const dailyMinutes = getWeeklyDailyMinutesMap(studyLogs);
+    const subjectMinutes = getWeeklySubjectMinutesMap(studyLogs);
     const now = new Date().toISOString();
 
     profile = {
@@ -1337,6 +1857,12 @@ export function initApp() {
       minutesThisWeek: Math.min(10080, Math.max(0, weekMinutes)),
       tasksThisWeek: Math.min(10000, Math.max(0, tasksThisWeek)),
       currentStreak: Math.min(10000, Math.max(0, streak)),
+      dailyMinutes,
+      subjectMinutes,
+      status: myLiveSession ? 'live' : 'online',
+      ...(myLiveSession
+        ? { liveSubject: myLiveSession.subject, liveStartedAt: myLiveSession.startedAt }
+        : {}),
       updatedAt: now,
     };
 
@@ -1371,13 +1897,19 @@ export function initApp() {
         : Array.isArray(result?.squads)
         ? result.squads
         : [];
+      squads = loaded;
       if (loaded.length > 0) {
-        squads = loaded;
         if (!activeSquadId || !squads.some((s) => s.id === activeSquadId)) {
           activeSquadId = result?.activeSquadId || squads[0].id;
         }
         subscribeToSquadMembers(activeSquadId);
         void syncUserSquadTelemetry(activeSquadId);
+      } else {
+        activeSquadId = null;
+        cleanupSquadListeners();
+        squadMembers = [];
+        squadPresence = [];
+        squadActivities = [];
       }
       populateCurrentPageData();
     } catch (err) {
@@ -1386,16 +1918,31 @@ export function initApp() {
   }
 
   function subscribeToSquadMembers(squadId) {
-    if (squadMembersUnsub) {
-      squadMembersUnsub();
-      squadMembersUnsub = null;
-    }
+    cleanupSquadListeners();
     if (!squadId || !db) {
       squadMembers = [];
+      squadPresence = [];
+      squadActivities = [];
       populateCurrentPageData();
       return;
     }
+
     try {
+      const squadRef = doc(db, 'squads', squadId);
+      squadDocUnsub = onSnapshot(
+        squadRef,
+        (snap) => {
+          if (snap.exists()) {
+            const updatedSq = snap.data();
+            squads = squads.map((s) => (s.id === squadId ? { ...s, ...updatedSq } : s));
+            populateCurrentPageData();
+          }
+        },
+        (err) => {
+          console.warn('Squad doc listener notice:', err);
+        }
+      );
+
       const membersRef = collection(db, 'squads', squadId, 'members');
       squadMembersUnsub = onSnapshot(
         membersRef,
@@ -1407,9 +1954,290 @@ export function initApp() {
           console.warn('Squad members listener notice:', err);
         }
       );
+
+      const presenceRef = collection(db, 'squads', squadId, 'presence');
+      squadPresenceUnsub = onSnapshot(
+        presenceRef,
+        (snap) => {
+          squadPresence = snap.docs.map((d) => d.data());
+          populateCurrentPageData();
+        },
+        (err) => {
+          console.warn('Squad presence listener notice:', err);
+        }
+      );
+
+      const activitiesRef = collection(db, 'squads', squadId, 'activities');
+      squadActivitiesUnsub = onSnapshot(
+        activitiesRef,
+        (snap) => {
+          const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          items.sort((a, b) => {
+            const ta = Date.parse(String(a.createdAt || '')) || 0;
+            const tb = Date.parse(String(b.createdAt || '')) || 0;
+            return tb - ta;
+          });
+          squadActivities = items;
+          const activeSq = squads.find((s) => s.id === squadId);
+          if (
+            activeSq &&
+            isCurrentUserRemovedFromSquad(
+              activeSq,
+              squadMembers,
+              squadActivities,
+              getMySquadIdentity()
+            )
+          ) {
+            void performLeaveSquad(squadId);
+            return;
+          }
+          populateCurrentPageData();
+        },
+        (err) => {
+          console.warn('Squad activities listener notice:', err);
+        }
+      );
+
+      liveTimerInterval = window.setInterval(() => {
+        if (squadPresence.length > 0 || myLiveSession) {
+          populateSquadsPage();
+        }
+      }, 30000);
     } catch (err) {
-      console.warn('Squad members subscription notice:', err);
+      console.warn('Squad subscription notice:', err);
     }
+  }
+
+  // --- Squad Modal & Action Helpers (#36, #42, #43, Live Library) ---
+  function openSquadCreateJoinModal() {
+    populateSquadsPage();
+    const dialog = document.getElementById('modal-squad-create-join');
+    dialog?.showModal();
+  }
+
+  function openSquadAdminModal() {
+    const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+    if (!activeSquad || !isCurrentUserSquadCreator(activeSquad)) {
+      alert('Only the creator of this squad can access the Admin Panel.');
+      return;
+    }
+    const nameInput = document.getElementById('admin-squad-name');
+    const goalInput = document.getElementById('admin-squad-goal');
+    const descInput = document.getElementById('admin-squad-description');
+    if (nameInput) nameInput.value = activeSquad.name || '';
+    if (goalInput) goalInput.value = Number(activeSquad.weeklyGoalHours) || 60;
+    if (descInput) descInput.value = activeSquad.description || '';
+    populateSquadsPage();
+    const dialog = document.getElementById('modal-squad-admin');
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
+  }
+
+  function openFriendCalendarModal(memberUid) {
+    const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+    const { allMembers } = getProcessedSquadMembers(activeSquad);
+    const friend = allMembers.find((m) => m.uid === memberUid);
+    if (!friend) return;
+
+    const summary = getMemberWeekDaysSummary(friend);
+    const titleEl = document.getElementById('friend-calendar-title');
+    if (titleEl) {
+      titleEl.textContent = `${friend.displayName || 'Student'} — Weekly Study Calendar (${summary.totalHours})`;
+    }
+    const subEl = document.getElementById('friend-calendar-subtitle');
+    if (subEl) {
+      subEl.textContent = `Current week study days & hours (Streak: ${friend.currentStreak || 0} days).`;
+    }
+
+    const theadEl = document.getElementById('friend-calendar-7day-thead');
+    if (theadEl) {
+      theadEl.innerHTML = summary.weekDays
+        .map(
+          (d) =>
+            `<th>${escapeHtml(d.shortDay)}<span class="day-sub">${escapeHtml(d.formattedDate)}</span></th>`
+        )
+        .join('');
+    }
+
+    const tbodyEl = document.getElementById('friend-calendar-7day-tbody');
+    if (tbodyEl) {
+      tbodyEl.innerHTML = summary.weekDays
+        .map(
+          (d) =>
+            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
+        )
+        .join('');
+    }
+
+    const subjTbody = document.getElementById('friend-calendar-subjects-tbody');
+    if (subjTbody) {
+      subjTbody.innerHTML =
+        summary.subjects.length === 0
+          ? `<tr><td colspan="2" class="empty-cell">No subjects logged this week yet.</td></tr>`
+          : summary.subjects
+              .map(
+                (s) => `
+              <tr>
+                <td>${escapeHtml(s.subject)}</td>
+                <td><strong>${escapeHtml(s.hours)}</strong></td>
+              </tr>`
+              )
+              .join('');
+    }
+
+    const dialog = document.getElementById('modal-friend-calendar');
+    dialog?.showModal();
+  }
+
+  function openGoLiveModal(prefillSubject = '') {
+    const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+    if (!activeSquad) {
+      openSquadCreateJoinModal();
+      return;
+    }
+    const subjInput = document.getElementById('live-study-subject');
+    if (subjInput) {
+      subjInput.value = prefillSubject || courses[0]?.title || 'Analisi 1';
+    }
+    const dialog = document.getElementById('modal-go-live');
+    dialog?.showModal();
+  }
+
+  async function startLiveStudySession(subjectStr) {
+    const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+    if (!activeSquad) return;
+    const cleanSubject = sanitizeTextInput(subjectStr || courses[0]?.title || 'General Study', 120) || 'General Study';
+    const myUid = getEmailDocId(sessionEmail || profile.email || auth?.currentUser?.email || 'local_student');
+    const myName = sanitizeTextInput(profile.name || 'Student', 100);
+    const startedAt = new Date().toISOString();
+
+    myLiveSession = {
+      squadId: activeSquad.id,
+      subject: cleanSubject,
+      startedAt,
+    };
+
+    const presenceDoc = await setMemberLiveStatus(activeSquad.id, {
+      uid: myUid,
+      displayName: myName,
+      subject: cleanSubject,
+      startedAt,
+    });
+    if (presenceDoc) {
+      squadPresence = [
+        presenceDoc,
+        ...squadPresence.filter((p) => p.uid !== myUid),
+      ];
+    }
+    populateSquadsPage();
+    setStatus(`Live in Library: ${cleanSubject}`);
+  }
+
+  async function stopLiveStudySession() {
+    const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+    const myUid = getEmailDocId(sessionEmail || profile.email || auth?.currentUser?.email || 'local_student');
+    const existingLive =
+      myLiveSession || squadPresence.find((p) => p.uid === myUid && p.status === 'live');
+
+    myLiveSession = null;
+    squadPresence = squadPresence.filter((p) => p.uid !== myUid);
+
+    if (activeSquad) {
+      await clearMemberLiveStatus(activeSquad.id, myUid);
+    }
+
+    if (existingLive && existingLive.startedAt) {
+      const elapsed = formatLiveElapsed(existingLive.startedAt);
+      if (elapsed.elapsedMinutes >= 5) {
+        const matchedCourse = courses.find(
+          (c) => c.title.toLowerCase() === String(existingLive.subject || '').toLowerCase()
+        );
+        const newLog = sanitizeStudyLogItem({
+          id: `log-${Date.now()}`,
+          courseId: matchedCourse?.id,
+          courseName: matchedCourse ? matchedCourse.title : existingLive.subject || 'General Study',
+          durationMinutes: Math.min(720, elapsed.elapsedMinutes),
+          date: getLocalDateString(),
+          notes: 'Live Library session',
+          rating: 5,
+          tag: 'Deep Work',
+          timestamp: Date.now(),
+        });
+        if (newLog) {
+          studyLogs = [newLog, ...studyLogs];
+          void pushWorkstationToCloud();
+          void syncUserSquadTelemetry();
+        }
+      }
+    }
+
+    populateSquadsPage();
+    setStatus('Ended Live Library session');
+  }
+
+  function openSquadNoteModal() {
+    const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+    if (!activeSquad) {
+      openSquadCreateJoinModal();
+      return;
+    }
+    const textInput = document.getElementById('squad-note-text');
+    const courseInput = document.getElementById('squad-note-course');
+    const urlInput = document.getElementById('squad-note-url');
+    if (textInput) textInput.value = '';
+    if (courseInput) courseInput.value = courses[0]?.title || '';
+    if (urlInput) urlInput.value = '';
+    const dialog = document.getElementById('modal-squad-note');
+    dialog?.showModal();
+  }
+
+  function openGroupSessionModal() {
+    const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+    if (!activeSquad) {
+      openSquadCreateJoinModal();
+      return;
+    }
+    const locInput = document.getElementById('group-session-location');
+    const dtInput = document.getElementById('group-session-datetime');
+    if (locInput) locInput.value = activeSquad.nextSession?.title || '';
+    if (dtInput) dtInput.value = activeSquad.nextSession?.when || '';
+    const dialog = document.getElementById('modal-group-session');
+    dialog?.showModal();
+  }
+
+  async function copyActiveSquadInviteCode() {
+    const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+    if (!activeSquad?.code) return;
+    try {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        await navigator.clipboard.writeText(activeSquad.code);
+      }
+      setStatus(`Copied Invite Code: ${activeSquad.code}`);
+    } catch {
+      setStatus(`Invite Code: ${activeSquad.code}`);
+    }
+  }
+
+  async function performLeaveSquad(leaveSquadId) {
+    if (!leaveSquadId) return;
+    const email = sessionEmail || profile.email;
+    const uid = getEmailDocId(email || auth?.currentUser?.email || 'local_student');
+    squads = squads.filter((s) => s.id !== leaveSquadId);
+    const nextActive = squads[0]?.id || null;
+    activeSquadId = nextActive;
+    myLiveSession = null;
+    profile = {
+      ...profile,
+      activeSquadId: nextActive,
+      squadIds: (profile.squadIds || []).filter((id) => id !== leaveSquadId),
+    };
+    saveToLocalStorage();
+    await leaveSquadCleanly(email, uid, leaveSquadId, nextActive);
+    await pushWorkstationToCloud();
+    subscribeToSquadMembers(nextActive);
+    populateSquadsPage();
+    setStatus('Left squad');
   }
 
   // --- Modal Helpers ---
@@ -1982,15 +2810,18 @@ export function initApp() {
         try {
           verificationSentTo = regEmail;
           const res = await dispatchVerificationCode(regEmail, db);
-          if (res.success) {
+          if (res.success && res.emailSent) {
             authNotice = {
               type: 'success',
-              text: `Verification code sent to ${regEmail}. Check your inbox.`,
+              text: `Verification code sent to ${regEmail}. Check your inbox (and spam folder).`,
             };
           } else {
             authNotice = {
               type: 'error',
-              text: res.error || 'Could not send verification code.',
+              text:
+                res.providerNotice ||
+                res.error ||
+                'Could not send verification email. Ensure RESEND_API_KEY is configured in your .env file.',
             };
           }
           populateLoginPage();
@@ -2205,119 +3036,29 @@ export function initApp() {
     }
 
     if (route === 'squads') {
-      document.getElementById('form-create-squad')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const nameInput = document.getElementById('squad-new-name');
-        const name = sanitizeTextInput(nameInput?.value, 50);
-        if (!name) return;
-
-        const code = generateSquadCode();
-        const squadId = `squad-${Date.now()}`;
-        const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
-        const newSquad = {
-          id: squadId,
-          name,
-          code,
-          createdAt: new Date().toISOString(),
-          createdBy: uid,
-          creatorName: sanitizeTextInput(profile.name || 'Student', 100),
-          memberCount: 1,
-          memberUids: [uid],
-        };
-
-        try {
-          if (db) {
-            await setDoc(doc(db, 'squads', squadId), newSquad);
-          }
-          const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
-          const streak = calculateCurrentStreak(studyLogs, profile);
-          const tasksThisWeek = countCompletedTasksThisWeek(assignments);
-          const now = new Date().toISOString();
-          const member = {
-            uid,
-            displayName: sanitizeTextInput(profile.name || 'Student', 100),
-            color: '#3B77BC',
-            elo: calculateElo(weekMinutes, tasksThisWeek, streak),
-            minutesThisWeek: Math.min(10080, Math.max(0, weekMinutes)),
-            tasksThisWeek: Math.min(10000, Math.max(0, tasksThisWeek)),
-            currentStreak: Math.min(10000, Math.max(0, streak)),
-            joinedAt: now,
-            updatedAt: now,
-          };
-          await saveSquadMemberToCloud(squadId, member);
-          await syncSquadToUserDoc(sessionEmail || profile.email, uid, squadId, true);
-        } catch (err) {
-          console.warn('Create squad cloud notice:', err);
-        }
-
-        squads = [newSquad, ...squads];
-        activeSquadId = squadId;
-        profile = {
-          ...profile,
-          activeSquadId: squadId,
-          squadIds: Array.from(new Set([...(profile.squadIds || []), squadId])),
-        };
-        if (nameInput) nameInput.value = '';
-        void pushWorkstationToCloud();
-        subscribeToSquadMembers(squadId);
-        populateSquadsPage();
-        setStatus(`Created Squad: ${name}`);
-      });
-
-      document.getElementById('form-join-squad')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const codeInput = document.getElementById('squad-join-code');
-        const code = sanitizeTextInput(codeInput?.value, 8)
-          .replace(/[^A-Z0-9]/gi, '')
-          .toUpperCase();
-        if (!code || !db) return;
-
-        try {
-          const q = query(collection(db, 'squads'), where('code', '==', code));
-          const snap = await getDocs(q);
-          if (snap.empty) {
-            alert(`No squad found with code "${code}".`);
-            return;
-          }
-          const foundSquad = snap.docs[0].data();
-          const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
-          const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
-          const streak = calculateCurrentStreak(studyLogs, profile);
-          const tasksThisWeek = countCompletedTasksThisWeek(assignments);
-          const now = new Date().toISOString();
-          const member = {
-            uid,
-            displayName: sanitizeTextInput(profile.name || 'Student', 100),
-            color: '#3B77BC',
-            elo: calculateElo(weekMinutes, tasksThisWeek, streak),
-            minutesThisWeek: Math.min(10080, Math.max(0, weekMinutes)),
-            tasksThisWeek: Math.min(10000, Math.max(0, tasksThisWeek)),
-            currentStreak: Math.min(10000, Math.max(0, streak)),
-            joinedAt: now,
-            updatedAt: now,
-          };
-          await saveSquadMemberToCloud(foundSquad.id, member);
-          await syncSquadToUserDoc(sessionEmail || profile.email, uid, foundSquad.id, true);
-
-          if (!squads.some((s) => s.id === foundSquad.id)) {
-            squads = [foundSquad, ...squads];
-          }
-          activeSquadId = foundSquad.id;
-          profile = {
-            ...profile,
-            activeSquadId: foundSquad.id,
-            squadIds: Array.from(new Set([...(profile.squadIds || []), foundSquad.id])),
-          };
-          if (codeInput) codeInput.value = '';
+      const activeSelect = document.getElementById('squad-active-select');
+      if (activeSelect && !boundElements.has(activeSelect)) {
+        boundElements.add(activeSelect);
+        activeSelect.addEventListener('change', (e) => {
+          const nextId = e.target.value;
+          if (!nextId) return;
+          activeSquadId = nextId;
+          profile = { ...profile, activeSquadId: nextId };
           void pushWorkstationToCloud();
-          subscribeToSquadMembers(foundSquad.id);
+          subscribeToSquadMembers(nextId);
+          void syncUserSquadTelemetry(nextId);
           populateSquadsPage();
-          setStatus(`Joined Squad: ${foundSquad.name}`);
-        } catch (err) {
-          console.warn('Join squad error:', err);
-          alert('Could not join squad. Check your internet connection.');
-        }
-      });
+        });
+      }
+
+      const sortSelect = document.getElementById('squad-members-sort');
+      if (sortSelect && !boundElements.has(sortSelect)) {
+        boundElements.add(sortSelect);
+        sortSelect.addEventListener('change', (e) => {
+          squadMembersSort = e.target.value || 'hours';
+          populateSquadsPage();
+        });
+      }
     }
 
     if (route === 'settings') {
@@ -2455,7 +3196,7 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], #btn-google-sso, #btn-header-logout'
+            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-nudge-member], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], #btn-google-sso, #btn-header-logout, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
@@ -2469,6 +3210,98 @@ export function initApp() {
     if (target.id === 'btn-google-sso') {
       e.preventDefault();
       void handleGoogleSignIn();
+      return;
+    }
+
+    if (target.id === 'btn-open-create-join-squad' || target.id === 'btn-empty-create-join-squad') {
+      e.preventDefault();
+      openSquadCreateJoinModal();
+      return;
+    }
+
+    if (target.id === 'btn-open-admin-panel') {
+      e.preventDefault();
+      openSquadAdminModal();
+      return;
+    }
+
+    if (target.id === 'btn-leave-active-squad') {
+      e.preventDefault();
+      if (activeSquadId) {
+        void performLeaveSquad(activeSquadId);
+      }
+      return;
+    }
+
+    if (target.id === 'btn-copy-squad-code-top' || target.id === 'btn-copy-squad-code-card') {
+      e.preventDefault();
+      void copyActiveSquadInviteCode();
+      return;
+    }
+
+    if (target.id === 'btn-go-live-toggle') {
+      e.preventDefault();
+      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const isLiveNow =
+        (myLiveSession && myLiveSession.squadId === activeSquadId) ||
+        squadPresence.some((p) => p.uid === myUid && p.status === 'live');
+      if (isLiveNow) {
+        void stopLiveStudySession();
+      } else {
+        openGoLiveModal();
+      }
+      return;
+    }
+
+    if (target.id === 'btn-add-squad-note') {
+      e.preventDefault();
+      openSquadNoteModal();
+      return;
+    }
+
+    if (target.id === 'btn-edit-next-session') {
+      e.preventDefault();
+      openGroupSessionModal();
+      return;
+    }
+
+    if (target.id === 'btn-toggle-session-attending') {
+      e.preventDefault();
+      const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
+      if (!activeSquad) return;
+      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const myName = sanitizeTextInput(profile.name || 'Student', 100);
+      const currentSession = activeSquad.nextSession || {
+        title: 'Group Study Session',
+        when: 'TBD',
+        attendees: [],
+        attendeeUids: [],
+      };
+      const uids = Array.isArray(currentSession.attendeeUids)
+        ? [...currentSession.attendeeUids]
+        : [];
+      const names = Array.isArray(currentSession.attendees) ? [...currentSession.attendees] : [];
+      const isAttending = uids.includes(myUid) || names.includes(myName);
+
+      let nextUids;
+      let nextNames;
+      if (isAttending) {
+        nextUids = uids.filter((u) => u !== myUid);
+        nextNames = names.filter((n) => n !== myName);
+      } else {
+        nextUids = Array.from(new Set([...uids, myUid]));
+        nextNames = Array.from(new Set([...names, myName]));
+      }
+      const nextSession = {
+        title: currentSession.title || currentSession.location || 'Group Study Session',
+        when: currentSession.when || currentSession.dateTimeText || '',
+        attendeeUids: nextUids,
+        attendees: nextNames,
+      };
+      squads = squads.map((s) => (s.id === activeSquad.id ? { ...s, nextSession } : s));
+      void updateSquadNextSession(activeSquad.id, nextSession);
+      populateSquadsPage();
+      setStatus(isAttending ? 'Left group session' : 'Marked as attending group session');
       return;
     }
 
@@ -2579,32 +3412,409 @@ export function initApp() {
       subscribeToSquadMembers(selectSquadId);
       void syncUserSquadTelemetry(selectSquadId);
       populateSquadsPage();
+      document.getElementById('modal-squad-create-join')?.close();
       return;
     }
 
     const leaveSquadId = target.getAttribute('data-leave-squad');
     if (leaveSquadId) {
       e.preventDefault();
-      const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
-      squads = squads.filter((s) => s.id !== leaveSquadId);
-      const nextActive = squads[0]?.id || null;
-      activeSquadId = nextActive;
-      profile = {
-        ...profile,
-        activeSquadId: nextActive || undefined,
-        squadIds: (profile.squadIds || []).filter((id) => id !== leaveSquadId),
-      };
-      void removeSquadFromUserDoc(sessionEmail || profile.email, uid, leaveSquadId, nextActive);
-      void pushWorkstationToCloud();
-      subscribeToSquadMembers(nextActive);
+      void performLeaveSquad(leaveSquadId);
+      return;
+    }
+
+    const friendCalUid = target.getAttribute('data-open-friend-calendar');
+    if (friendCalUid) {
+      e.preventDefault();
+      openFriendCalendarModal(friendCalUid);
+      return;
+    }
+
+    const nudgeUid = target.getAttribute('data-nudge-member');
+    if (nudgeUid) {
+      e.preventDefault();
+      const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
+      if (!activeSquad) return;
+      const targetName =
+        sanitizeTextInput(target.getAttribute('data-nudge-name') || 'Squadmate', 100) ||
+        'Squadmate';
+      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const myName = sanitizeTextInput(profile.name || 'Student', 100);
+      void nudgeSquadMember(activeSquad.id, nudgeUid, targetName, myUid, myName);
+      setStatus(`Nudged ${targetName}!`);
+      return;
+    }
+
+    if (target.hasAttribute('data-stop-live')) {
+      e.preventDefault();
+      void stopLiveStudySession();
+      return;
+    }
+
+    const openNoteId = target.getAttribute('data-open-squad-note');
+    if (openNoteId) {
+      e.preventDefault();
+      const note = squadActivities.find((a) => a.id === openNoteId);
+      if (!note) return;
+      if (note.url && /^https?:\/\//i.test(note.url)) {
+        window.open(note.url, '_blank', 'noopener,noreferrer');
+      } else {
+        const subjectPart = note.courseName ? ` (${note.courseName})` : '';
+        alert(`${note.displayName || 'Squadmate'}: ${note.text || note.title || ''}${subjectPart}`);
+      }
+      return;
+    }
+
+    const deleteNoteId = target.getAttribute('data-delete-squad-note');
+    if (deleteNoteId) {
+      e.preventDefault();
+      const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
+      if (!activeSquad) return;
+      squadActivities = squadActivities.filter((a) => a.id !== deleteNoteId);
+      void deleteSquadFeedNote(activeSquad.id, deleteNoteId);
       populateSquadsPage();
-      setStatus('Left squad');
+      setStatus('Deleted squad note');
+      return;
+    }
+
+    const removeMemberUid = target.getAttribute('data-admin-remove-member');
+    if (removeMemberUid) {
+      e.preventDefault();
+      const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
+      if (!activeSquad || !isCurrentUserSquadCreator(activeSquad)) return;
+      const removeMemberName =
+        sanitizeTextInput(target.getAttribute('data-admin-remove-name') || '', 100) || '';
+      const normRemoveUid = String(removeMemberUid).trim().toLowerCase();
+      const normRemoveName = removeMemberName.toLowerCase();
+      removedSquadMemberKeys.add(`${activeSquad.id}:${normRemoveUid}`);
+      const nowIso = new Date().toISOString();
+      squadActivities = [
+        {
+          id: `removed_${normRemoveUid}`,
+          uid: removeMemberUid,
+          displayName: removeMemberName || 'Removed Member',
+          type: 'member_removed',
+          status: 'removed',
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        },
+        ...squadActivities.filter(
+          (a) => !(a?.type === 'member_removed' && String(a?.uid || '').trim().toLowerCase() === normRemoveUid)
+        ),
+      ];
+      squadMembers = squadMembers.filter((m) => {
+        const mUid = String(m?.uid || '').trim().toLowerCase();
+        const mName = String(m?.displayName || '').trim().toLowerCase();
+        return mUid !== normRemoveUid && (!normRemoveName || mName !== normRemoveName);
+      });
+      squadPresence = squadPresence.filter(
+        (p) => String(p?.uid || '').trim().toLowerCase() !== normRemoveUid
+      );
+      squads = squads.map((s) =>
+        s.id === activeSquad.id
+          ? {
+              ...s,
+              memberUids: Array.isArray(s.memberUids)
+                ? s.memberUids.filter((u) => String(u).trim().toLowerCase() !== normRemoveUid)
+                : [],
+            }
+          : s
+      );
+      void removeMemberFromSquad(activeSquad.id, removeMemberUid, removeMemberName);
+      populateSquadsPage();
+      setStatus(`Removed ${removeMemberName || 'member'} from squad`);
       return;
     }
   });
 
   // --- Modal Form Submissions ---
   function bindDialogFormEvents() {
+    const createSquadForm = document.getElementById('form-create-squad');
+    if (createSquadForm && !boundElements.has(createSquadForm)) {
+      boundElements.add(createSquadForm);
+      createSquadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const nameInput = document.getElementById('squad-new-name');
+        const descInput = document.getElementById('squad-new-description');
+        const name = sanitizeTextInput(nameInput?.value, 80);
+        const description = sanitizeTextInput(descInput?.value || '', 240);
+        if (!name) return;
+
+        const code = generateSquadCode();
+        const squadId = `squad-${Date.now()}`;
+        const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+        const newSquad = {
+          id: squadId,
+          name,
+          description,
+          weeklyGoalHours: 60,
+          code,
+          createdAt: new Date().toISOString(),
+          createdBy: uid,
+          creatorName: sanitizeTextInput(profile.name || 'Student', 100),
+          memberCount: 1,
+          memberUids: [uid],
+        };
+
+        try {
+          if (db) {
+            await setDoc(doc(db, 'squads', squadId), newSquad);
+          }
+          const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+          const streak = calculateCurrentStreak(studyLogs, profile);
+          const tasksThisWeek = countCompletedTasksThisWeek(assignments);
+          const dailyMinutes = getWeeklyDailyMinutesMap(studyLogs);
+          const subjectMinutes = getWeeklySubjectMinutesMap(studyLogs);
+          const now = new Date().toISOString();
+          const member = {
+            uid,
+            displayName: sanitizeTextInput(profile.name || 'Student', 100),
+            color: '#3B77BC',
+            elo: calculateElo(weekMinutes, tasksThisWeek, streak),
+            minutesThisWeek: Math.min(10080, Math.max(0, weekMinutes)),
+            tasksThisWeek: Math.min(10000, Math.max(0, tasksThisWeek)),
+            currentStreak: Math.min(10000, Math.max(0, streak)),
+            dailyMinutes,
+            subjectMinutes,
+            status: 'online',
+            joinedAt: now,
+            updatedAt: now,
+          };
+          await saveSquadMemberToCloud(squadId, member);
+          await syncSquadToUserDoc(sessionEmail || profile.email, uid, squadId, true);
+        } catch (err) {
+          console.warn('Create squad cloud notice:', err);
+        }
+
+        squads = [newSquad, ...squads];
+        activeSquadId = squadId;
+        profile = {
+          ...profile,
+          activeSquadId: squadId,
+          squadIds: Array.from(new Set([...(profile.squadIds || []), squadId])),
+        };
+        if (nameInput) nameInput.value = '';
+        if (descInput) descInput.value = '';
+        document.getElementById('modal-squad-create-join')?.close();
+        void pushWorkstationToCloud();
+        subscribeToSquadMembers(squadId);
+        populateSquadsPage();
+        setStatus(`Created Squad: ${name}`);
+      });
+    }
+
+    const joinSquadForm = document.getElementById('form-join-squad');
+    if (joinSquadForm && !boundElements.has(joinSquadForm)) {
+      boundElements.add(joinSquadForm);
+      joinSquadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const codeInput = document.getElementById('squad-join-code');
+        const code = sanitizeTextInput(codeInput?.value, 20)
+          .replace(/[^A-Z0-9-]/gi, '')
+          .toUpperCase();
+        if (!code || !db) return;
+
+        try {
+          const q = query(collection(db, 'squads'), where('code', '==', code));
+          const snap = await getDocs(q);
+          if (snap.empty) {
+            alert(`No squad found with code "${code}".`);
+            return;
+          }
+          const foundSquad = { id: snap.docs[0].id, ...snap.docs[0].data() };
+          const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+          const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
+          const streak = calculateCurrentStreak(studyLogs, profile);
+          const tasksThisWeek = countCompletedTasksThisWeek(assignments);
+          const dailyMinutes = getWeeklyDailyMinutesMap(studyLogs);
+          const subjectMinutes = getWeeklySubjectMinutesMap(studyLogs);
+          const now = new Date().toISOString();
+          const member = {
+            uid,
+            displayName: sanitizeTextInput(profile.name || 'Student', 100),
+            color: '#3B77BC',
+            elo: calculateElo(weekMinutes, tasksThisWeek, streak),
+            minutesThisWeek: Math.min(10080, Math.max(0, weekMinutes)),
+            tasksThisWeek: Math.min(10000, Math.max(0, tasksThisWeek)),
+            currentStreak: Math.min(10000, Math.max(0, streak)),
+            dailyMinutes,
+            subjectMinutes,
+            status: 'online',
+            joinedAt: now,
+            updatedAt: now,
+          };
+          await saveSquadMemberToCloud(foundSquad.id, member);
+          await syncSquadToUserDoc(sessionEmail || profile.email, uid, foundSquad.id, true);
+
+          if (!squads.some((s) => s.id === foundSquad.id)) {
+            squads = [foundSquad, ...squads];
+          }
+          activeSquadId = foundSquad.id;
+          profile = {
+            ...profile,
+            activeSquadId: foundSquad.id,
+            squadIds: Array.from(new Set([...(profile.squadIds || []), foundSquad.id])),
+          };
+          if (codeInput) codeInput.value = '';
+          document.getElementById('modal-squad-create-join')?.close();
+          void pushWorkstationToCloud();
+          subscribeToSquadMembers(foundSquad.id);
+          populateSquadsPage();
+          setStatus(`Joined Squad: ${foundSquad.name}`);
+        } catch (err) {
+          console.warn('Join squad error:', err);
+          alert('Could not join squad. Check your internet connection.');
+        }
+      });
+    }
+
+    const adminSquadForm = document.getElementById('form-squad-admin');
+    if (adminSquadForm && !boundElements.has(adminSquadForm)) {
+      boundElements.add(adminSquadForm);
+      adminSquadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
+        if (!activeSquad || !isCurrentUserSquadCreator(activeSquad)) return;
+
+        const name = sanitizeTextInput(document.getElementById('admin-squad-name')?.value, 80);
+        const description = sanitizeTextInput(
+          document.getElementById('admin-squad-description')?.value || '',
+          500
+        );
+        const weeklyGoalHours = Math.min(
+          1000,
+          Math.max(1, Number(document.getElementById('admin-squad-goal')?.value) || 60)
+        );
+        if (!name) return;
+
+        squads = squads.map((s) =>
+          s.id === activeSquad.id ? { ...s, name, description, weeklyGoalHours } : s
+        );
+        await updateSquadAdminDetails(activeSquad.id, { name, description, weeklyGoalHours });
+        document.getElementById('modal-squad-admin')?.close();
+        populateSquadsPage();
+        setStatus(`Updated squad: ${name}`);
+      });
+
+      document.getElementById('btn-delete-squad-confirm')?.addEventListener('click', async () => {
+        const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
+        const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+        if (!activeSquad || !isCurrentUserSquadCreator(activeSquad)) return;
+        if (!window.confirm(`Delete squad "${activeSquad.name}" permanently?`)) return;
+
+        const targetId = activeSquad.id;
+        squads = squads.filter((s) => s.id !== targetId);
+        const nextActive = squads[0]?.id || null;
+        activeSquadId = nextActive;
+        profile = {
+          ...profile,
+          activeSquadId: nextActive || null,
+          squadIds: (profile.squadIds || []).filter((id) => id !== targetId),
+        };
+        await deleteSquadCompletely(
+          targetId,
+          sessionEmail || profile.email,
+          myUid,
+          nextActive
+        );
+        document.getElementById('modal-squad-admin')?.close();
+        void pushWorkstationToCloud();
+        if (nextActive) {
+          subscribeToSquadMembers(nextActive);
+        } else {
+          cleanupSquadListeners();
+          squadMembers = [];
+          squadPresence = [];
+          squadActivities = [];
+        }
+        populateSquadsPage();
+        setStatus('Squad deleted');
+      });
+    }
+
+    const goLiveForm = document.getElementById('form-go-live');
+    if (goLiveForm && !boundElements.has(goLiveForm)) {
+      boundElements.add(goLiveForm);
+      goLiveForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const subject = sanitizeTextInput(
+          document.getElementById('live-study-subject')?.value,
+          120
+        );
+        if (!subject) return;
+        document.getElementById('modal-go-live')?.close();
+        await startLiveStudySession(subject);
+      });
+    }
+
+    const squadNoteForm = document.getElementById('form-squad-note');
+    if (squadNoteForm && !boundElements.has(squadNoteForm)) {
+      boundElements.add(squadNoteForm);
+      squadNoteForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
+        if (!activeSquad) return;
+
+        const text = sanitizeTextInput(document.getElementById('squad-note-text')?.value, 240);
+        const courseName = sanitizeTextInput(
+          document.getElementById('squad-note-course')?.value || '',
+          120
+        );
+        const rawUrl = (document.getElementById('squad-note-url')?.value || '').trim();
+        const safeUrl = rawUrl ? sanitizeResourceUrl(rawUrl) || '' : '';
+        if (!text) return;
+
+        const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+        const myName = sanitizeTextInput(profile.name || 'Student', 100);
+        const note = await addSquadFeedNote(activeSquad.id, {
+          uid: myUid,
+          displayName: myName,
+          text,
+          courseName,
+          url: safeUrl,
+        });
+        if (note && !squadActivities.some((a) => a.id === note.id)) {
+          squadActivities = [note, ...squadActivities];
+        }
+        document.getElementById('modal-squad-note')?.close();
+        populateSquadsPage();
+        setStatus('Added note to Squad Feed');
+      });
+    }
+
+    const groupSessionForm = document.getElementById('form-group-session');
+    if (groupSessionForm && !boundElements.has(groupSessionForm)) {
+      boundElements.add(groupSessionForm);
+      groupSessionForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
+        if (!activeSquad) return;
+
+        const location = sanitizeTextInput(
+          document.getElementById('group-session-location')?.value,
+          120
+        );
+        const dateTimeText = sanitizeTextInput(
+          document.getElementById('group-session-datetime')?.value,
+          120
+        );
+        if (!location || !dateTimeText) return;
+
+        const prevSession = activeSquad.nextSession || {};
+        const nextSession = {
+          title: location,
+          when: dateTimeText,
+          attendees: Array.isArray(prevSession.attendees) ? prevSession.attendees : [],
+          attendeeUids: Array.isArray(prevSession.attendeeUids) ? prevSession.attendeeUids : [],
+        };
+        squads = squads.map((s) => (s.id === activeSquad.id ? { ...s, nextSession } : s));
+        await updateSquadNextSession(activeSquad.id, nextSession);
+        document.getElementById('modal-group-session')?.close();
+        populateSquadsPage();
+        setStatus('Updated next group session');
+      });
+    }
+
     const courseForm = document.getElementById('form-course');
     if (courseForm && !boundElements.has(courseForm)) {
       boundElements.add(courseForm);

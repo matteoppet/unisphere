@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UniSphere - Squads</title>
-    <meta name="description" content="Multiplayer study squads and weekly leaderboard." />
+    <meta name="description" content="Multiplayer study squads, live library, and weekly study telemetry." />
     <link rel="stylesheet" href="/src/index.css" />
   </head>
   <body>
@@ -32,76 +32,356 @@
       <hr class="section-divider" />
 
       <main id="app-main" data-page="squads">
-        <h1>Squads</h1>
+        <div class="squads-title-row">
+          <h1>Squads</h1>
+          <div class="squads-title-links">
+            <a href="#" id="btn-open-create-join-squad">+ Create or Join a Squad</a>
+            <a href="#" id="btn-open-admin-panel" hidden>Admin Panel</a>
+            <a href="#" id="btn-leave-active-squad" class="squad-leave-link" hidden>Leave Squad</a>
+          </div>
+        </div>
 
-        <div class="grid-2" style="margin-top: 0;">
+        <!-- Empty State when not in any squad -->
+        <div id="squads-empty-state" class="squads-empty-state">
+          <p class="squads-empty-text" id="btn-empty-create-join-squad">Join or Create a Squad</p>
+        </div>
+
+        <!-- Active Squad Widgets (hidden when not in any squad) -->
+        <div id="squads-active-widgets" hidden>
+        <!-- Top Telemetry Summary Bar -->
+        <div class="dashboard-summary squad-summary-bar">
+          <div class="summary-item">
+            <span class="summary-label">Active Squad</span>
+            <span class="squad-summary-value-bold" id="squad-summary-name">No Active Squad</span>
+            <select id="squad-active-select" class="inline-input" aria-label="Switch Active Squad" hidden style="margin-top: 4px;"></select>
+            <span class="squad-summary-sub" id="squad-summary-description" hidden></span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Squad Weekly Time</span>
+            <span class="squad-summary-value-bold" id="squad-summary-weekly-time">0h / 60h</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">My Weekly Time</span>
+            <span class="squad-summary-value-bold" id="squad-summary-my-time">0h</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">My Streak</span>
+            <span class="squad-summary-value-bold" id="squad-summary-my-streak">0 days</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Invite Code</span>
+            <span class="squad-code-inline">
+              <strong class="squad-summary-value-bold" id="squad-summary-code">-</strong>
+              <a href="#" id="btn-copy-squad-code-top">Copy</a>
+            </span>
+          </div>
+        </div>
+
+        <!-- Middle 2-Column Row: Live Library (Left) & Squad Members (Right) -->
+        <div class="squads-main-grid">
+          <!-- Left Card: Live Library -->
+          <section class="card" id="squad-live-library-card">
+            <div class="card-header">
+              <h3>Live Library</h3>
+              <button type="button" id="btn-go-live-toggle">Go Live</button>
+            </div>
+
+            <div class="squad-progress-track" aria-label="Squad weekly study goal progress">
+              <div class="squad-progress-fill" id="squad-goal-progress-fill" style="width: 0%;"></div>
+            </div>
+            <div class="squad-progress-meta">
+              <span id="squad-goal-progress-label">0h of 60h weekly goal</span>
+              <strong id="squad-goal-progress-pct">0%</strong>
+            </div>
+
+            <div class="live-library-box" aria-label="Active Live Study Sessions">
+              <p class="live-library-header-note" id="squad-live-library-summary">
+                Go live to share what you are studying and lock in with your squad.
+              </p>
+              <ul class="live-library-list" id="squad-live-library-list"></ul>
+            </div>
+          </section>
+
+          <!-- Right Card: Squad Members & 7-Day Weekly Tracker -->
           <section class="card">
             <div class="card-header">
-              <h3>Create a New Squad</h3>
+              <h3>Squad Members</h3>
+              <div class="card-toolbar">
+                <label class="squad-sort-label" for="squad-members-sort">
+                  Sort:
+                  <select id="squad-members-sort" class="inline-input" aria-label="Sort Squad Members">
+                    <option value="hours" selected>Weekly Hours</option>
+                    <option value="streak">Streak</option>
+                    <option value="name">Name</option>
+                  </select>
+                </label>
+                <button type="button" id="btn-copy-squad-code-card">Copy Invite</button>
+              </div>
             </div>
+
+            <div class="week-5day-tracker" aria-label="Squad 7-Day Weekly Study Time">
+              <table>
+                <thead>
+                  <tr id="squad-7day-thead"></tr>
+                </thead>
+                <tbody>
+                  <tr id="squad-7day-tbody"></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Member</th>
+                    <th>Status</th>
+                    <th>Weekly Time</th>
+                    <th>Streak</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="squad-members-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <!-- Bottom Full-Width Card: Squad Feed & Next Group Session -->
+        <section class="card squad-bottom-card">
+          <div class="squad-feed-section">
+            <div class="card-header">
+              <h3>Squad Feed <span class="card-subtitle">Recent Activity &amp; Shared Resources</span></h3>
+              <button type="button" id="btn-add-squad-note">Add Note</button>
+            </div>
+            <ul class="resource-list" id="squad-feed-list"></ul>
+          </div>
+
+          <div class="squad-next-session-wrap">
+            <fieldset class="next-session-fieldset">
+              <legend>
+                Next Group Session
+                <span class="item-meta">(<a href="#" id="btn-edit-next-session">Edit</a>)</span>
+              </legend>
+              <div class="next-session-title" id="squad-next-session-title">
+                No group session scheduled yet
+              </div>
+              <div class="next-session-footer">
+                <span class="next-session-attendees" id="squad-next-session-attendees">
+                  Click Edit to set a location &amp; time
+                </span>
+                <button type="button" id="btn-toggle-session-attending">I'm In</button>
+              </div>
+            </fieldset>
+          </div>
+        </section>
+        </div>
+      </main>
+
+      <!-- 1. Modal: Create or Join a Squad Widget (only opened when pressed) -->
+      <dialog id="modal-squad-create-join" class="dialog-wide">
+        <h3>Create or Join a Squad</h3>
+        <div class="form-grid-2">
+          <div>
+            <h4 class="subsection-title">Create a New Squad</h4>
             <form id="form-create-squad">
               <div class="form-row">
                 <label for="squad-new-name">Squad Name *</label>
-                <input type="text" id="squad-new-name" required placeholder="e.g. Roma Tre Engineering" />
+                <input type="text" id="squad-new-name" required placeholder="e.g. Meccanica Canale 2" />
+              </div>
+              <div class="form-row">
+                <label for="squad-new-description">Description (Optional)</label>
+                <input type="text" id="squad-new-description" placeholder="e.g. Roma Tre Mechanical Engineering" />
               </div>
               <button type="submit">Create Squad</button>
             </form>
-          </section>
+          </div>
 
-          <section class="card">
-            <div class="card-header">
-              <h3>Join Existing Squad</h3>
-            </div>
+          <div>
+            <h4 class="subsection-title">Join Existing Squad</h4>
             <form id="form-join-squad">
               <div class="form-row">
-                <label for="squad-join-code">6-Character Invite Code *</label>
-                <input type="text" id="squad-join-code" maxlength="6" required placeholder="e.g. AB12CD" />
+                <label for="squad-join-code">Invite Code *</label>
+                <input type="text" id="squad-join-code" maxlength="16" required placeholder="e.g. AB12CD" />
               </div>
               <button type="submit">Join Squad</button>
             </form>
-          </section>
+          </div>
         </div>
 
-        <div class="grid-2">
-          <section class="card">
-            <div class="card-header">
-              <h3>Your Squads</h3>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Squad Name</th>
-                    <th>Invite Code</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="squads-list-tbody"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card-header">
-              <h3 id="squads-leaderboard-header">Weekly Leaderboard</h3>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Rank</th>
-                    <th>Student</th>
-                    <th>Study Time (Week)</th>
-                    <th>Streak</th>
-                    <th>ELO</th>
-                  </tr>
-                </thead>
-                <tbody id="squads-leaderboard-tbody"></tbody>
-              </table>
-            </div>
-          </section>
+        <hr class="card-subdivider" />
+        <h4 class="subsection-title">Your Joined Squads</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Squad Name</th>
+                <th>Invite Code</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="squads-list-tbody"></tbody>
+          </table>
         </div>
-      </main>
+
+        <div class="dialog-actions">
+          <div></div>
+          <div class="dialog-actions-right">
+            <button type="button" data-close-modal="modal-squad-create-join">Close</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- 2. Modal: Squad Admin Panel (#36 — creator only) -->
+      <dialog id="modal-squad-admin" class="dialog-wide">
+        <form id="form-squad-admin" method="dialog">
+          <h3>Squad Admin Panel</h3>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="admin-squad-name">Squad Name *</label>
+              <input type="text" id="admin-squad-name" required placeholder="Squad Name" />
+            </div>
+            <div class="form-row">
+              <label for="admin-squad-goal">Weekly Goal (Hours)</label>
+              <input type="number" id="admin-squad-goal" min="1" max="1000" value="60" required />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="admin-squad-description">Group Description</label>
+            <textarea id="admin-squad-description" rows="2" placeholder="Describe your squad's courses or goals..."></textarea>
+          </div>
+
+          <hr class="card-subdivider" />
+          <h4 class="subsection-title">Manage Squad Members</h4>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Weekly Time</th>
+                  <th>Role</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="admin-members-tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="dialog-actions">
+            <button type="button" id="btn-delete-squad-confirm" class="btn-danger">Delete Squad</button>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-squad-admin">Cancel</button>
+              <button type="submit">Save Changes</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- 3. Modal: Friend's 7-Day Study Calendar (#43) -->
+      <dialog id="modal-friend-calendar" class="dialog-wide">
+        <h3 id="friend-calendar-title">Student's Weekly Study Calendar</h3>
+        <p class="live-library-header-note" id="friend-calendar-subtitle">
+          Current week day-by-day study breakdown (Monday – Sunday).
+        </p>
+        <div class="week-5day-tracker" aria-label="Friend 7-Day Study Calendar">
+          <table>
+            <thead>
+              <tr id="friend-calendar-7day-thead"></tr>
+            </thead>
+            <tbody>
+              <tr id="friend-calendar-7day-tbody"></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="subsection-title">Subjects Studied This Week</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Subject</th>
+                <th>Study Time</th>
+              </tr>
+            </thead>
+            <tbody id="friend-calendar-subjects-tbody"></tbody>
+          </table>
+        </div>
+
+        <div class="dialog-actions">
+          <div></div>
+          <div class="dialog-actions-right">
+            <button type="button" data-close-modal="modal-friend-calendar">Close</button>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- 4. Modal: Go Live in Live Library -->
+      <dialog id="modal-go-live">
+        <form id="form-go-live" method="dialog">
+          <h3>Go Live in Library</h3>
+          <div class="form-row">
+            <label for="live-study-subject">What are you studying right now? *</label>
+            <input type="text" id="live-study-subject" list="course-suggestions" required placeholder="e.g. Analisi 1" />
+          </div>
+          <div class="dialog-actions">
+            <div></div>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-go-live">Cancel</button>
+              <button type="submit">Start Live Session</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- 5. Modal: Add Note / Shared Resource to Squad Feed -->
+      <dialog id="modal-squad-note">
+        <form id="form-squad-note" method="dialog">
+          <h3>Add Note to Squad Feed</h3>
+          <div class="form-row">
+            <label for="squad-note-text">Note / Resource Title *</label>
+            <input type="text" id="squad-note-text" required placeholder="e.g. uploaded PDF notes: Appunti Integrali Impropri" />
+          </div>
+          <div class="form-row">
+            <label for="squad-note-course">Subject / Course (Optional)</label>
+            <input type="text" id="squad-note-course" list="course-suggestions" placeholder="e.g. Analisi 1" />
+          </div>
+          <div class="form-row">
+            <label for="squad-note-url">Resource Link URL (Optional)</label>
+            <input type="url" id="squad-note-url" placeholder="https://..." />
+          </div>
+          <div class="dialog-actions">
+            <div></div>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-squad-note">Cancel</button>
+              <button type="submit">Post to Feed</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- 6. Modal: Edit Next Group Session -->
+      <dialog id="modal-group-session">
+        <form id="form-group-session" method="dialog">
+          <h3>Next Group Session</h3>
+          <div class="form-row">
+            <label for="group-session-location">Location / Topic *</label>
+            <input type="text" id="group-session-location" required placeholder="e.g. Aula Studio Vasca Navale" />
+          </div>
+          <div class="form-row">
+            <label for="group-session-datetime">Day &amp; Time *</label>
+            <input type="text" id="group-session-datetime" required placeholder="e.g. Mon 16 Nov, 15:00" />
+          </div>
+          <div class="dialog-actions">
+            <div></div>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-group-session">Cancel</button>
+              <button type="submit">Save Session</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+
+      <datalist id="course-suggestions"></datalist>
     </div>
 
     <script type="module" src="/src/main.js"></script>

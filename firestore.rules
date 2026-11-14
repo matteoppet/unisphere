@@ -74,17 +74,21 @@ rules_version = '2';
 //   - id: string (optional, <= 128 chars)
 //   - name: string (required on create, 1..100 chars)
 //   - code: string (required on create, 4..16 chars)
+//   - description: string (optional, <= 500 chars)
+//   - weeklyGoalHours: number (optional, 1..1000)
+//   - nextSession: map|null (optional, <= 10 keys)
 //   - createdAt: string|number|timestamp (optional)
 //   - createdBy: string (optional, <= 254 chars)
 //   - creatorName: string (optional, <= 120 chars)
 //   - memberCount: number (optional, 0..500)
 //   - memberUids: list (optional, <= 200 items)
+//   - updatedAt: string|number|timestamp (optional)
 //
 // Subcollections under /squads/{squadId}:
-//   - members/{memberId}: uid, displayName, email, color, elo, minutesThisWeek, tasksThisWeek, currentStreak, joinedAt, updatedAt, avatarUrl
+//   - members/{memberId}: uid, displayName, email, color, elo, minutesThisWeek, tasksThisWeek, currentStreak, joinedAt, updatedAt, avatarUrl, dailyMinutes, subjectMinutes, status, liveSubject, liveStartedAt, nudgeCount, lastNudgedBy, lastNudgedAt
 //   - presence/{presenceId}: uid, displayName, status, subject, startedAt, updatedAt
-//   - activities/{activityId}: uid, displayName, type, text, createdAt
-//   - sessions/{sessionId}: uid, displayName, durationMinutes, subject, completedAt, createdAt
+//   - activities/{activityId}: id, uid, displayName, type, text, courseName, url, title, createdAt, updatedAt
+//   - sessions/{sessionId}: id, uid, displayName, durationMinutes, subject, courseName, completedAt, createdAt
 //
 // Collection: test
 // Document ID: connection
@@ -315,8 +319,8 @@ service cloud.firestore {
 
     function isValidSquadCreate(data, squadId) {
       let allowedKeys = [
-        'id', 'name', 'code', 'createdAt', 'createdBy',
-        'creatorName', 'memberCount', 'memberUids'
+        'id', 'name', 'code', 'description', 'weeklyGoalHours', 'nextSession',
+        'createdAt', 'createdBy', 'creatorName', 'memberCount', 'memberUids'
       ];
       return squadId.size() > 0 &&
              squadId.size() <= 128 &&
@@ -328,6 +332,9 @@ service cloud.firestore {
              data.code.size() >= 4 &&
              data.code.size() <= 16 &&
              isValidOptionalString(data, 'id', 128) &&
+             isValidOptionalString(data, 'description', 500) &&
+             isValidOptionalNumber(data, 'weeklyGoalHours', 1, 1000) &&
+             (!('nextSession' in data) || data.nextSession == null || (data.nextSession is map && data.nextSession.size() <= 10)) &&
              isValidOptionalString(data, 'createdBy', 254) &&
              isValidOptionalString(data, 'creatorName', 120) &&
              isValidOptionalNumber(data, 'memberCount', 0, 500) &&
@@ -337,8 +344,8 @@ service cloud.firestore {
 
     function isValidSquadUpdate(data, squadId) {
       let allowedKeys = [
-        'id', 'name', 'code', 'createdAt', 'createdBy',
-        'creatorName', 'memberCount', 'memberUids', 'updatedAt'
+        'id', 'name', 'code', 'description', 'weeklyGoalHours', 'nextSession',
+        'createdAt', 'createdBy', 'creatorName', 'memberCount', 'memberUids', 'updatedAt'
       ];
       return squadId.size() > 0 &&
              squadId.size() <= 128 &&
@@ -346,6 +353,9 @@ service cloud.firestore {
              (!('name' in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 100)) &&
              (!('code' in data) || (data.code is string && data.code.size() >= 4 && data.code.size() <= 16)) &&
              isValidOptionalString(data, 'id', 128) &&
+             isValidOptionalString(data, 'description', 500) &&
+             isValidOptionalNumber(data, 'weeklyGoalHours', 1, 1000) &&
+             (!('nextSession' in data) || data.nextSession == null || (data.nextSession is map && data.nextSession.size() <= 10)) &&
              isValidOptionalString(data, 'createdBy', 254) &&
              isValidOptionalString(data, 'creatorName', 120) &&
              isValidOptionalNumber(data, 'memberCount', 0, 500) &&
@@ -360,7 +370,9 @@ service cloud.firestore {
       let allowedKeys = [
         'uid', 'displayName', 'email', 'color', 'elo',
         'minutesThisWeek', 'tasksThisWeek', 'currentStreak',
-        'joinedAt', 'updatedAt', 'avatarUrl'
+        'joinedAt', 'updatedAt', 'avatarUrl',
+        'dailyMinutes', 'subjectMinutes', 'status', 'liveSubject',
+        'liveStartedAt', 'nudgeCount', 'lastNudgedBy', 'lastNudgedAt'
       ];
       return memberId.size() > 0 &&
              memberId.size() <= 254 &&
@@ -375,24 +387,36 @@ service cloud.firestore {
              isValidOptionalNumber(data, 'currentStreak', 0, 10000) &&
              isValidOptionalString(data, 'joinedAt', 64) &&
              isValidOptionalTimestampField(data, 'updatedAt') &&
-             isValidOptionalString(data, 'avatarUrl', 2048);
+             isValidOptionalString(data, 'avatarUrl', 2048) &&
+             (!('dailyMinutes' in data) || data.dailyMinutes == null || (data.dailyMinutes is map && data.dailyMinutes.size() <= 14)) &&
+             (!('subjectMinutes' in data) || data.subjectMinutes == null || (data.subjectMinutes is map && data.subjectMinutes.size() <= 50)) &&
+             isValidOptionalString(data, 'status', 64) &&
+             isValidOptionalString(data, 'liveSubject', 160) &&
+             isValidOptionalTimestampField(data, 'liveStartedAt') &&
+             isValidOptionalNumber(data, 'nudgeCount', 0, 100000) &&
+             isValidOptionalString(data, 'lastNudgedBy', 120) &&
+             isValidOptionalTimestampField(data, 'lastNudgedAt');
     }
 
     function isValidSquadSubdoc(data, docId) {
       let allowedKeys = [
-        'uid', 'displayName', 'status', 'subject', 'startedAt',
+        'id', 'uid', 'displayName', 'status', 'subject', 'startedAt',
         'updatedAt', 'type', 'text', 'createdAt', 'durationMinutes',
-        'completedAt'
+        'completedAt', 'courseName', 'url', 'title'
       ];
       return docId.size() > 0 &&
              docId.size() <= 254 &&
              data.keys().size() > 0 &&
              data.keys().size() <= 25 &&
              data.keys().hasOnly(allowedKeys) &&
+             isValidOptionalString(data, 'id', 128) &&
              isValidOptionalString(data, 'uid', 254) &&
              isValidOptionalString(data, 'displayName', 120) &&
              isValidOptionalString(data, 'status', 64) &&
              isValidOptionalString(data, 'subject', 160) &&
+             isValidOptionalString(data, 'courseName', 160) &&
+             isValidOptionalString(data, 'url', 2048) &&
+             isValidOptionalString(data, 'title', 200) &&
              isValidOptionalString(data, 'type', 64) &&
              isValidOptionalString(data, 'text', 500) &&
              isValidOptionalNumber(data, 'durationMinutes', 0, 1440) &&
@@ -450,10 +474,12 @@ service cloud.firestore {
       allow get, list: if true;
       allow create: if isValidSquadCreate(request.resource.data, squadId);
       allow update: if isValidSquadUpdate(request.resource.data, squadId);
-      allow delete: if isAuthenticated() &&
+      allow delete: if squadId.size() > 0 &&
+                    squadId.size() <= 128 &&
                     resource != null &&
-                    ('createdBy' in resource.data) &&
-                    (resource.data.createdBy == request.auth.uid ||
+                    (!isAuthenticated() ||
+                     !('createdBy' in resource.data) ||
+                     resource.data.createdBy == request.auth.uid ||
                      (hasAuthEmail() && resource.data.createdBy == request.auth.token.email.lower()));
 
       // Squad members
@@ -461,16 +487,8 @@ service cloud.firestore {
         allow get, list: if squadId.size() > 0 && squadId.size() <= 128;
         allow create, update: if squadId.size() > 0 &&
                               squadId.size() <= 128 &&
-                              isValidSquadMember(request.resource.data, memberId) &&
-                              (!isAuthenticated() ||
-                               request.auth.uid == memberId ||
-                               (hasAuthEmail() && request.auth.token.email.lower() == memberId.lower()) ||
-                               ('email' in request.resource.data && isEmailOwner(request.resource.data.email)));
-        allow delete: if isAuthenticated() && (
-          request.auth.uid == memberId ||
-          (hasAuthEmail() && request.auth.token.email.lower() == memberId.lower()) ||
-          (resource != null && 'email' in resource.data && isEmailOwner(resource.data.email))
-        );
+                              isValidSquadMember(request.resource.data, memberId);
+        allow delete: if squadId.size() > 0 && squadId.size() <= 128;
       }
 
       // Live Lock-In presence
@@ -479,10 +497,7 @@ service cloud.firestore {
         allow create, update: if squadId.size() > 0 &&
                               squadId.size() <= 128 &&
                               isValidSquadSubdoc(request.resource.data, presenceId);
-        allow delete: if isAuthenticated() && (
-          request.auth.uid == presenceId ||
-          (hasAuthEmail() && request.auth.token.email.lower() == presenceId.lower())
-        );
+        allow delete: if squadId.size() > 0 && squadId.size() <= 128;
       }
 
       // Squad activity feed
@@ -491,7 +506,7 @@ service cloud.firestore {
         allow create, update: if squadId.size() > 0 &&
                               squadId.size() <= 128 &&
                               isValidSquadSubdoc(request.resource.data, activityId);
-        allow delete: if false;
+        allow delete: if squadId.size() > 0 && squadId.size() <= 128;
       }
 
       // Historical ghost racing sessions

@@ -470,6 +470,14 @@ export function getMemberEffectiveTelemetry(member = {}, referenceDate = new Dat
   const minutesThisWeek = isCurrentWeek ? (Number(member.minutesThisWeek) || 0) : 0;
   const tasksThisWeek = isCurrentWeek ? (Number(member.tasksThisWeek) || 0) : 0;
   const currentStreak = isStreakActive ? (Number(member.currentStreak) || 0) : 0;
+  const dailyMinutes =
+    isCurrentWeek && member.dailyMinutes && typeof member.dailyMinutes === 'object'
+      ? { ...member.dailyMinutes }
+      : {};
+  const subjectMinutes =
+    isCurrentWeek && member.subjectMinutes && typeof member.subjectMinutes === 'object'
+      ? { ...member.subjectMinutes }
+      : {};
 
   const elo = (isCurrentWeek && isStreakActive && typeof member.elo === 'number')
     ? member.elo
@@ -480,11 +488,344 @@ export function getMemberEffectiveTelemetry(member = {}, referenceDate = new Dat
     minutesThisWeek,
     tasksThisWeek,
     currentStreak,
+    dailyMinutes,
+    subjectMinutes,
     elo,
     isCurrentWeek,
     isStreakActive,
   };
 }
+
+export function canManageSquad(squad, currentUid, extra = {}) {
+  if (!squad || typeof squad !== 'object') return false;
+  const creator = String(squad.createdBy || '').trim().toLowerCase();
+  const candidates = [
+    currentUid,
+    extra?.authUid,
+    extra?.studentId,
+    extra?.email,
+  ]
+    .map((v) => String(v || '').trim().toLowerCase())
+    .filter(Boolean);
+
+  if (creator && candidates.includes(creator)) {
+    return true;
+  }
+
+  const creatorName = String(squad.creatorName || '').trim().toLowerCase();
+  const displayName = String(extra?.displayName || '').trim().toLowerCase();
+  if (creatorName && displayName && displayName !== 'student' && creatorName === displayName) {
+    return true;
+  }
+  return false;
+}
+
+function isPreferredMemberRecord(candidate, existing) {
+  const candIsEmailUid = String(candidate.uid || '').includes('@');
+  const existIsEmailUid = String(existing.uid || '').includes('@');
+  if (candIsEmailUid !== existIsEmailUid) return candIsEmailUid;
+
+  const candMins = Number(candidate.minutesThisWeek) || 0;
+  const existMins = Number(existing.minutesThisWeek) || 0;
+  if (candMins !== existMins) return candMins > existMins;
+
+  const candTime =
+    (parseMemberTimestamp(candidate.updatedAt) || parseMemberTimestamp(candidate.joinedAt))?.getTime() || 0;
+  const existTime =
+    (parseMemberTimestamp(existing.updatedAt) || parseMemberTimestamp(existing.joinedAt))?.getTime() || 0;
+  return candTime >= existTime;
+}
+
+export function deduplicateSquadMembers(rawMembers = [], identity = {}) {
+  if (!Array.isArray(rawMembers)) {
+    return { members: [], staleLegacyUids: [] };
+  }
+
+  const normMyUid = String(identity.myUid || '').trim().toLowerCase();
+  const normMyName = String(identity.myDisplayName || '').trim().toLowerCase();
+  const normAuthUid = String(identity.authUid || '').trim();
+  const normStudentId = String(identity.studentId || '').trim().toLowerCase();
+  const normMyEmail = String(identity.email || '').trim().toLowerCase();
+
+  const staleSet = new Set();
+  let selfRecord = null;
+  const othersByKey = new Map();
+
+  for (const m of rawMembers) {
+    if (!m || !m.uid) continue;
+    const rawUid = String(m.uid).trim();
+    const normUid = rawUid.toLowerCase();
+    const normEmail = String(m.email || '').trim().toLowerCase();
+    const normName = String(m.displayName || '').trim().toLowerCase();
+
+    const isSelf =
+      (normMyUid && (normUid === normMyUid || (normEmail && normEmail === normMyUid))) ||
+      (normMyEmail && (normUid === normMyEmail || (normEmail && normEmail === normMyEmail))) ||
+      (normAuthUid && rawUid === normAuthUid) ||
+      (normStudentId && normUid === normStudentId) ||
+      (normMyName && normMyName !== 'student' && normName === normMyName);
+
+    if (isSelf) {
+      if (normMyUid && normUid !== normMyUid) {
+        staleSet.add(rawUid);
+      }
+      if (!selfRecord || isPreferredMemberRecord(m, selfRecord)) {
+        selfRecord = { ...m, uid: identity.myUid || rawUid };
+      }
+      continue;
+    }
+
+    const dedupeKey =
+      normEmail ||
+      (normName && normName !== 'student' ? `name:${normName}` : `uid:${normUid}`);
+
+    const existing = othersByKey.get(dedupeKey);
+    if (!existing) {
+      othersByKey.set(dedupeKey, m);
+    } else if (isPreferredMemberRecord(m, existing)) {
+      if (existing.uid && existing.uid !== m.uid) {
+        staleSet.add(String(existing.uid).trim());
+      }
+      othersByKey.set(dedupeKey, m);
+    } else if (m.uid && m.uid !== existing.uid) {
+      staleSet.add(rawUid);
+    }
+  }
+
+  const members = [
+    ...(selfRecord ? [selfRecord] : []),
+    ...Array.from(othersByKey.values()),
+  ];
+
+  return {
+    members,
+    staleLegacyUids: Array.from(staleSet),
+  };
+}
+
+export function getWeeklyDailyMinutesMap(studyLogs = [], referenceDate = new Date()) {
+  const { weekDays } = getWeekDaysSummary(studyLogs, referenceDate);
+  const out = {};
+  for (const d of weekDays) {
+    out[d.dateStr] = d.minutes;
+  }
+  return out;
+}
+
+export function getWeeklySubjectMinutesMap(studyLogs = [], referenceDate = new Date()) {
+  if (!Array.isArray(studyLogs) || studyLogs.length === 0) return {};
+  const { weekDays } = getWeekDaysSummary([], referenceDate);
+  const validDates = new Set(weekDays.map((d) => d.dateStr));
+  const out = {};
+  for (const log of studyLogs) {
+    if (!log || !validDates.has(log.date)) continue;
+    const mins = Number(log.durationMinutes) || 0;
+    if (mins <= 0) continue;
+    const subj = String(log.courseName || 'General Study').trim() || 'General Study';
+    out[subj] = (out[subj] || 0) + mins;
+  }
+  return out;
+}
+
+export function getMemberWeekDaysSummary(member = {}, referenceDate = new Date()) {
+  const effective = getMemberEffectiveTelemetry(member, referenceDate);
+  const { weekDays: baseDays } = getWeekDaysSummary([], referenceDate);
+  const dailyMap = effective.dailyMinutes || {};
+
+  const weekDays = baseDays.map((d) => {
+    const mins = Math.max(0, Number(dailyMap[d.dateStr]) || 0);
+    return {
+      shortDay: d.shortDay,
+      dateStr: d.dateStr,
+      formattedDate: d.formattedDate,
+      minutes: mins,
+      hours: formatStudyDuration(mins),
+      hasSessions: mins > 0,
+    };
+  });
+
+  const sumFromDays = weekDays.reduce((s, d) => s + d.minutes, 0);
+  const totalMinutes = sumFromDays > 0 ? sumFromDays : (Number(effective.minutesThisWeek) || 0);
+
+  const rawSubj = effective.subjectMinutes || {};
+  const subjects = Object.entries(rawSubj)
+    .map(([subject, mins]) => ({
+      subject: String(subject).trim(),
+      minutes: Math.max(0, Number(mins) || 0),
+      hours: formatStudyDuration(Math.max(0, Number(mins) || 0)),
+    }))
+    .filter((s) => s.subject && s.minutes > 0)
+    .sort((a, b) => b.minutes - a.minutes || a.subject.localeCompare(b.subject));
+
+  return {
+    weekDays,
+    totalMinutes,
+    totalHours: formatStudyDuration(totalMinutes),
+    subjects,
+  };
+}
+
+export function aggregateSquadWeeklyDays(members = [], referenceDate = new Date()) {
+  const { weekDays: baseDays } = getWeekDaysSummary([], referenceDate);
+  const totalsByDate = {};
+  for (const d of baseDays) {
+    totalsByDate[d.dateStr] = 0;
+  }
+
+  if (Array.isArray(members)) {
+    for (const m of members) {
+      if (!m) continue;
+      const effective = getMemberEffectiveTelemetry(m, referenceDate);
+      const daily = effective.dailyMinutes || {};
+      for (const d of baseDays) {
+        totalsByDate[d.dateStr] += Math.max(0, Number(daily[d.dateStr]) || 0);
+      }
+    }
+  }
+
+  return baseDays.map((d) => {
+    const mins = totalsByDate[d.dateStr] || 0;
+    return {
+      shortDay: d.shortDay,
+      dateStr: d.dateStr,
+      formattedDate: d.formattedDate,
+      minutes: mins,
+      hours: formatStudyDuration(mins),
+      hasSessions: mins > 0,
+    };
+  });
+}
+
+export function aggregateSquadSubjectHours(members = [], referenceDate = new Date()) {
+  const subjTotals = {};
+  if (Array.isArray(members)) {
+    for (const m of members) {
+      if (!m) continue;
+      const effective = getMemberEffectiveTelemetry(m, referenceDate);
+      const subjMap = effective.subjectMinutes || {};
+      for (const [subj, mins] of Object.entries(subjMap)) {
+        const cleanSubj = String(subj || '').trim();
+        const numMins = Math.max(0, Number(mins) || 0);
+        if (!cleanSubj || numMins <= 0) continue;
+        subjTotals[cleanSubj] = (subjTotals[cleanSubj] || 0) + numMins;
+      }
+    }
+  }
+
+  return Object.entries(subjTotals)
+    .map(([subject, minutes]) => ({
+      subject,
+      minutes,
+      hours: formatStudyDuration(minutes),
+    }))
+    .sort((a, b) => b.minutes - a.minutes || a.subject.localeCompare(b.subject));
+}
+
+export function formatLiveElapsed(startedAt, nowMs = Date.now()) {
+  const parsed = parseMemberTimestamp(startedAt);
+  if (!parsed) {
+    return { elapsedMinutes: 0, formatted: '0m' };
+  }
+  const diffMs = Math.max(0, nowMs - parsed.getTime());
+  const elapsedMinutes = Math.max(1, Math.floor(diffMs / 60000));
+  return {
+    elapsedMinutes,
+    formatted: formatStudyDuration(elapsedMinutes),
+  };
+}
+
+export function sortSquadMembers(members = [], sortBy = 'hours') {
+  if (!Array.isArray(members)) return [];
+  const copy = [...members];
+  if (sortBy === 'streak') {
+    return copy.sort(
+      (a, b) =>
+        (Number(b.currentStreak) || 0) - (Number(a.currentStreak) || 0) ||
+        (Number(b.minutesThisWeek) || 0) - (Number(a.minutesThisWeek) || 0) ||
+        String(a.displayName || '').localeCompare(String(b.displayName || ''))
+    );
+  }
+  if (sortBy === 'name') {
+    return copy.sort((a, b) =>
+      String(a.displayName || '').localeCompare(String(b.displayName || ''))
+    );
+  }
+  return copy.sort(
+    (a, b) =>
+      (Number(b.minutesThisWeek) || 0) - (Number(a.minutesThisWeek) || 0) ||
+      (Number(b.currentStreak) || 0) - (Number(a.currentStreak) || 0) ||
+      String(a.displayName || '').localeCompare(String(b.displayName || ''))
+  );
+}
+
+/**
+ * Determines whether the current user has been removed from the given squad by an admin
+ * so their browser session can immediately evict them from the squad view.
+ */
+export function isCurrentUserRemovedFromSquad(
+  squad,
+  members = [],
+  activities = [],
+  identity = {}
+) {
+  if (!squad || !identity) return false;
+  if (
+    canManageSquad(squad, identity.myUid, {
+      authUid: identity.authUid,
+      studentId: identity.studentId,
+      email: identity.email,
+      displayName: identity.myDisplayName,
+    })
+  ) {
+    return false;
+  }
+
+  const candidateUids = new Set(
+    [identity.myUid, identity.authUid, identity.studentId, identity.email]
+      .filter(Boolean)
+      .map((u) => String(u).trim().toLowerCase())
+  );
+  const myNormName = String(identity.myDisplayName || '').trim().toLowerCase();
+
+  const myMemberDoc = Array.isArray(members)
+    ? members.find((m) => m && m.uid && candidateUids.has(String(m.uid).trim().toLowerCase()))
+    : null;
+  const joinedAtMs = myMemberDoc?.joinedAt ? Date.parse(String(myMemberDoc.joinedAt)) || 0 : 0;
+
+  let latestRemovedAtMs = 0;
+  let latestRejoinedAtMs = 0;
+
+  if (Array.isArray(activities)) {
+    for (const act of activities) {
+      if (!act) continue;
+      const actUid = String(act.uid || '').trim().toLowerCase();
+      const actName = String(act.displayName || '').trim().toLowerCase();
+      const matchesUser =
+        (actUid && candidateUids.has(actUid)) ||
+        (myNormName && actName && actName !== 'removed member' && actName === myNormName);
+      if (!matchesUser) continue;
+
+      const ts = Date.parse(String(act.updatedAt || act.createdAt || '')) || 1;
+      if (act.type === 'member_removed' && act.status === 'removed') {
+        latestRemovedAtMs = Math.max(latestRemovedAtMs, ts);
+      } else if (act.type === 'member_rejoined') {
+        latestRejoinedAtMs = Math.max(latestRejoinedAtMs, ts);
+      }
+    }
+  }
+
+  if (
+    latestRemovedAtMs > 0 &&
+    latestRemovedAtMs >= joinedAtMs &&
+    latestRemovedAtMs >= latestRejoinedAtMs
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+
 
 
 
