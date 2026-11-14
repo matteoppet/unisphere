@@ -846,6 +846,36 @@ export function formatGoogleAuthError(err) {
   };
 }
 
+const localOtpStore = new Map();
+
+function saveLocalOtpRecord(docId, record) {
+  localOtpStore.set(docId, { ...record });
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(`unisphere_otp_${docId}`, JSON.stringify(record));
+    }
+  } catch {}
+}
+
+function loadLocalOtpRecord(docId) {
+  if (localOtpStore.has(docId)) {
+    return localOtpStore.get(docId);
+  }
+  try {
+    if (typeof sessionStorage !== 'undefined') {
+      const raw = sessionStorage.getItem(`unisphere_otp_${docId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          localOtpStore.set(docId, parsed);
+          return parsed;
+        }
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export async function dispatchVerificationCode(email, dbInstance) {
   try {
     const normalized = sanitizeEmailInput(email);
@@ -873,21 +903,28 @@ export async function dispatchVerificationCode(email, dbInstance) {
     const codeSalt = generateSaltHex(8);
     const codeHash = await computeSaltedOtpHash(normalized, code, codeSalt);
     const expiresAt = Date.now() + 15 * 60 * 1000;
+    const otpRecord = {
+      email: normalized,
+      code: null,
+      codeSalt,
+      codeHash,
+      attempts: 0,
+      maxAttempts: 5,
+      expiresAt,
+      verified: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    saveLocalOtpRecord(docId, otpRecord);
 
     // Store ONLY the salted hash in Firestore — NEVER store the plaintext OTP code!
     if (dbInstance) {
-      const verRef = doc(dbInstance, 'emailVerifications', docId);
-      await setDoc(verRef, {
-        email: normalized,
-        code: null,
-        codeSalt,
-        codeHash,
-        attempts: 0,
-        maxAttempts: 5,
-        expiresAt,
-        verified: false,
-        createdAt: new Date().toISOString(),
-      });
+      try {
+        const verRef = doc(dbInstance, 'emailVerifications', docId);
+        await setDoc(verRef, otpRecord);
+      } catch (verErr) {
+        console.warn('Firestore emailVerifications write notice:', verErr);
+      }
 
       try {
         await addDoc(collection(dbInstance, 'mail'), {
@@ -907,28 +944,35 @@ export async function dispatchVerificationCode(email, dbInstance) {
     let emailSent = false;
     let providerNotice;
 
-    try {
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: normalized, code }),
-      });
+    if (typeof window !== 'undefined' && typeof fetch === 'function') {
+      try {
+        const response = await fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: normalized, code }),
+        });
 
-      const resData = await response.json().catch(() => null);
-      if (
-        response.ok &&
-        (resData?.id || resData?.data?.id || resData?.success || !resData?.error)
-      ) {
-        emailSent = true;
-      } else if (resData?.configured === false) {
-        providerNotice =
-          resData.message || 'Email provider credentials not configured in environment.';
-      } else if (resData?.error) {
-        providerNotice =
-          typeof resData.error === 'string' ? resData.error : resData.error.message;
+        const resData = await response.json().catch(() => null);
+        if (
+          response.ok &&
+          resData?.configured !== false &&
+          (resData?.id || resData?.data?.id || resData?.success === true)
+        ) {
+          emailSent = true;
+        } else if (resData?.configured === false) {
+          providerNotice =
+            resData.message || 'Email provider credentials not configured in environment.';
+        } else if (resData?.error) {
+          providerNotice =
+            typeof resData.error === 'string' ? resData.error : resData.error.message;
+        }
+      } catch (netErr) {
+        console.warn('Backend email dispatch request:', netErr);
       }
-    } catch (netErr) {
-      console.warn('Backend email dispatch request:', netErr);
+    }
+
+    if (!emailSent) {
+      otpDispatchRateLimiter.reset(normalized);
     }
 
     return {
@@ -966,24 +1010,30 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
       };
     }
 
-    if (!dbInstance) {
-      return {
-        success: false,
-        error: 'Cloud database is not configured in this environment.',
-      };
+    let verRef = null;
+    let data = null;
+
+    if (dbInstance) {
+      try {
+        verRef = doc(dbInstance, 'emailVerifications', docId);
+        const snap = await getDoc(verRef);
+        if (snap.exists()) {
+          data = snap.data();
+        }
+      } catch {}
     }
 
-    const verRef = doc(dbInstance, 'emailVerifications', docId);
-    const snap = await getDoc(verRef);
+    if (!data) {
+      data = loadLocalOtpRecord(docId);
+    }
 
-    if (!snap.exists()) {
+    if (!data) {
       return {
         success: false,
         error: 'No active verification code found for this email. Please request a new code.',
       };
     }
 
-    const data = snap.data();
     if (Date.now() > data.expiresAt) {
       return {
         success: false,
@@ -1013,7 +1063,11 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
       !data.codeSalt && data.codeHash && timingSafeEqualStr(data.codeHash, legacyUnsaltedHash);
 
     if (!matchesSalted && !matchesLegacyHash) {
-      await setDoc(verRef, { attempts: attempts + 1 }, { merge: true }).catch(() => {});
+      const updatedRecord = { ...data, attempts: attempts + 1 };
+      saveLocalOtpRecord(docId, updatedRecord);
+      if (verRef) {
+        await setDoc(verRef, { attempts: attempts + 1 }, { merge: true }).catch(() => {});
+      }
       return {
         success: false,
         error: 'Incorrect verification code. Please check your email and try again.',
@@ -1021,19 +1075,26 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
     }
 
     otpVerifyRateLimiter.reset(normalized);
-    await setDoc(
-      verRef,
-      { verified: true, verifiedAt: new Date().toISOString(), code: null },
-      { merge: true }
-    );
+    const verifiedAt = new Date().toISOString();
+    saveLocalOtpRecord(docId, { ...data, verified: true, verifiedAt, code: null });
 
-    try {
-      const userRef = doc(dbInstance, 'users', docId);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        await setDoc(userRef, { emailVerified: true }, { merge: true });
-      }
-    } catch {}
+    if (verRef) {
+      await setDoc(
+        verRef,
+        { verified: true, verifiedAt, code: null },
+        { merge: true }
+      ).catch(() => {});
+    }
+
+    if (dbInstance) {
+      try {
+        const userRef = doc(dbInstance, 'users', docId);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          await setDoc(userRef, { emailVerified: true }, { merge: true });
+        }
+      } catch {}
+    }
 
     return { success: true };
   } catch (err) {

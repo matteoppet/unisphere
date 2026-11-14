@@ -8,6 +8,12 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function reloadEnv(): void {
+  dotenv.config({ path: path.join(__dirname, '.env'), override: true });
+  dotenv.config({ path: path.join(__dirname, '.env.local'), override: true });
+}
+reloadEnv();
+
 const IP_WINDOW_MS = 15 * 60 * 1000;
 const IP_MAX_REQUESTS = 10;
 const EMAIL_WINDOW_MS = 15 * 60 * 1000;
@@ -217,40 +223,66 @@ async function startServer() {
     const htmlContent = generateEmailHtml(cleanCode, normalizedEmail);
     const textContent = `Your UniSphere verification code is: ${cleanCode}\nThis code will expire in 15 minutes.`;
 
-    if (process.env.RESEND_API_KEY) {
+    reloadEnv();
+    const apiKey = String(process.env.RESEND_API_KEY || '')
+      .replace(/^["']+|["']+$/g, '')
+      .trim();
+
+    if (apiKey) {
       try {
-        const fromEmail =
-          process.env.EMAIL_FROM && !process.env.EMAIL_FROM.includes('onboarding@resend.dev')
-            ? process.env.EMAIL_FROM
+        const envFrom = String(process.env.EMAIL_FROM || '')
+          .replace(/^["']+|["']+$/g, '')
+          .trim();
+        const primaryFrom =
+          envFrom && !envFrom.includes('onboarding@resend.dev')
+            ? envFrom
             : 'UniSphere <noreply@unispherelife.me>';
-        const resendResponse = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: fromEmail,
-            to: [normalizedEmail],
-            subject: 'Your UniSphere Verification Code',
-            html: htmlContent,
-            text: textContent,
-          }),
-        });
 
-        const data = (await resendResponse.json()) as any;
+        const candidateSenders = Array.from(
+          new Set(
+            [
+              primaryFrom,
+              'UniSphere <noreply@unispherelife.me>',
+              envFrom,
+              'UniSphere <onboarding@resend.dev>',
+            ].filter(Boolean)
+          )
+        );
 
-        if (resendResponse.ok) {
-          console.log(`[Email Dispatch] Sent verification email via Resend to ${redactEmail(normalizedEmail)}`);
-          return res.json({ success: true, provider: 'resend', id: data?.id || null });
-        } else {
-          console.warn('[Email Dispatch] Resend API returned non-200 status');
-          return res.status(502).json({
-            success: false,
-            provider: 'resend',
-            error: 'Email provider returned an error dispatching the verification message.',
+        let lastErrorMsg = 'Email provider returned an error dispatching the verification message.';
+        for (const sender of candidateSenders) {
+          const resendResponse = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: sender,
+              to: [normalizedEmail],
+              subject: 'Your UniSphere Verification Code',
+              html: htmlContent,
+              text: textContent,
+            }),
           });
+
+          const data = (await resendResponse.json().catch(() => null)) as any;
+
+          if (resendResponse.ok) {
+            console.log(`[Email Dispatch] Sent verification email via Resend to ${redactEmail(normalizedEmail)}`);
+            return res.json({ success: true, provider: 'resend', id: data?.id || null });
+          }
+          if (typeof data?.message === 'string') {
+            lastErrorMsg = data.message;
+          }
         }
+
+        console.warn('[Email Dispatch] Resend API returned non-200 status across candidate senders');
+        return res.status(502).json({
+          success: false,
+          provider: 'resend',
+          error: lastErrorMsg,
+        });
       } catch {
         console.error('[Email Dispatch] Network failure communicating with Resend');
         return res.status(500).json({
@@ -265,14 +297,19 @@ async function startServer() {
       success: false,
       configured: false,
       provider: 'none',
-      message: 'Email service credentials are not configured in this environment.',
+      message: 'RESEND_API_KEY is not configured in .env on this server.',
     });
   };
 
   app.post('/api/send-email', handleSendEmail);
 
   app.get('/api/email-status', (_req, res) => {
-    const isConfigured = Boolean(process.env.RESEND_API_KEY);
+    reloadEnv();
+    const isConfigured = Boolean(
+      String(process.env.RESEND_API_KEY || '')
+        .replace(/^["']+|["']+$/g, '')
+        .trim()
+    );
     res.json({ configured: isConfigured, provider: isConfigured ? 'resend' : 'none' });
   });
 

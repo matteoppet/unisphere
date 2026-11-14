@@ -489,3 +489,49 @@ describe('Clean New User Registration Without Pre-Loaded Data (#35)', () => {
   });
 });
 
+describe('Email Verification Code Dispatch & Fallback Resilience', () => {
+  const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+
+  it('does not instantiate new Resend() at top-level in api/send-email.ts and filters onboarding@resend.dev from primary sender', async () => {
+    const apiSrc = fs.readFileSync(path.join(repoRoot, 'api/send-email.ts'), 'utf8');
+
+    // Must not have top-level `const resend = new Resend(process.env.RESEND_API_KEY)` before handler
+    const handlerIdx = apiSrc.indexOf('export default async function handler');
+    assert.notEqual(handlerIdx, -1);
+    const topLevelCode = apiSrc.slice(0, handlerIdx);
+    assert.ok(
+      !topLevelCode.includes('new Resend('),
+      'api/send-email.ts must not instantiate new Resend() at module top-level where missing RESEND_API_KEY throws'
+    );
+
+    // Must filter onboarding@resend.dev out of primary sender just like server.ts
+    assert.ok(
+      apiSrc.includes('onboarding@resend.dev'),
+      'api/send-email.ts must guard against onboarding@resend.dev in EMAIL_FROM'
+    );
+  });
+
+  it('never leaks plaintext verification codes in dispatchVerificationCode response when email provider is unconfigured', async () => {
+    const { dispatchVerificationCode, verifyEmailCode } = await import('../lib/authService.js');
+    const testEmail = `otp.test.${Date.now()}@uniroma3.it`;
+
+    const dispatchRes = await dispatchVerificationCode(testEmail, null);
+    assert.equal(dispatchRes.success, true);
+    assert.equal(dispatchRes.emailSent, false);
+    assert.equal('code' in dispatchRes, false);
+    assert.equal('fallbackCode' in dispatchRes, false);
+
+    const badVerify = await verifyEmailCode(testEmail, '000000', null);
+    assert.equal(badVerify.success, false);
+  });
+
+  it('checks res.emailSent in src/app.js #btn-send-otp handler and never auto-fills or leaks OTP codes in UI', () => {
+    const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+    assert.ok(
+      appSrc.includes('res.emailSent') && !appSrc.includes('fallbackCode'),
+      'src/app.js #btn-send-otp handler must check res.emailSent and never auto-fill fallbackCode'
+    );
+  });
+});
+
+
