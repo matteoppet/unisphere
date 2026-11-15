@@ -248,7 +248,7 @@ button,
   font-size: 13px;
   line-height: 1.2;
   cursor: pointer;
-  border-radius: 0;
+  border-radius: 6px;
   display: inline-block;
   text-decoration: none;
 }
@@ -405,6 +405,7 @@ textarea {
   font-size: 15px;
   padding: 6px 8px;
   border: 1px solid #888888;
+  border-radius: 6px;
   background-color: #ffffff;
   color: #000000;
   width: 100%;
@@ -540,7 +541,7 @@ dialog h3 {
   border: 1px solid #cccccc;
   color: #444444;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 6px;
   font-family: inherit;
   transition: all 0.15s ease;
 }
