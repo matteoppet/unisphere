@@ -84,9 +84,9 @@
         </div>
 
         <!-- Active Squad Widgets (hidden when not in any squad) -->
-        <div id="squads-active-widgets" hidden>
+        <div id="squads-active-widgets" class="card squad-unified-card" hidden>
         <!-- Top Telemetry Summary Bar -->
-        <div class="dashboard-summary squad-summary-bar">
+        <div class="squad-summary-bar squad-unified-summary">
           <div class="summary-item">
             <span class="summary-label">Active Squad</span>
             <span class="squad-summary-value-bold" id="squad-summary-name">No Active Squad</span>
@@ -116,8 +116,8 @@
 
         <!-- Middle 2-Column Row: Live Library (Left) & Squad Members (Right) -->
         <div class="squads-main-grid">
-          <!-- Left Card: Live Library -->
-          <section class="card" id="squad-live-library-card">
+          <!-- Left Section: Live Library -->
+          <section class="squad-inner-section" id="squad-live-library-card">
             <div class="card-header">
               <h3>Live Library</h3>
               <button type="button" id="btn-go-live-toggle">Go Live</button>
@@ -139,8 +139,8 @@
             </div>
           </section>
 
-          <!-- Right Card: Squad Members & 7-Day Weekly Tracker -->
-          <section class="card">
+          <!-- Right Section: Squad Members & 7-Day Weekly Tracker -->
+          <section class="squad-inner-section">
             <div class="card-header">
               <h3>Squad Members</h3>
               <div class="card-toolbar">
@@ -184,8 +184,8 @@
           </section>
         </div>
 
-        <!-- Bottom Full-Width Card: Squad Feed & Next Group Session -->
-        <section class="card squad-bottom-card">
+        <!-- Bottom Full-Width Section: Squad Feed & Next Group Session -->
+        <section class="squad-bottom-card squad-inner-section squad-bottom-section">
           <div class="squad-feed-section">
             <div class="card-header">
               <h3>Squad Feed <span class="card-subtitle">Recent Activity &amp; Shared Resources</span></h3>

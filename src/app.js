@@ -56,7 +56,6 @@ import {
   addSquadFeedNote,
   deleteSquadFeedNote,
   updateSquadNextSession,
-  nudgeSquadMember,
   sendFriendRequest,
   acceptFriendRequest,
   declineOrRemoveFriendship,
@@ -308,6 +307,7 @@ export function initApp() {
   let selectedFriendUid = null;
   let selectedFriendTelemetry = null;
   let friendActionNotice = null;
+  let dismissedIncomingNoticeKey = null;
   let friendshipsUnsub = null;
   let activeFriendshipsUid = null;
   let selectedFriendDocUnsub = null;
@@ -860,9 +860,9 @@ export function initApp() {
 
     const friendsSidebarEl = document.getElementById('friends-sidebar');
     if (friendsSidebarEl && !friendsSidebarEl.closest('[hidden]')) {
+      friendsSidebarEl.style.maxHeight = '';
       if (viewportWidth <= 960) {
         friendsSidebarEl.style.minHeight = '';
-        friendsSidebarEl.style.maxHeight = '';
       } else {
         const elementTop = friendsSidebarEl.getBoundingClientRect().top + window.scrollY;
         const sidebarH = calculateTableScrollMaxHeight(
@@ -872,7 +872,6 @@ export function initApp() {
           200
         );
         friendsSidebarEl.style.minHeight = `${sidebarH}px`;
-        friendsSidebarEl.style.maxHeight = `${sidebarH}px`;
       }
     }
   }
@@ -1739,7 +1738,7 @@ export function initApp() {
                   ${
                     isMe
                       ? `<span class="item-meta" style="margin-left: 0;">You · <a href="#" data-open-friend-calendar="${escapeHtml(m.uid)}">Calendar</a></span>`
-                      : `<a href="#" data-nudge-member="${escapeHtml(m.uid)}" data-nudge-name="${escapeHtml(m.displayName || 'Student')}">Nudge</a> · <a href="#" data-open-friend-calendar="${escapeHtml(m.uid)}">Calendar</a>${friendActionHtml}`
+                      : `<a href="#" data-open-friend-calendar="${escapeHtml(m.uid)}">Calendar</a>${friendActionHtml}`
                   }
                 </td>
               </tr>`;
@@ -1900,23 +1899,25 @@ export function initApp() {
 
     const noticeEl = document.getElementById('friend-action-notice');
     if (noticeEl) {
+      const incomingSignature = incomingRequests.map((r) => r.friendshipId).join(',');
       if (friendActionNotice && friendActionNotice.text) {
         noticeEl.hidden = false;
         noticeEl.className = `notice-box ${
           friendActionNotice.type === 'error' ? 'notice-error' : 'notice-success'
         }`;
-        noticeEl.textContent = friendActionNotice.text;
-      } else if (incomingRequests.length > 0) {
+        noticeEl.innerHTML = `<span>${escapeHtml(friendActionNotice.text)}</span><button type="button" class="notice-dismiss-btn" data-dismiss-friend-notice="action" aria-label="Dismiss notification">&times;</button>`;
+      } else if (incomingRequests.length > 0 && dismissedIncomingNoticeKey !== incomingSignature) {
         const senderNames = incomingRequests.map((r) => r.displayName).join(', ');
-        noticeEl.hidden = false;
-        noticeEl.className = 'notice-box notice-success';
-        noticeEl.textContent =
+        const msg =
           incomingRequests.length === 1
             ? `New friend request from ${senderNames}! Click Accept below.`
             : `You have ${incomingRequests.length} incoming friend requests (${senderNames}).`;
+        noticeEl.hidden = false;
+        noticeEl.className = 'notice-box notice-success';
+        noticeEl.innerHTML = `<span>${escapeHtml(msg)}</span><button type="button" class="notice-dismiss-btn" data-dismiss-friend-notice="incoming:${escapeHtml(incomingSignature)}" aria-label="Dismiss notification">&times;</button>`;
       } else {
         noticeEl.hidden = true;
-        noticeEl.textContent = '';
+        noticeEl.innerHTML = '';
       }
     }
 
@@ -1995,11 +1996,17 @@ export function initApp() {
               (m) => getEmailDocId(m.uid || '') === friend.uid
             );
             const isLive = liveMap.has(friend.uid) || squadMatch?.status === 'live';
-            const weeklyMins =
-              isSelected && selectedFriendTelemetry
-                ? selectedFriendTelemetry.weekTotalMinutes
-                : Number(squadMatch?.minutesThisWeek) || 0;
-            const badgeText = weeklyMins > 0 ? formatStudyDuration(weeklyMins) : 'View';
+            const isOnline =
+              !isLive && (squadMatch?.isStreakActive || squadMatch?.status === 'online');
+            let statusLabel = 'Offline';
+            let statusClass = 'status-offline';
+            if (isLive) {
+              statusLabel = 'Live';
+              statusClass = 'status-live';
+            } else if (isOnline) {
+              statusLabel = 'Online';
+              statusClass = 'status-online';
+            }
 
             return `
               <li
@@ -2011,7 +2018,7 @@ export function initApp() {
                   ${isLive ? '<span class="live-badge-dot" aria-hidden="true"></span>' : ''}
                   ${escapeHtml(friend.displayName)}
                 </span>
-                <span class="friend-sidebar-meta">${escapeHtml(badgeText)}</span>
+                <span class="friend-sidebar-meta ${statusClass}">${escapeHtml(statusLabel)}</span>
               </li>`;
           })
           .join('');
@@ -3806,7 +3813,7 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-nudge-member], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], #btn-google-sso, #btn-header-logout, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-view-current-squad, #btn-remove-friend'
+            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-view-current-squad, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
@@ -4040,18 +4047,14 @@ export function initApp() {
       return;
     }
 
-    const nudgeUid = target.getAttribute('data-nudge-member');
-    if (nudgeUid) {
+    const dismissNoticeMode = target.getAttribute('data-dismiss-friend-notice');
+    if (dismissNoticeMode !== null) {
       e.preventDefault();
-      const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
-      if (!activeSquad) return;
-      const targetName =
-        sanitizeTextInput(target.getAttribute('data-nudge-name') || 'Squadmate', 100) ||
-        'Squadmate';
-      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
-      const myName = sanitizeTextInput(profile.name || 'Student', 100);
-      void nudgeSquadMember(activeSquad.id, nudgeUid, targetName, myUid, myName);
-      setStatus(`Nudged ${targetName}!`);
+      friendActionNotice = null;
+      if (dismissNoticeMode.startsWith('incoming:')) {
+        dismissedIncomingNoticeKey = dismissNoticeMode.slice('incoming:'.length);
+      }
+      populateSquadsPage();
       return;
     }
 

@@ -846,12 +846,36 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       // Friends sidebar height dynamically sized with calculateTableScrollMaxHeight(..., 200)
       assert.match(appSrc, /getElementById\('friends-sidebar'\)/);
       assert.match(appSrc, /friendsSidebarEl\.style\.minHeight\s*=\s*`\$\{sidebarH\}px`/);
-      assert.match(appSrc, /friendsSidebarEl\.style\.maxHeight\s*=\s*`\$\{sidebarH\}px`/);
       assert.match(cssSrc, /\.friends-sidebar-card\s*\{[\s\S]*?calc\(100vh\s*-\s*200px\)/);
 
       // Real-time hub listener and cross-tab localStorage listener
       assert.match(appSrc, /FRIENDS_HUB_SQUAD_ID/);
       assert.match(appSrc, /unisphere_workspace_friendships_v1/);
+    });
+
+    it('unifies all Squad widgets into a single card aligned with Friends, shows Online/Offline/Live status in Friends list, allows dismissing the friend notice banner, and removes Nudge from Squads (#44)', () => {
+      const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+      const squadsHtml = fs.readFileSync(path.join(repoRoot, 'pages/squads.html'), 'utf8');
+      const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+      const cssSrc = fs.readFileSync(path.join(repoRoot, 'src/index.css'), 'utf8');
+
+      // Unified single Squad card aligned with Friends sidebar
+      assert.match(squadsHtml, /id="squads-active-widgets"[^>]*class="card squad-unified-card"/);
+      assert.match(cssSrc, /\.squads-workspace-layout\s*\{[\s\S]*?align-items:\s*stretch/);
+      assert.match(cssSrc, /\.squad-unified-card\s*\{/);
+
+      // Friends list displays Online/Offline/Live status instead of study hours
+      assert.match(appSrc, /friend-sidebar-meta \$\{statusClass\}/);
+      assert.match(appSrc, /statusClass = 'status-live'/);
+      assert.match(appSrc, /statusClass = 'status-online'/);
+      assert.match(appSrc, /statusClass = 'status-offline'/);
+
+      // Dismissible friend notice banner
+      assert.match(appSrc, /data-dismiss-friend-notice/);
+      assert.match(cssSrc, /\.notice-dismiss-btn/);
+
+      // Nudge option removed from Squads UI
+      assert.doesNotMatch(appSrc, /data-nudge-member/);
     });
   });
 });

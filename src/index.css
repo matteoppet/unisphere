@@ -490,6 +490,27 @@ dialog h3 {
   margin-bottom: 12px;
   background-color: #f9f9f9;
   font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notice-dismiss-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
+
+.notice-dismiss-btn:hover {
+  background: none;
+  opacity: 1;
 }
 
 .notice-error {
@@ -609,7 +630,38 @@ dialog h3 {
 }
 
 .squad-summary-bar {
+  display: grid;
   grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.squad-unified-card {
+  border-radius: 14px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1;
+}
+
+.squad-unified-summary {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e4e4e4;
+}
+
+.squad-unified-summary .summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.squad-inner-section {
+  min-width: 0;
+}
+
+.squad-bottom-section {
+  padding-top: 18px;
+  border-top: 1px solid #e4e4e4;
 }
 
 .squad-summary-value-bold {
@@ -641,7 +693,7 @@ dialog h3 {
   grid-template-columns: 1fr 1.55fr;
   gap: 24px;
   align-items: stretch;
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 #squad-live-library-card {
@@ -877,18 +929,16 @@ dialog h3 {
   display: grid;
   grid-template-columns: 270px minmax(0, 1fr);
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .friends-sidebar-card {
   border-radius: 14px;
   padding: 16px 14px;
   min-height: calc(100vh - 200px);
-  max-height: calc(100vh - 200px);
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow: hidden;
 }
 
 .friends-sidebar-header {
@@ -1018,6 +1068,12 @@ dialog h3 {
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+#squads-current-view-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .friend-view-header-card {
