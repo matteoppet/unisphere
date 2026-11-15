@@ -88,7 +88,7 @@
         <!-- Top Telemetry Summary Bar -->
         <div class="squad-summary-bar squad-unified-summary">
           <div class="summary-item">
-            <span class="summary-label">Active Squad</span>
+            <span class="summary-label">Active Squad <span class="view-mode-badge view-mode-squad">Squad View</span></span>
             <span class="squad-summary-value-bold" id="squad-summary-name">No Active Squad</span>
             <select id="squad-active-select" class="inline-input" aria-label="Switch Active Squad" hidden style="margin-top: 4px;"></select>
             <span class="squad-summary-sub" id="squad-summary-description" hidden></span>
@@ -215,20 +215,20 @@
         </div>
             </div>
 
-            <!-- Friend Infos and Stats View (shown when a friend is clicked in the left sidebar) -->
-            <div id="friend-info-stats-view" hidden>
-              <section class="card friend-view-header-card">
+            <!-- Friend View (single unified widget shown when a friend is clicked in the left sidebar) -->
+            <div id="friend-info-stats-view" class="card friend-unified-card" hidden>
+              <div class="friend-view-header">
                 <div class="friend-view-title-group">
-                  <h2 id="friend-view-name">Friend Infos and Stats</h2>
-                  <p class="friend-view-subtitle" id="friend-view-meta">Select a friend to view their study telemetry.</p>
+                  <span class="view-mode-badge view-mode-friend">Friend View</span>
+                  <h2 id="friend-view-name">Friend</h2>
                 </div>
                 <div class="friend-view-actions">
                   <button type="button" id="btn-back-to-squad-view">&larr; Current Squad View</button>
                   <button type="button" id="btn-remove-friend" class="btn-danger">Remove Friend</button>
                 </div>
-              </section>
+              </div>
 
-              <div class="dashboard-summary squad-summary-bar">
+              <div class="friend-summary-bar squad-unified-summary">
                 <div class="summary-item">
                   <span class="summary-label">Weekly Study Time</span>
                   <span class="squad-summary-value-bold" id="friend-summary-weekly-time">0h</span>
@@ -242,17 +242,13 @@
                   <span class="squad-summary-value-bold" id="friend-summary-streak">0 days</span>
                 </div>
                 <div class="summary-item">
-                  <span class="summary-label">Tasks Done (Week)</span>
-                  <span class="squad-summary-value-bold" id="friend-summary-tasks">0</span>
-                </div>
-                <div class="summary-item">
                   <span class="summary-label">Study ELO</span>
                   <span class="squad-summary-value-bold" id="friend-summary-elo">1000</span>
                 </div>
               </div>
 
-              <div class="squads-main-grid">
-                <section class="card">
+              <div class="squads-main-grid friend-main-grid">
+                <section class="squad-inner-section">
                   <div class="card-header">
                     <h3>7-Day Study Calendar (Mon &ndash; Sun)</h3>
                   </div>
@@ -281,23 +277,22 @@
                   </div>
                 </section>
 
-                <section class="card">
+                <section class="squad-inner-section friend-profile-courses-col">
                   <div class="card-header">
                     <h3>Academic Profile &amp; Courses</h3>
                   </div>
-                  <div class="table-wrap" style="margin-bottom: 16px;">
+                  <div class="table-wrap" style="margin-bottom: 14px; flex-shrink: 0;">
                     <table>
                       <tbody id="friend-view-profile-tbody"></tbody>
                     </table>
                   </div>
 
                   <h4 class="subsection-title">Enrolled Courses</h4>
-                  <div class="table-wrap">
+                  <div class="table-wrap friend-courses-scroll">
                     <table>
                       <thead>
                         <tr>
                           <th>Course</th>
-                          <th>Code</th>
                           <th>Status</th>
                         </tr>
                       </thead>

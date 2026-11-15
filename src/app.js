@@ -860,9 +860,9 @@ export function initApp() {
 
     const friendsSidebarEl = document.getElementById('friends-sidebar');
     if (friendsSidebarEl && !friendsSidebarEl.closest('[hidden]')) {
-      friendsSidebarEl.style.maxHeight = '';
       if (viewportWidth <= 960) {
         friendsSidebarEl.style.minHeight = '';
+        friendsSidebarEl.style.maxHeight = '';
       } else {
         const elementTop = friendsSidebarEl.getBoundingClientRect().top + window.scrollY;
         const sidebarH = calculateTableScrollMaxHeight(
@@ -871,7 +871,40 @@ export function initApp() {
           viewportWidth,
           200
         );
+        const workspaceMaxH = Math.max(
+          sidebarH,
+          Math.min(viewportHeight - 100, Math.floor(viewportHeight - elementTop - 20))
+        );
         friendsSidebarEl.style.minHeight = `${sidebarH}px`;
+        friendsSidebarEl.style.maxHeight = `${workspaceMaxH}px`;
+      }
+    }
+
+    const squadUnifiedEl = document.getElementById('squads-active-widgets');
+    if (squadUnifiedEl && !squadUnifiedEl.closest('[hidden]')) {
+      if (viewportWidth <= 960) {
+        squadUnifiedEl.style.maxHeight = '';
+      } else {
+        const elementTop = squadUnifiedEl.getBoundingClientRect().top + window.scrollY;
+        const maxH = Math.max(
+          360,
+          Math.min(viewportHeight - 100, Math.floor(viewportHeight - elementTop - 20))
+        );
+        squadUnifiedEl.style.maxHeight = `${maxH}px`;
+      }
+    }
+
+    const friendUnifiedEl = document.getElementById('friend-info-stats-view');
+    if (friendUnifiedEl && !friendUnifiedEl.closest('[hidden]')) {
+      if (viewportWidth <= 960) {
+        friendUnifiedEl.style.maxHeight = '';
+      } else {
+        const elementTop = friendUnifiedEl.getBoundingClientRect().top + window.scrollY;
+        const maxH = Math.max(
+          360,
+          Math.min(viewportHeight - 100, Math.floor(viewportHeight - elementTop - 20))
+        );
+        friendUnifiedEl.style.maxHeight = `${maxH}px`;
       }
     }
   }
@@ -2050,18 +2083,7 @@ export function initApp() {
 
     const nameEl = document.getElementById('friend-view-name');
     if (nameEl) {
-      nameEl.textContent = `${stats.displayName} — Infos & Stats`;
-    }
-
-    const metaEl = document.getElementById('friend-view-meta');
-    if (metaEl) {
-      const metaParts = [
-        stats.email,
-        stats.institution,
-        stats.degreeName,
-        stats.academicYear,
-      ].filter(Boolean);
-      metaEl.textContent = metaParts.join(' · ') || 'UniSphere Student';
+      nameEl.textContent = stats.displayName;
     }
 
     const removeBtn = document.getElementById('btn-remove-friend');
@@ -2084,10 +2106,6 @@ export function initApp() {
     const streakEl = document.getElementById('friend-summary-streak');
     if (streakEl) {
       streakEl.textContent = `${stats.currentStreak} days`;
-    }
-    const tasksEl = document.getElementById('friend-summary-tasks');
-    if (tasksEl) {
-      tasksEl.textContent = String(stats.tasksCompletedThisWeek || 0);
     }
     const eloEl = document.getElementById('friend-summary-elo');
     if (eloEl) {
@@ -2159,15 +2177,17 @@ export function initApp() {
 
     const coursesTbody = document.getElementById('friend-view-courses-tbody');
     if (coursesTbody) {
+      const activeCourses = (Array.isArray(stats.courses) ? stats.courses : []).filter(
+        (c) => String(c?.status || '').toLowerCase() === 'active'
+      );
       coursesTbody.innerHTML =
-        stats.courses.length === 0
-          ? `<tr><td colspan="3" class="empty-cell">No courses shared on profile yet.</td></tr>`
-          : stats.courses
+        activeCourses.length === 0
+          ? `<tr><td colspan="2" class="empty-cell">No active courses shared on profile yet.</td></tr>`
+          : activeCourses
               .map(
                 (c) => `
               <tr>
                 <td><strong>${escapeHtml(c.title)}</strong></td>
-                <td>${escapeHtml(c.code || '-')}</td>
                 <td>${escapeHtml(c.status || 'Active')}</td>
               </tr>`
               )

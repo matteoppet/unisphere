@@ -1066,6 +1066,7 @@ dialog h3 {
 
 .squads-main-pane {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -1074,26 +1075,71 @@ dialog h3 {
   display: flex;
   flex-direction: column;
   flex: 1;
+  min-height: 0;
 }
 
-.friend-view-header-card {
-  margin-bottom: 18px;
+.view-mode-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.view-mode-squad {
+  background-color: #eef6ee;
+  color: #1f6b1f;
+  border: 1px solid #b9dfb9;
+}
+
+.view-mode-friend {
+  background-color: #eef4fb;
+  color: #2b5d95;
+  border: 1px solid #b9d1ec;
+}
+
+.squad-unified-card {
+  border-top: 3px solid #267326;
+  max-height: calc(100vh - 100px);
+  overflow-y: auto;
+}
+
+.friend-unified-card {
+  border-radius: 14px;
+  border-top: 3px solid #3B77BC;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  max-height: calc(100vh - 100px);
+  overflow: hidden;
+}
+
+.friend-view-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e4e4e4;
+}
+
+.friend-view-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .friend-view-title-group h2 {
-  margin: 0 0 4px 0;
-  font-size: 1.45rem;
-}
-
-.friend-view-subtitle {
   margin: 0;
-  font-size: 14px;
-  color: #555555;
+  font-size: 1.45rem;
 }
 
 .friend-view-actions {
@@ -1103,14 +1149,52 @@ dialog h3 {
   flex-wrap: wrap;
 }
 
+.friend-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  gap: 16px;
+}
+
+.friend-main-grid {
+  flex: 1;
+  min-height: 0;
+}
+
+.friend-profile-courses-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.friend-courses-scroll {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+}
+
+.friend-courses-scroll thead th {
+  position: sticky;
+  top: 0;
+  background-color: #ffffff;
+  z-index: 1;
+  box-shadow: inset 0 -1px 0 #e0e0e0;
+}
+
 @media (max-width: 960px) {
   .squads-workspace-layout {
     grid-template-columns: 1fr;
   }
 
-  .friends-sidebar-card {
+  .friends-sidebar-card,
+  .squad-unified-card,
+  .friend-unified-card {
     min-height: auto;
     max-height: none;
+    overflow: visible;
+  }
+
+  .friend-summary-bar {
+    grid-template-columns: repeat(2, minmax(120px, 1fr));
   }
 }
 
