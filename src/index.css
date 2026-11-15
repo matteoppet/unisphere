@@ -1080,14 +1080,12 @@ dialog h3 {
 }
 
 .squad-unified-card {
-  border-top: 3px solid #267326;
   max-height: calc(100vh - 100px);
   overflow-y: auto;
 }
 
 .friend-unified-card {
   border-radius: 14px;
-  border-top: 3px solid #3B77BC;
   padding: 20px 22px;
   display: flex;
   flex-direction: column;
