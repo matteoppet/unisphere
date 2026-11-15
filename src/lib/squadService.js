@@ -13,10 +13,15 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from './firebase.js';
 import { getEmailDocId, sanitizeTextInput, sanitizeResourceUrl } from './authService.js';
-import { getFriendshipId, buildFriendTelemetrySummary } from '../utils/telemetry.js';
+import {
+  getFriendshipId,
+  doesFriendshipMatchUser,
+  buildFriendTelemetrySummary,
+} from '../utils/telemetry.js';
 
 const LEFT_SQUADS_STORAGE_KEY = 'unisphere_workspace_left_squad_ids';
-const FRIENDSHIPS_STORAGE_KEY = 'unisphere_workspace_friendships_v1';
+export const FRIENDSHIPS_STORAGE_KEY = 'unisphere_workspace_friendships_v1';
+export const FRIENDS_HUB_SQUAD_ID = 'unisphere_friends_hub';
 const inMemoryFriendshipsMap = new Map();
 const isBrowserRuntime = typeof window !== 'undefined' && typeof document !== 'undefined';
 
@@ -634,7 +639,7 @@ function deleteLocalFriendshipDoc(friendshipId) {
   } catch {}
 }
 
-function withFastTimeout(promise, ms = 1200) {
+function withFastTimeout(promise, ms = 4000) {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
@@ -655,6 +660,104 @@ function deriveDisplayNameFromEmail(emailOrUid = '') {
 }
 
 /**
+ * Encodes a friendship record into a strictly `isValidSquadSubdoc`-compatible payload
+ * (`uid`, `displayName`, `subject`, `text`, `type`, `status`, `createdAt`, `updatedAt`)
+ * so real-time Firestore notifications succeed even before `/friendships` rules are deployed (#44).
+ */
+export function friendshipToHubActivityDoc(friendshipDoc) {
+  if (!friendshipDoc || typeof friendshipDoc !== 'object') return null;
+  const reqUid = sanitizeTextInput(
+    getEmailDocId(friendshipDoc.requesterUid || friendshipDoc.requesterEmail || ''),
+    128
+  );
+  const recUid = sanitizeTextInput(
+    getEmailDocId(friendshipDoc.recipientUid || friendshipDoc.recipientEmail || ''),
+    120
+  );
+  if (!reqUid || !recUid) return null;
+
+  const reqName =
+    sanitizeTextInput(friendshipDoc.requesterName || deriveDisplayNameFromEmail(reqUid), 100) ||
+    'Student';
+  const recName =
+    sanitizeTextInput(friendshipDoc.recipientName || deriveDisplayNameFromEmail(recUid), 100) ||
+    'Student';
+  const nowIso = new Date().toISOString();
+
+  return {
+    uid: reqUid,
+    displayName: reqName,
+    subject: recUid,
+    text: recName,
+    type: 'friend_request',
+    status: sanitizeTextInput(friendshipDoc.status || 'pending', 32) || 'pending',
+    createdAt: String(friendshipDoc.createdAt || nowIso).slice(0, 64),
+    updatedAt: String(friendshipDoc.updatedAt || nowIso).slice(0, 64),
+  };
+}
+
+/**
+ * Decodes a hub activity subdocument (or native friendship document) back into a normalized
+ * friendship record (#44).
+ */
+export function hubActivityDocToFriendship(docId, data) {
+  if (!data || typeof data !== 'object') return null;
+  if (Array.isArray(data.users) && data.requesterUid && data.recipientUid) {
+    const id = data.id || docId || getFriendshipId(data.requesterUid, data.recipientUid);
+    return { ...data, id };
+  }
+  if (data.type !== 'friend_request') return null;
+
+  const requesterUid = getEmailDocId(data.uid || '');
+  const recipientUid = getEmailDocId(data.subject || '');
+  if (!requesterUid || !recipientUid) return null;
+
+  const id = docId || getFriendshipId(requesterUid, recipientUid);
+  const nowIso = new Date().toISOString();
+
+  return {
+    id,
+    users: [requesterUid, recipientUid].sort(),
+    requesterUid,
+    requesterEmail: requesterUid,
+    requesterName:
+      sanitizeTextInput(data.displayName || deriveDisplayNameFromEmail(requesterUid), 100) ||
+      'Student',
+    recipientUid,
+    recipientEmail: recipientUid,
+    recipientName:
+      sanitizeTextInput(data.text || deriveDisplayNameFromEmail(recipientUid), 100) || 'Student',
+    status: data.status || 'pending',
+    createdAt: data.createdAt || nowIso,
+    updatedAt: data.updatedAt || data.createdAt || nowIso,
+  };
+}
+
+async function syncFriendshipToCloud(cloudDb, friendshipDoc) {
+  if (!cloudDb || !friendshipDoc?.id) return;
+  const hubPayload = friendshipToHubActivityDoc(friendshipDoc);
+  const safeDocId = String(friendshipDoc.id).slice(0, 128);
+  const writes = [];
+
+  if (hubPayload && safeDocId) {
+    writes.push(
+      withFastTimeout(
+        setDoc(doc(cloudDb, 'squads', FRIENDS_HUB_SQUAD_ID, 'activities', safeDocId), hubPayload),
+        4000
+      ).catch(() => {})
+    );
+  }
+  writes.push(
+    withFastTimeout(
+      setDoc(doc(cloudDb, 'friendships', safeDocId), friendshipDoc, { merge: true }),
+      1500
+    ).catch(() => {})
+  );
+
+  await Promise.all(writes);
+}
+
+/**
  * Sends a friend request or auto-accepts if the target has already sent a pending request (#44).
  */
 export async function sendFriendRequest({
@@ -669,10 +772,10 @@ export async function sendFriendRequest({
   const targetUid = getEmailDocId(rawTarget);
 
   if (!senderUid || !targetUid) {
-    return { ok: false, error: 'Please enter a valid student email address.' };
+    return { ok: false, error: 'Please enter a valid student email address or name.' };
   }
 
-  const friendshipId = getFriendshipId(senderUid, targetUid);
+  const friendshipId = getFriendshipId(senderUid, targetUid).slice(0, 128);
   if (!friendshipId) {
     return { ok: false, error: 'You cannot send a friend request to yourself.' };
   }
@@ -683,11 +786,18 @@ export async function sendFriendRequest({
 
   if (cloudDb && !existing) {
     try {
-      const snap = await withFastTimeout(getDoc(doc(cloudDb, 'friendships', friendshipId)), 900);
-      if (snap && snap.exists()) {
-        existing = snap.data();
+      const hubSnap = await withFastTimeout(
+        getDoc(doc(cloudDb, 'squads', FRIENDS_HUB_SQUAD_ID, 'activities', friendshipId)),
+        3500
+      );
+      if (hubSnap && hubSnap.exists()) {
+        existing = hubActivityDocToFriendship(friendshipId, hubSnap.data());
       }
     } catch {}
+  }
+
+  if (existing && (existing.status === 'removed' || existing.status === 'declined')) {
+    existing = null;
   }
 
   const nowIso = new Date().toISOString();
@@ -695,6 +805,7 @@ export async function sendFriendRequest({
   if (existing) {
     if (existing.status === 'accepted') {
       saveLocalFriendshipDoc(existing);
+      await syncFriendshipToCloud(cloudDb, existing);
       return { ok: true, status: 'already_friends', friendship: existing };
     }
     const existingRecipient = getEmailDocId(existing.recipientUid || '');
@@ -706,22 +817,23 @@ export async function sendFriendRequest({
         updatedAt: nowIso,
       };
       saveLocalFriendshipDoc(acceptedDoc);
-      if (cloudDb) {
-        await withFastTimeout(
-          setDoc(doc(cloudDb, 'friendships', friendshipId), acceptedDoc, { merge: true }),
-          900
-        ).catch(() => {});
-      }
+      await syncFriendshipToCloud(cloudDb, acceptedDoc);
       return { ok: true, status: 'accepted', friendship: acceptedDoc };
     }
-    saveLocalFriendshipDoc(existing);
-    return { ok: true, status: 'pending', friendship: existing };
+    const refreshedPending = {
+      ...existing,
+      id: friendshipId,
+      updatedAt: nowIso,
+    };
+    saveLocalFriendshipDoc(refreshedPending);
+    await syncFriendshipToCloud(cloudDb, refreshedPending);
+    return { ok: true, status: 'pending', friendship: refreshedPending };
   }
 
   let resolvedTargetName = sanitizeTextInput(toName, 100);
   if (!resolvedTargetName && cloudDb) {
     try {
-      const targetSnap = await withFastTimeout(getDoc(doc(cloudDb, 'users', targetUid)), 900);
+      const targetSnap = await withFastTimeout(getDoc(doc(cloudDb, 'users', targetUid)), 2500);
       if (targetSnap && targetSnap.exists()) {
         const tData = targetSnap.data();
         resolvedTargetName = sanitizeTextInput(tData?.name || '', 100);
@@ -753,13 +865,7 @@ export async function sendFriendRequest({
   };
 
   saveLocalFriendshipDoc(friendshipDoc);
-
-  if (cloudDb) {
-    await withFastTimeout(
-      setDoc(doc(cloudDb, 'friendships', friendshipId), friendshipDoc),
-      900
-    ).catch(() => {});
-  }
+  await syncFriendshipToCloud(cloudDb, friendshipDoc);
 
   return { ok: true, status: 'pending', friendship: friendshipDoc };
 }
@@ -767,32 +873,54 @@ export async function sendFriendRequest({
 /**
  * Accepts an incoming pending friend request (#44).
  */
-export async function acceptFriendRequest(friendshipId, currentUid = '') {
+export async function acceptFriendRequest(
+  friendshipId,
+  currentUid = '',
+  currentDisplayName = ''
+) {
   if (!friendshipId) return null;
   const cloudDb = isBrowserRuntime ? db : null;
-  const cleanId = String(friendshipId).trim();
+  const cleanId = String(friendshipId).trim().slice(0, 128);
   const nowIso = new Date().toISOString();
   const localMap = loadLocalFriendshipsMap();
-  const existing = localMap.get(cleanId) || { id: cleanId };
+  let existing = localMap.get(cleanId) || null;
+
+  if (!existing && cloudDb) {
+    try {
+      const hubSnap = await withFastTimeout(
+        getDoc(doc(cloudDb, 'squads', FRIENDS_HUB_SQUAD_ID, 'activities', cleanId)),
+        3500
+      );
+      if (hubSnap && hubSnap.exists()) {
+        existing = hubActivityDocToFriendship(cleanId, hubSnap.data());
+      }
+    } catch {}
+  }
+
+  const base = existing || { id: cleanId };
+  const normCurrentUid = getEmailDocId(currentUid || '');
+  const reqUid = getEmailDocId(base.requesterUid || base.requesterEmail || '');
+  const nextRecipientUid =
+    normCurrentUid && normCurrentUid !== reqUid && normCurrentUid !== 'local_student'
+      ? normCurrentUid
+      : getEmailDocId(base.recipientUid || base.recipientEmail || '');
+  const nextRecipientName =
+    sanitizeTextInput(currentDisplayName || base.recipientName || '', 100) ||
+    deriveDisplayNameFromEmail(nextRecipientUid);
 
   const updated = {
-    ...existing,
+    ...base,
     id: cleanId,
+    ...(reqUid && nextRecipientUid ? { users: [reqUid, nextRecipientUid].sort() } : {}),
+    ...(nextRecipientUid
+      ? { recipientUid: nextRecipientUid, recipientEmail: nextRecipientUid }
+      : {}),
+    ...(nextRecipientName ? { recipientName: nextRecipientName } : {}),
     status: 'accepted',
     updatedAt: nowIso,
   };
   saveLocalFriendshipDoc(updated);
-
-  if (cloudDb) {
-    await withFastTimeout(
-      setDoc(
-        doc(cloudDb, 'friendships', cleanId),
-        { status: 'accepted', updatedAt: nowIso },
-        { merge: true }
-      ),
-      900
-    ).catch(() => {});
-  }
+  await syncFriendshipToCloud(cloudDb, updated);
 
   return updated;
 }
@@ -803,21 +931,50 @@ export async function acceptFriendRequest(friendshipId, currentUid = '') {
 export async function declineOrRemoveFriendship(friendshipId, currentUid = '') {
   if (!friendshipId) return false;
   const cloudDb = isBrowserRuntime ? db : null;
-  const cleanId = String(friendshipId).trim();
+  const cleanId = String(friendshipId).trim().slice(0, 128);
+  const nowIso = new Date().toISOString();
+  const localMap = loadLocalFriendshipsMap();
+  const existing = localMap.get(cleanId);
   deleteLocalFriendshipDoc(cleanId);
 
   if (cloudDb) {
-    await withFastTimeout(deleteDoc(doc(cloudDb, 'friendships', cleanId)), 900).catch(() => {});
+    const removedPayload = existing
+      ? friendshipToHubActivityDoc({ ...existing, status: 'removed', updatedAt: nowIso })
+      : {
+          uid: getEmailDocId(currentUid || 'student') || 'student',
+          displayName: 'Student',
+          subject: cleanId.slice(0, 120),
+          text: 'Removed',
+          type: 'friend_request',
+          status: 'removed',
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        };
+    await Promise.all([
+      withFastTimeout(
+        setDoc(
+          doc(cloudDb, 'squads', FRIENDS_HUB_SQUAD_ID, 'activities', cleanId),
+          removedPayload,
+          { merge: true }
+        ),
+        3500
+      ).catch(() => {}),
+      withFastTimeout(
+        deleteDoc(doc(cloudDb, 'squads', FRIENDS_HUB_SQUAD_ID, 'activities', cleanId)),
+        2000
+      ).catch(() => {}),
+      withFastTimeout(deleteDoc(doc(cloudDb, 'friendships', cleanId)), 1500).catch(() => {}),
+    ]);
   }
   return true;
 }
 
 /**
- * Fetches all friendship records involving `currentUid` (#44).
+ * Fetches all friendship records involving `currentUid` or `currentDisplayName` (#44).
  */
-export async function fetchUserFriendships(currentUid) {
+export async function fetchUserFriendships(currentUid, currentDisplayName = '') {
   const normUid = getEmailDocId(currentUid || '');
-  if (!normUid) return [];
+  if (!normUid && !currentDisplayName) return [];
   const cloudDb = isBrowserRuntime ? db : null;
 
   const mergedMap = new Map();
@@ -825,27 +982,55 @@ export async function fetchUserFriendships(currentUid) {
   for (const [id, item] of localMap.entries()) {
     if (
       item &&
-      Array.isArray(item.users) &&
-      item.users.some((u) => getEmailDocId(u) === normUid)
+      item.status !== 'removed' &&
+      item.status !== 'declined' &&
+      doesFriendshipMatchUser(item, normUid, currentDisplayName)
     ) {
       mergedMap.set(id, item);
     }
   }
 
   if (cloudDb) {
+    const cloudSeenIds = new Set();
     try {
-      const q = query(collection(cloudDb, 'friendships'), where('users', 'array-contains', normUid));
-      const snap = await withFastTimeout(getDocs(q), 1500);
+      const snap = await withFastTimeout(
+        getDocs(collection(cloudDb, 'squads', FRIENDS_HUB_SQUAD_ID, 'activities')),
+        4500
+      );
       snap.forEach((d) => {
-        const data = d.data();
-        if (data) {
-          const id = data.id || d.id;
-          const record = { ...data, id };
-          mergedMap.set(id, record);
-          saveLocalFriendshipDoc(record);
+        const record = hubActivityDocToFriendship(d.id, d.data());
+        if (!record || !record.id) return;
+        cloudSeenIds.add(record.id);
+
+        if (record.status === 'removed' || record.status === 'declined') {
+          const localItem = localMap.get(record.id);
+          const localMs = Date.parse(String(localItem?.updatedAt || '')) || 0;
+          const cloudMs = Date.parse(String(record.updatedAt || '')) || 1;
+          if (cloudMs >= localMs) {
+            deleteLocalFriendshipDoc(record.id);
+            mergedMap.delete(record.id);
+          }
+          return;
+        }
+
+        if (doesFriendshipMatchUser(record, normUid, currentDisplayName)) {
+          const prev = mergedMap.get(record.id);
+          const prevMs = Date.parse(String(prev?.updatedAt || '')) || 0;
+          const cloudMs = Date.parse(String(record.updatedAt || '')) || 1;
+          if (!prev || cloudMs >= prevMs || record.status === 'accepted') {
+            mergedMap.set(record.id, record);
+            saveLocalFriendshipDoc(record);
+          }
         }
       });
     } catch {}
+
+    // Ensure any local-only pending or accepted friendships are pushed to the cloud hub
+    for (const [id, localItem] of mergedMap.entries()) {
+      if (!cloudSeenIds.has(id) && localItem && localItem.status !== 'removed') {
+        void syncFriendshipToCloud(cloudDb, localItem);
+      }
+    }
   }
 
   return Array.from(mergedMap.values());

@@ -62,6 +62,9 @@ import {
   declineOrRemoveFriendship,
   fetchUserFriendships,
   fetchFriendProfileTelemetry,
+  FRIENDS_HUB_SQUAD_ID,
+  FRIENDSHIPS_STORAGE_KEY,
+  hubActivityDocToFriendship,
 } from './lib/squadService.js';
 import {
   formatStudyDuration,
@@ -87,6 +90,7 @@ import {
   deduplicateSquadMembers,
   isCurrentUserRemovedFromSquad,
   getFriendshipId,
+  doesFriendshipMatchUser,
   partitionFriendships,
   filterFriendsByQuery,
   buildFriendTelemetrySummary,
@@ -305,6 +309,7 @@ export function initApp() {
   let selectedFriendTelemetry = null;
   let friendActionNotice = null;
   let friendshipsUnsub = null;
+  let activeFriendshipsUid = null;
   let selectedFriendDocUnsub = null;
 
   // Auth UI state
@@ -683,6 +688,7 @@ export function initApp() {
       friendshipsUnsub();
       friendshipsUnsub = null;
     }
+    activeFriendshipsUid = null;
     if (selectedFriendDocUnsub) {
       selectedFriendDocUnsub();
       selectedFriendDocUnsub = null;
@@ -850,6 +856,24 @@ export function initApp() {
       const feedH = calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth, 200);
       squadFeedEl.style.minHeight = `${feedH}px`;
       squadFeedEl.style.maxHeight = `${feedH}px`;
+    }
+
+    const friendsSidebarEl = document.getElementById('friends-sidebar');
+    if (friendsSidebarEl && !friendsSidebarEl.closest('[hidden]')) {
+      if (viewportWidth <= 960) {
+        friendsSidebarEl.style.minHeight = '';
+        friendsSidebarEl.style.maxHeight = '';
+      } else {
+        const elementTop = friendsSidebarEl.getBoundingClientRect().top + window.scrollY;
+        const sidebarH = calculateTableScrollMaxHeight(
+          viewportHeight,
+          elementTop,
+          viewportWidth,
+          200
+        );
+        friendsSidebarEl.style.minHeight = `${sidebarH}px`;
+        friendsSidebarEl.style.maxHeight = `${sidebarH}px`;
+      }
     }
   }
 
@@ -1654,9 +1678,14 @@ export function initApp() {
         .join('');
     }
 
+    if (isAuthenticated && myUid && myUid !== 'local_student' && activeFriendshipsUid !== myUid) {
+      void subscribeToUserFriendships(myUid);
+    }
+
     const { acceptedFriends, incomingRequests, outgoingRequests } = partitionFriendships(
       friendships,
-      myUid
+      myUid,
+      profile.name
     );
     const acceptedSet = new Set(acceptedFriends.map((f) => f.uid));
     const pendingSet = new Set(
@@ -1877,6 +1906,14 @@ export function initApp() {
           friendActionNotice.type === 'error' ? 'notice-error' : 'notice-success'
         }`;
         noticeEl.textContent = friendActionNotice.text;
+      } else if (incomingRequests.length > 0) {
+        const senderNames = incomingRequests.map((r) => r.displayName).join(', ');
+        noticeEl.hidden = false;
+        noticeEl.className = 'notice-box notice-success';
+        noticeEl.textContent =
+          incomingRequests.length === 1
+            ? `New friend request from ${senderNames}! Click Accept below.`
+            : `You have ${incomingRequests.length} incoming friend requests (${senderNames}).`;
       } else {
         noticeEl.hidden = true;
         noticeEl.textContent = '';
@@ -1902,6 +1939,13 @@ export function initApp() {
     }
     if (incomingWrapEl && incomingListEl) {
       incomingWrapEl.hidden = !hasIncoming;
+      const incomingLabel = incomingWrapEl.querySelector('.friends-subsection-label');
+      if (incomingLabel) {
+        incomingLabel.textContent =
+          incomingRequests.length > 0
+            ? `Incoming Requests (${incomingRequests.length})`
+            : 'Incoming Requests';
+      }
       incomingListEl.innerHTML = incomingRequests
         .map(
           (req) => `
@@ -2261,13 +2305,14 @@ export function initApp() {
 
   async function subscribeToUserFriendships(myUid) {
     const normUid = getEmailDocId(myUid || sessionEmail || profile.email || 'local_student');
+    activeFriendshipsUid = normUid;
     if (friendshipsUnsub) {
       friendshipsUnsub();
       friendshipsUnsub = null;
     }
 
     try {
-      const initial = await fetchUserFriendships(normUid);
+      const initial = await fetchUserFriendships(normUid, profile.name);
       if (Array.isArray(initial)) {
         friendships = initial;
         populateCurrentPageData();
@@ -2277,19 +2322,42 @@ export function initApp() {
     if (!db || !normUid) return;
 
     try {
-      const q = query(collection(db, 'friendships'), where('users', 'array-contains', normUid));
+      const hubRef = collection(db, 'squads', FRIENDS_HUB_SQUAD_ID, 'activities');
       friendshipsUnsub = onSnapshot(
-        q,
+        hubRef,
         (snap) => {
-          const cloudItems = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          const prevIncomingIds = new Set(
+            partitionFriendships(friendships, normUid, profile.name).incomingRequests.map(
+              (r) => r.friendshipId
+            )
+          );
           const merged = new Map();
           for (const item of friendships) {
-            if (item?.id) merged.set(item.id, item);
+            if (item?.id && item.status !== 'removed' && item.status !== 'declined') {
+              merged.set(item.id, item);
+            }
           }
-          for (const item of cloudItems) {
-            if (item?.id) merged.set(item.id, item);
-          }
+          snap.docs.forEach((d) => {
+            const record = hubActivityDocToFriendship(d.id, d.data());
+            if (!record || !record.id) return;
+            if (record.status === 'removed' || record.status === 'declined') {
+              merged.delete(record.id);
+              return;
+            }
+            if (doesFriendshipMatchUser(record, normUid, profile.name)) {
+              merged.set(record.id, record);
+            }
+          });
           friendships = Array.from(merged.values());
+          const nextIncoming = partitionFriendships(
+            friendships,
+            normUid,
+            profile.name
+          ).incomingRequests;
+          const newlyArrived = nextIncoming.find((r) => !prevIncomingIds.has(r.friendshipId));
+          if (newlyArrived) {
+            setStatus(`New friend request from ${newlyArrived.displayName}!`);
+          }
           populateCurrentPageData();
         },
         (err) => {
@@ -2321,7 +2389,7 @@ export function initApp() {
     }
 
     const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
-    const { acceptedFriends } = partitionFriendships(friendships, myUid);
+    const { acceptedFriends } = partitionFriendships(friendships, myUid, profile.name);
     const friendMeta = acceptedFriends.find((f) => f.uid === normUid) || {
       uid: normUid,
       email: normUid,
@@ -2368,7 +2436,8 @@ export function initApp() {
     const myEmail = sessionEmail || profile.email || auth?.currentUser?.email || 'local_student';
     const myUid = getEmailDocId(myEmail);
     const myName = sanitizeTextInput(profile.name || 'Student', 100);
-    const cleanTarget = String(targetInput || '').trim();
+    let cleanTarget = String(targetInput || '').trim();
+    let resolvedDisplayName = targetDisplayName;
 
     if (!cleanTarget) {
       friendActionNotice = {
@@ -2379,12 +2448,30 @@ export function initApp() {
       return;
     }
 
+    // If user typed a squadmate's name or username prefix, resolve to their squad member UID/email
+    if (!cleanTarget.includes('@')) {
+      const qLower = cleanTarget.toLowerCase();
+      const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+      const { allMembers } = getProcessedSquadMembers(activeSquad);
+      const matchedMember = allMembers.find((m) => {
+        if (!m || getEmailDocId(m.uid || '') === myUid) return false;
+        const mName = String(m.displayName || '').trim().toLowerCase();
+        const mUid = String(m.uid || '').trim().toLowerCase();
+        const mPrefix = mUid.includes('@') ? mUid.split('@')[0] : mUid;
+        return mName === qLower || mPrefix === qLower || mUid === qLower;
+      });
+      if (matchedMember && matchedMember.uid) {
+        cleanTarget = matchedMember.uid;
+        resolvedDisplayName = resolvedDisplayName || matchedMember.displayName || '';
+      }
+    }
+
     const res = await sendFriendRequest({
       fromUid: myUid,
       fromEmail: myEmail,
       fromName: myName,
       toEmailOrUid: cleanTarget,
-      toName: targetDisplayName,
+      toName: resolvedDisplayName,
     });
 
     if (!res.ok) {
@@ -4089,10 +4176,21 @@ export function initApp() {
     if (acceptFriendshipId) {
       e.preventDefault();
       const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const myName = sanitizeTextInput(profile.name || '', 100);
       friendships = friendships.map((f) =>
-        f.id === acceptFriendshipId ? { ...f, status: 'accepted', updatedAt: new Date().toISOString() } : f
+        f.id === acceptFriendshipId
+          ? {
+              ...f,
+              ...(myUid && myUid !== 'local_student'
+                ? { recipientUid: myUid, recipientEmail: myUid }
+                : {}),
+              ...(myName ? { recipientName: myName } : {}),
+              status: 'accepted',
+              updatedAt: new Date().toISOString(),
+            }
+          : f
       );
-      void acceptFriendRequest(acceptFriendshipId, myUid);
+      void acceptFriendRequest(acceptFriendshipId, myUid, myName);
       friendActionNotice = { type: 'success', text: 'Friend request accepted!' };
       populateSquadsPage();
       setStatus('Friend request accepted');
@@ -4758,6 +4856,11 @@ export function initApp() {
   });
 
   window.addEventListener('storage', (e) => {
+    if (e.key === FRIENDSHIPS_STORAGE_KEY || e.key === 'unisphere_workspace_friendships_v1') {
+      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      void subscribeToUserFriendships(myUid);
+      return;
+    }
     if (!e.key || !e.key.startsWith(STORAGE_KEY)) return;
     try {
       if (e.key === `${STORAGE_KEY}_logs` && e.newValue) {

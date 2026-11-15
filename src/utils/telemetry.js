@@ -856,18 +856,79 @@ function formatReadableFallbackName(uidOrEmail = '') {
 }
 
 /**
- * Classifies friendship records for `myUid` into acceptedFriends, incomingRequests, and outgoingRequests (#44).
+ * Checks whether a friendship record involves `myUid` or `myDisplayName` (#44).
  */
-export function partitionFriendships(friendships = [], myUid = '') {
+export function doesFriendshipMatchUser(item, myUid = '', myDisplayName = '') {
+  if (!item || typeof item !== 'object') return false;
   const normMe = String(myUid || '')
     .trim()
     .toLowerCase()
     .replace(/\//g, '_');
+  const normMyName = String(myDisplayName || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, '_');
+  const myEmailPrefix = normMe.includes('@') ? normMe.split('@')[0] : '';
+
+  const reqUid = String(item.requesterUid || item.requesterEmail || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, '_');
+  const recUid = String(item.recipientUid || item.recipientEmail || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, '_');
+  const recName = String(item.recipientName || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, '_');
+
+  if (normMe) {
+    if (reqUid === normMe || recUid === normMe) return true;
+    if (
+      Array.isArray(item.users) &&
+      item.users.some(
+        (u) =>
+          String(u || '')
+            .trim()
+            .toLowerCase()
+            .replace(/\//g, '_') === normMe
+      )
+    ) {
+      return true;
+    }
+    if (myEmailPrefix && !recUid.includes('@') && recUid === myEmailPrefix) {
+      return true;
+    }
+  }
+
+  if (normMyName && normMyName !== 'student' && normMyName !== 'local_student') {
+    if (!recUid.includes('@') && (recUid === normMyName || recName === normMyName)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Classifies friendship records for `myUid` into acceptedFriends, incomingRequests, and outgoingRequests (#44).
+ */
+export function partitionFriendships(friendships = [], myUid = '', myDisplayName = '') {
+  const normMe = String(myUid || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, '_');
+  const normMyName = String(myDisplayName || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, '_');
+  const myEmailPrefix = normMe.includes('@') ? normMe.split('@')[0] : '';
   const acceptedFriends = [];
   const incomingRequests = [];
   const outgoingRequests = [];
 
-  if (!Array.isArray(friendships) || !normMe) {
+  if (!Array.isArray(friendships) || (!normMe && !normMyName)) {
     return { acceptedFriends, incomingRequests, outgoingRequests };
   }
 
@@ -875,18 +936,33 @@ export function partitionFriendships(friendships = [], myUid = '') {
 
   for (const item of friendships) {
     if (!item || typeof item !== 'object') continue;
-    const reqUid = String(item.requesterUid || '')
+    const status = String(item.status || 'pending').trim().toLowerCase();
+    if (status === 'removed' || status === 'declined') continue;
+
+    const reqUid = String(item.requesterUid || item.requesterEmail || '')
       .trim()
       .toLowerCase()
       .replace(/\//g, '_');
-    const recUid = String(item.recipientUid || '')
+    const recUid = String(item.recipientUid || item.recipientEmail || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\//g, '_');
+    const recNameNorm = String(item.recipientName || '')
       .trim()
       .toLowerCase()
       .replace(/\//g, '_');
     if (!reqUid || !recUid || reqUid === recUid) continue;
 
-    const isRequester = reqUid === normMe;
-    const isRecipient = recUid === normMe;
+    const isRequester = Boolean(normMe && reqUid === normMe);
+    const isRecipient = Boolean(
+      (normMe && recUid === normMe) ||
+        (myEmailPrefix && !recUid.includes('@') && recUid === myEmailPrefix) ||
+        (normMyName &&
+          normMyName !== 'student' &&
+          normMyName !== 'local_student' &&
+          !recUid.includes('@') &&
+          (recUid === normMyName || recNameNorm === normMyName))
+    );
     if (!isRequester && !isRecipient) continue;
 
     const friendUid = isRequester ? recUid : reqUid;
@@ -906,13 +982,13 @@ export function partitionFriendships(friendships = [], myUid = '') {
       uid: friendUid,
       email: friendEmail || friendUid,
       displayName,
-      status: item.status === 'accepted' ? 'accepted' : 'pending',
+      status: status === 'accepted' ? 'accepted' : 'pending',
       direction: isRequester ? 'outgoing' : 'incoming',
       createdAt: item.createdAt || null,
       updatedAt: item.updatedAt || item.createdAt || null,
     };
 
-    if (item.status === 'accepted') {
+    if (status === 'accepted') {
       acceptedFriends.push(normalizedEntry);
     } else if (isRecipient) {
       incomingRequests.push(normalizedEntry);

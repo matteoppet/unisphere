@@ -747,5 +747,111 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       assert.match(appSrc, /filterFriendsByQuery/);
       assert.match(appSrc, /buildFriendTelemetrySummary/);
     });
+
+    it('encodes friendships into isValidSquadSubdoc-compatible activity docs for live Firestore real-time notifications and matches incoming requests by email, prefix, or display name (#44)', async () => {
+      assert.equal(typeof squadService.friendshipToHubActivityDoc, 'function');
+      assert.equal(typeof squadService.hubActivityDocToFriendship, 'function');
+      assert.equal(squadService.FRIENDS_HUB_SQUAD_ID, 'unisphere_friends_hub');
+
+      const rawFriendship = {
+        id: 'lorenzo@stud.uniroma3.it__mat.petrini@stud.uniroma3.it',
+        users: ['lorenzo@stud.uniroma3.it', 'mat.petrini@stud.uniroma3.it'],
+        requesterUid: 'mat.petrini@stud.uniroma3.it',
+        requesterEmail: 'mat.petrini@stud.uniroma3.it',
+        requesterName: 'Matteo Petrini',
+        recipientUid: 'lorenzo@stud.uniroma3.it',
+        recipientEmail: 'lorenzo@stud.uniroma3.it',
+        recipientName: 'Lorenzo Bianchi',
+        status: 'pending',
+        createdAt: '2026-11-15T12:00:00.000Z',
+        updatedAt: '2026-11-15T12:05:00.000Z',
+      };
+
+      const hubDoc = squadService.friendshipToHubActivityDoc(rawFriendship);
+      const allowedSubdocKeys = new Set([
+        'uid',
+        'displayName',
+        'status',
+        'subject',
+        'startedAt',
+        'updatedAt',
+        'type',
+        'text',
+        'createdAt',
+        'durationMinutes',
+        'completedAt',
+      ]);
+      for (const k of Object.keys(hubDoc)) {
+        assert.equal(
+          allowedSubdocKeys.has(k),
+          true,
+          `Key "${k}" must be allowed by deployed isValidSquadSubdoc rule`
+        );
+      }
+      assert.equal(hubDoc.uid, 'mat.petrini@stud.uniroma3.it');
+      assert.equal(hubDoc.displayName, 'Matteo Petrini');
+      assert.equal(hubDoc.subject, 'lorenzo@stud.uniroma3.it');
+      assert.equal(hubDoc.text, 'Lorenzo Bianchi');
+      assert.equal(hubDoc.type, 'friend_request');
+      assert.equal(hubDoc.status, 'pending');
+
+      const roundTrip = squadService.hubActivityDocToFriendship(rawFriendship.id, hubDoc);
+      assert.equal(roundTrip.id, rawFriendship.id);
+      assert.equal(roundTrip.requesterUid, 'mat.petrini@stud.uniroma3.it');
+      assert.equal(roundTrip.requesterName, 'Matteo Petrini');
+      assert.equal(roundTrip.recipientUid, 'lorenzo@stud.uniroma3.it');
+      assert.equal(roundTrip.recipientName, 'Lorenzo Bianchi');
+      assert.equal(roundTrip.status, 'pending');
+
+      // Matching incoming request when sender typed recipient's display name or email prefix
+      const nameTargetedReq = await squadService.sendFriendRequest({
+        fromUid: 'mat.petrini@stud.uniroma3.it',
+        fromEmail: 'mat.petrini@stud.uniroma3.it',
+        fromName: 'Matteo Petrini',
+        toEmailOrUid: 'Giulia Verdi',
+      });
+      assert.equal(nameTargetedReq.ok, true);
+
+      const giuliaPartition = partitionFriendships(
+        [nameTargetedReq.friendship],
+        'giulia.verdi@stud.uniroma3.it',
+        'Giulia Verdi'
+      );
+      assert.equal(giuliaPartition.incomingRequests.length, 1);
+      assert.equal(giuliaPartition.incomingRequests[0].uid, 'mat.petrini@stud.uniroma3.it');
+
+      // Accepting updates recipientUid to Giulia's real email UID
+      const acceptedByGiulia = await squadService.acceptFriendRequest(
+        nameTargetedReq.friendship.id,
+        'giulia.verdi@stud.uniroma3.it',
+        'Giulia Verdi'
+      );
+      assert.equal(acceptedByGiulia.status, 'accepted');
+      assert.equal(acceptedByGiulia.recipientUid, 'giulia.verdi@stud.uniroma3.it');
+
+      const matteoAfterAccept = partitionFriendships(
+        [acceptedByGiulia],
+        'mat.petrini@stud.uniroma3.it',
+        'Matteo Petrini'
+      );
+      assert.equal(matteoAfterAccept.acceptedFriends.length, 1);
+      assert.equal(matteoAfterAccept.acceptedFriends[0].uid, 'giulia.verdi@stud.uniroma3.it');
+    });
+
+    it('extends #friends-sidebar to full Y viewport minus 200px like the Squad View and listens for real-time & cross-tab notifications (#44)', () => {
+      const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+      const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+      const cssSrc = fs.readFileSync(path.join(repoRoot, 'src/index.css'), 'utf8');
+
+      // Friends sidebar height dynamically sized with calculateTableScrollMaxHeight(..., 200)
+      assert.match(appSrc, /getElementById\('friends-sidebar'\)/);
+      assert.match(appSrc, /friendsSidebarEl\.style\.minHeight\s*=\s*`\$\{sidebarH\}px`/);
+      assert.match(appSrc, /friendsSidebarEl\.style\.maxHeight\s*=\s*`\$\{sidebarH\}px`/);
+      assert.match(cssSrc, /\.friends-sidebar-card\s*\{[\s\S]*?calc\(100vh\s*-\s*200px\)/);
+
+      // Real-time hub listener and cross-tab localStorage listener
+      assert.match(appSrc, /FRIENDS_HUB_SQUAD_ID/);
+      assert.match(appSrc, /unisphere_workspace_friendships_v1/);
+    });
   });
 });
