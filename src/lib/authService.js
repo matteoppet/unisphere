@@ -519,11 +519,12 @@ export function sanitizeStudyLogItem(raw) {
  */
 export function sanitizeAssignmentItem(raw) {
   if (!raw || typeof raw !== 'object') return null;
-  const title = sanitizeTextInput(raw.title, 150);
   const courseName = sanitizeTextInput(raw.courseName, 120);
-  if (!title || !courseName) return null;
+  if (!courseName) return null;
   const allowedTypes = ['Exam', 'Midterm', 'Project', 'Reading', 'Final', 'Oral', 'Assignment'];
   const type = allowedTypes.includes(raw.type) ? raw.type : 'Exam';
+  const rawTitle = sanitizeTextInput(raw.title, 150);
+  const title = rawTitle || sanitizeTextInput(`${courseName} ${type}`, 150);
   const rawDue = String(raw.dueDate || '').trim();
   const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDue)
     ? rawDue
@@ -546,7 +547,7 @@ export function sanitizeAssignmentItem(raw) {
   if (raw.grade !== undefined && raw.grade !== null && raw.grade !== '') {
     const numGrade = Number(raw.grade);
     if (Number.isFinite(numGrade)) {
-      cleaned.grade = Math.min(30, Math.max(0, numGrade));
+      cleaned.grade = Math.round(Math.min(30, Math.max(0, numGrade)) * 10) / 10;
     }
   }
 
@@ -554,7 +555,7 @@ export function sanitizeAssignmentItem(raw) {
     cleaned.examParts = raw.examParts.slice(0, 2).map((part, idx) => {
       const pGrade =
         part && part.grade !== undefined && part.grade !== null && part.grade !== ''
-          ? Math.min(30, Math.max(0, Number(part.grade)))
+          ? Math.round(Math.min(30, Math.max(0, Number(part.grade))) * 10) / 10
           : undefined;
       const cleanPart = {
         label: sanitizeTextInput(part?.label || `Esonero ${idx + 1}`, 40),

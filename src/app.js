@@ -99,8 +99,11 @@ import {
 import {
   calculateMediaGrades,
   getItemExamGrade,
-  getExamResult,
-  isExamType,
+  formatExamDate,
+  normalizeAssignmentType,
+  getAssignmentDisplayGrade,
+  getExamUrgencyState,
+  sortAssignmentsForTable,
 } from './utils/grades.js';
 
 const STORAGE_KEY = 'unisphere_workspace';
@@ -288,6 +291,8 @@ export function initApp() {
   let courseSearchQuery = '';
   let logSubjectFilter = 'all';
   let assignmentTypeFilter = 'all';
+  let lastAssignmentsDateKey = getLocalDateString();
+  let assignmentsDailyInterval = null;
 
   // Squads & Friends state (isolated to squads.html)
   let squads = [];
@@ -845,6 +850,7 @@ export function initApp() {
     const viewportWidth = window.innerWidth;
     const scrollContainers = document.querySelectorAll('.table-scroll');
     scrollContainers.forEach((el) => {
+      if (el.id === 'assignments-table-scroll') return;
       const elementTop = el.getBoundingClientRect().top + window.scrollY;
       const maxH = calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth);
       el.style.maxHeight = `${maxH}px`;
@@ -906,6 +912,14 @@ export function initApp() {
         );
         friendUnifiedEl.style.maxHeight = `${maxH}px`;
       }
+    }
+
+    const assignmentsTableScrollEl = document.getElementById('assignments-table-scroll');
+    if (assignmentsTableScrollEl && !assignmentsTableScrollEl.closest('[hidden]')) {
+      const elementTop = assignmentsTableScrollEl.getBoundingClientRect().top + window.scrollY;
+      const tableH = calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth, 200);
+      assignmentsTableScrollEl.style.minHeight = `${tableH}px`;
+      assignmentsTableScrollEl.style.maxHeight = `${tableH}px`;
     }
   }
 
@@ -1260,62 +1274,68 @@ export function initApp() {
   }
 
   function populateAssignmentsPage() {
-    const media = calculateMediaGrades(assignments, courses);
-
-    const summaryTbody = document.getElementById('assignments-summary-tbody');
-    if (summaryTbody) {
-      summaryTbody.innerHTML = `
-        <tr>
-          <td>${media.gradedExamsCount}</td>
-          <td>${media.arithmeticAverage !== null ? `${media.arithmeticAverage} / 30` : '-'}</td>
-          <td>${media.weightedAverage !== null ? `${media.weightedAverage} / 30` : '-'}</td>
-          <td>${media.laureaBase !== null ? `${media.laureaBase} / 110` : '-'}</td>
-        </tr>
-      `;
-    }
+    const todayRef = new Date();
+    lastAssignmentsDateKey = getLocalDateString(todayRef);
 
     const typeSelect = document.getElementById('filter-assignment-type');
     if (typeSelect) typeSelect.value = assignmentTypeFilter;
 
     const filtered = assignments.filter((a) => {
-      if (assignmentTypeFilter !== 'all' && a.type !== assignmentTypeFilter) return false;
+      if (assignmentTypeFilter !== 'all' && normalizeAssignmentType(a.type) !== assignmentTypeFilter) {
+        return false;
+      }
       return true;
     });
+
+    const sorted = sortAssignmentsForTable(filtered, todayRef);
 
     const registryTbody = document.getElementById('assignments-registry-tbody');
     if (registryTbody) {
       registryTbody.innerHTML =
-        filtered.length === 0
-          ? `<tr><td colspan="7" class="empty-cell">No exams or assignments found.</td></tr>`
-          : filtered
+        sorted.length === 0
+          ? `<tr><td colspan="5" class="empty-cell">No exams or assignments scheduled yet.</td></tr>`
+          : sorted
               .map((a) => {
-                const finalGrade = getItemExamGrade(a);
-                let gradeDisplay = finalGrade !== null ? `${finalGrade} / 30` : '-';
-                if (Array.isArray(a.examParts) && a.examParts.length > 0) {
-                  const partsText = a.examParts
-                    .filter((p) => typeof p.grade === 'number')
-                    .map((p) => `${p.label}: ${p.grade}`)
-                    .join(', ');
-                  if (partsText) {
-                    gradeDisplay = `${gradeDisplay} (${partsText})`;
-                  }
-                }
+                const displayType = normalizeAssignmentType(a.type);
+                const urgency = getExamUrgencyState(a, todayRef);
+                const gradeInfo = getAssignmentDisplayGrade(a);
+                const isCompleted = a.status === 'completed';
+
+                let gradeClass = 'exam-grade-pending';
+                if (gradeInfo.isPass) gradeClass = 'exam-grade-pass';
+                else if (gradeInfo.isFail) gradeClass = 'exam-grade-fail';
+
+                const partsHtml = gradeInfo.partsText
+                  ? `<span class="exam-grade-parts-inline">(${escapeHtml(gradeInfo.partsText)})</span>`
+                  : '';
+
+                const hintHtml = urgency.hint
+                  ? `<span class="exam-date-hint">(${escapeHtml(urgency.hint)})</span>`
+                  : '';
+
                 return `
-                <tr>
-                  <td>${escapeHtml(a.title)}</td>
+                <tr class="${escapeHtml(urgency.rowClass)}" data-urgency="${escapeHtml(urgency.level)}">
                   <td>${escapeHtml(a.courseName)}</td>
-                  <td>${escapeHtml(a.type)}</td>
-                  <td>${escapeHtml(formatReadableDate(a.dueDate))}</td>
-                  <td>${escapeHtml(a.status)}</td>
-                  <td>${escapeHtml(gradeDisplay)}</td>
+                  <td>${escapeHtml(displayType)}</td>
+                  <td>${escapeHtml(formatExamDate(a.dueDate))}${hintHtml}</td>
+                  <td><span class="${gradeClass}">${escapeHtml(gradeInfo.text)}</span>${partsHtml}</td>
                   <td>
-                    <a href="#" data-open-assignment="${escapeHtml(a.id)}">Open</a> |
-                    <a href="#" data-toggle-assignment="${escapeHtml(a.id)}">${a.status === 'completed' ? 'Reopen' : 'Mark Done'}</a> |
+                    <a href="#" data-toggle-assignment="${escapeHtml(a.id)}">${isCompleted ? 'Reopen' : 'Mark as complete'}</a> |
+                    <a href="#" data-open-assignment="${escapeHtml(a.id)}">Edit</a> |
                     <a href="#" data-delete-assignment="${escapeHtml(a.id)}">Delete</a>
                   </td>
                 </tr>`;
               })
               .join('');
+    }
+  }
+
+  function checkAssignmentsDailyRollover() {
+    const todayKey = getLocalDateString();
+    if (todayKey === lastAssignmentsDateKey) return;
+    lastAssignmentsDateKey = todayKey;
+    if (document.getElementById('app-main')?.getAttribute('data-page') === 'assignments') {
+      populateAssignmentsPage();
     }
   }
 
@@ -2977,6 +2997,38 @@ export function initApp() {
     dialog.showModal();
   }
 
+  function syncAssignmentModalFields() {
+    const typeEl = document.getElementById('assignment-type');
+    const singlePanel = document.getElementById('assignment-single-grade-panel');
+    const midtermPanel = document.getElementById('assignment-midterm-grades-panel');
+    const previewEl = document.getElementById('assignment-esonero-average-preview');
+    const es1El = document.getElementById('assignment-esonero1');
+    const es2El = document.getElementById('assignment-esonero2');
+    if (!typeEl || !singlePanel || !midtermPanel) return;
+
+    const isMidterm = typeEl.value === 'Midterm';
+    singlePanel.hidden = isMidterm;
+    midtermPanel.hidden = !isMidterm;
+
+    if (isMidterm && previewEl && es1El && es2El) {
+      const r1 = es1El.value.trim();
+      const r2 = es2El.value.trim();
+      const g1 = r1 !== '' ? Number(r1) : NaN;
+      const g2 = r2 !== '' ? Number(r2) : NaN;
+
+      previewEl.classList.remove('exam-grade-pass', 'exam-grade-fail');
+      if (Number.isFinite(g1) && Number.isFinite(g2)) {
+        const clamped1 = Math.min(30, Math.max(0, g1));
+        const clamped2 = Math.min(30, Math.max(0, g2));
+        const avg = Math.round(((clamped1 + clamped2) / 2) * 10) / 10;
+        previewEl.textContent = `Average Grade: ${avg} / 30`;
+        previewEl.classList.add(avg >= 18 ? 'exam-grade-pass' : 'exam-grade-fail');
+      } else {
+        previewEl.textContent = 'Average Grade: -';
+      }
+    }
+  }
+
   function openAssignmentModal(itemToEdit = null) {
     const dialog = document.getElementById('modal-assignment');
     if (!dialog) return;
@@ -2985,15 +3037,21 @@ export function initApp() {
     const deleteBtn = document.getElementById('btn-delete-assignment');
 
     document.getElementById('assignment-id').value = itemToEdit ? itemToEdit.id : '';
-    document.getElementById('assignment-title').value = itemToEdit ? itemToEdit.title : '';
     document.getElementById('assignment-course').value = itemToEdit
       ? itemToEdit.courseName
       : courses[0]?.title || '';
-    document.getElementById('assignment-type').value = itemToEdit ? itemToEdit.type : 'Exam';
+    document.getElementById('assignment-type').value = itemToEdit
+      ? normalizeAssignmentType(itemToEdit.type)
+      : 'Exam';
     document.getElementById('assignment-due').value = itemToEdit
       ? itemToEdit.dueDate
       : getLocalDateString();
-    document.getElementById('assignment-status').value = itemToEdit ? itemToEdit.status : 'todo';
+
+    const completedCheckbox = document.getElementById('assignment-completed');
+    if (completedCheckbox) {
+      completedCheckbox.checked = itemToEdit ? itemToEdit.status === 'completed' : false;
+    }
+
     document.getElementById('assignment-grade').value =
       itemToEdit && typeof itemToEdit.grade === 'number' ? itemToEdit.grade : '';
 
@@ -3001,7 +3059,8 @@ export function initApp() {
     const es2 = itemToEdit?.examParts?.[1]?.grade;
     document.getElementById('assignment-esonero1').value = typeof es1 === 'number' ? es1 : '';
     document.getElementById('assignment-esonero2').value = typeof es2 === 'number' ? es2 : '';
-    document.getElementById('assignment-notes').value = itemToEdit ? itemToEdit.notes || '' : '';
+
+    syncAssignmentModalFields();
 
     if (heading) {
       heading.textContent = itemToEdit ? 'Edit Exam / Assignment' : 'Add Exam / Assignment';
@@ -3637,13 +3696,19 @@ export function initApp() {
     }
 
     if (route === 'assignments') {
-      document
-        .getElementById('btn-assignments-add')
-        ?.addEventListener('click', () => openAssignmentModal());
-      document.getElementById('filter-assignment-type')?.addEventListener('change', (e) => {
-        assignmentTypeFilter = e.target.value;
-        populateAssignmentsPage();
-      });
+      const addAssignmentBtn = document.getElementById('btn-assignments-add');
+      if (addAssignmentBtn && !boundElements.has(addAssignmentBtn)) {
+        boundElements.add(addAssignmentBtn);
+        addAssignmentBtn.addEventListener('click', () => openAssignmentModal());
+      }
+      const filterAssignmentSelect = document.getElementById('filter-assignment-type');
+      if (filterAssignmentSelect && !boundElements.has(filterAssignmentSelect)) {
+        boundElements.add(filterAssignmentSelect);
+        filterAssignmentSelect.addEventListener('change', (e) => {
+          assignmentTypeFilter = e.target.value;
+          populateAssignmentsPage();
+        });
+      }
     }
 
     if (route === 'squads') {
@@ -4011,10 +4076,17 @@ export function initApp() {
       assignments = assignments.map((a) => {
         if (a.id !== toggleAssignmentId) return a;
         const nextStatus = a.status === 'completed' ? 'todo' : 'completed';
+        if (nextStatus === 'completed') {
+          return {
+            ...a,
+            status: nextStatus,
+            completedAt: Date.now(),
+          };
+        }
+        const { completedAt: _removed, ...rest } = a;
         return {
-          ...a,
+          ...rest,
           status: nextStatus,
-          completedAt: nextStatus === 'completed' ? Date.now() : a.completedAt,
         };
       });
       void pushWorkstationToCloud();
@@ -4707,84 +4779,84 @@ export function initApp() {
     const assignmentForm = document.getElementById('form-assignment');
     if (assignmentForm && !boundElements.has(assignmentForm)) {
       boundElements.add(assignmentForm);
+
+      document
+        .getElementById('assignment-type')
+        ?.addEventListener('change', () => syncAssignmentModalFields());
+      document
+        .getElementById('assignment-esonero1')
+        ?.addEventListener('input', () => syncAssignmentModalFields());
+      document
+        .getElementById('assignment-esonero2')
+        ?.addEventListener('input', () => syncAssignmentModalFields());
+
       assignmentForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const id = sanitizeTextInput(document.getElementById('assignment-id').value, 80);
-        const title = sanitizeTextInput(document.getElementById('assignment-title').value, 150);
+        const existingItem = id ? assignments.find((a) => a.id === id) : null;
         const courseName = sanitizeTextInput(
           document.getElementById('assignment-course').value,
           120
         );
-        const type = document.getElementById('assignment-type').value;
+        const type = normalizeAssignmentType(document.getElementById('assignment-type').value);
         const dueDate = document.getElementById('assignment-due').value;
-        let status = document.getElementById('assignment-status').value;
+        const isCompleted = Boolean(document.getElementById('assignment-completed')?.checked);
+        const status = isCompleted ? 'completed' : 'todo';
         const gradeRaw = document.getElementById('assignment-grade').value.trim();
         const es1Raw = document.getElementById('assignment-esonero1').value.trim();
         const es2Raw = document.getElementById('assignment-esonero2').value.trim();
-        const notes = sanitizeTextInput(
-          document.getElementById('assignment-notes').value,
-          1000,
-          true
-        );
 
-        if (!title || !courseName || !dueDate) return;
+        if (!courseName || !dueDate) return;
 
         let grade = undefined;
         let examParts = undefined;
 
-        if (es1Raw !== '' || es2Raw !== '') {
-          const g1 = es1Raw !== '' ? Math.min(30, Math.max(0, Number(es1Raw))) : undefined;
-          const g2 = es2Raw !== '' ? Math.min(30, Math.max(0, Number(es2Raw))) : undefined;
-          examParts = [
-            { label: 'Esonero 1', grade: g1 },
-            { label: 'Esonero 2', grade: g2 },
-          ];
-          if (getExamResult(examParts) !== null) {
-            status = 'completed';
+        if (type === 'Midterm') {
+          if (es1Raw !== '' || es2Raw !== '') {
+            const g1 =
+              es1Raw !== '' ? Math.round(Math.min(30, Math.max(0, Number(es1Raw))) * 10) / 10 : undefined;
+            const g2 =
+              es2Raw !== '' ? Math.round(Math.min(30, Math.max(0, Number(es2Raw))) * 10) / 10 : undefined;
+            examParts = [
+              { label: 'Esonero 1', grade: g1 },
+              { label: 'Esonero 2', grade: g2 },
+            ];
           }
         } else if (gradeRaw !== '') {
-          grade = Math.min(30, Math.max(0, Number(gradeRaw)));
-          if (isExamType(type) && grade >= 18) {
-            status = 'completed';
-          }
+          grade = Math.round(Math.min(30, Math.max(0, Number(gradeRaw))) * 10) / 10;
         }
+
+        const derivedTitle =
+          sanitizeTextInput(existingItem?.title, 150) ||
+          sanitizeTextInput(`${courseName} ${type}`, 150);
 
         const sanitizedAsg = sanitizeAssignmentItem({
           id: id || `asg-${Date.now()}`,
-          title,
+          title: derivedTitle,
           courseName,
           type,
           dueDate,
           status,
           grade,
           examParts,
-          notes,
-          completedAt: status === 'completed' ? Date.now() : undefined,
+          notes: existingItem?.notes || '',
+          completedAt:
+            status === 'completed' ? existingItem?.completedAt || Date.now() : undefined,
         });
 
         if (!sanitizedAsg) return;
 
         if (id) {
-          assignments = assignments.map((a) =>
-            a.id === id
-              ? {
-                  ...a,
-                  ...sanitizedAsg,
-                  completedAt:
-                    sanitizedAsg.status === 'completed'
-                      ? a.completedAt || Date.now()
-                      : a.completedAt,
-                }
-              : a
-          );
-          setStatus(`Updated: ${sanitizedAsg.title}`);
+          assignments = assignments.map((a) => (a.id === id ? sanitizedAsg : a));
+          setStatus(`Updated: ${sanitizedAsg.courseName}`);
         } else {
           assignments = [sanitizedAsg, ...assignments];
-          setStatus(`Added: ${sanitizedAsg.title}`);
+          setStatus(`Added: ${sanitizedAsg.courseName}`);
         }
 
         document.getElementById('modal-assignment')?.close();
         void pushWorkstationToCloud();
+        void syncUserSquadTelemetry();
         populateCurrentPageData();
       });
 
@@ -4794,6 +4866,7 @@ export function initApp() {
         assignments = assignments.filter((a) => a.id !== id);
         document.getElementById('modal-assignment')?.close();
         void pushWorkstationToCloud();
+        void syncUserSquadTelemetry();
         populateCurrentPageData();
         setStatus('Deleted item');
       });
@@ -4856,13 +4929,21 @@ export function initApp() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
+      checkAssignmentsDailyRollover();
       handleInstantWakeSync();
     }
   });
 
   window.addEventListener('focus', () => {
+    checkAssignmentsDailyRollover();
     handleInstantWakeSync();
   });
+
+  if (!assignmentsDailyInterval) {
+    assignmentsDailyInterval = window.setInterval(() => {
+      checkAssignmentsDailyRollover();
+    }, 60000);
+  }
 
   window.addEventListener('online', () => {
     setupRealtimeFirestoreSync(true);
