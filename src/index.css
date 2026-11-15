@@ -872,5 +872,188 @@ dialog h3 {
   max-width: 620px;
 }
 
+/* Friends System Sidebar & Dual-View Layout (#44) */
+.squads-workspace-layout {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 24px;
+  align-items: stretch;
+}
+
+.friends-sidebar-card {
+  border-radius: 14px;
+  padding: 16px 14px;
+  min-height: 540px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.friends-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.friends-sidebar-header h3 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.friends-search-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.friends-search-form input[type="text"] {
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 14px;
+}
+
+.friends-search-form button {
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.friends-requests-box {
+  border-top: 1px solid #e6e6e6;
+  border-bottom: 1px solid #e6e6e6;
+  padding: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.friends-subsection-label {
+  font-size: 12px;
+  font-weight: bold;
+  color: #555555;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin: 0 0 4px 0;
+}
+
+.friends-request-list,
+.friends-sidebar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.friends-sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.friend-request-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px 8px;
+  border: 1px solid #e2e2e2;
+  border-radius: 6px;
+  background-color: #fafafa;
+  font-size: 13.5px;
+}
+
+.friend-request-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.friend-request-actions button {
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+.friend-sidebar-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.friend-sidebar-item:hover {
+  background-color: #f4f6f9;
+  border-color: #dcdcdc;
+}
+
+.friend-sidebar-item.active {
+  background-color: #eef4fb;
+  border-color: #3B77BC;
+  font-weight: bold;
+}
+
+.friend-sidebar-name {
+  font-size: 14.5px;
+  color: #111111;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-sidebar-meta {
+  font-size: 12px;
+  color: #555555;
+  white-space: nowrap;
+}
+
+.squads-main-pane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.friend-view-header-card {
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.friend-view-title-group h2 {
+  margin: 0 0 4px 0;
+  font-size: 1.45rem;
+}
+
+.friend-view-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #555555;
+}
+
+.friend-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 960px) {
+  .squads-workspace-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .friends-sidebar-card {
+    min-height: auto;
+  }
+}
+
 
 

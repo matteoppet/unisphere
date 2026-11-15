@@ -57,6 +57,11 @@ import {
   deleteSquadFeedNote,
   updateSquadNextSession,
   nudgeSquadMember,
+  sendFriendRequest,
+  acceptFriendRequest,
+  declineOrRemoveFriendship,
+  fetchUserFriendships,
+  fetchFriendProfileTelemetry,
 } from './lib/squadService.js';
 import {
   formatStudyDuration,
@@ -81,6 +86,10 @@ import {
   sortSquadMembers,
   deduplicateSquadMembers,
   isCurrentUserRemovedFromSquad,
+  getFriendshipId,
+  partitionFriendships,
+  filterFriendsByQuery,
+  buildFriendTelemetrySummary,
   calculateElo,
   generateSquadCode,
 } from './utils/telemetry.js';
@@ -277,7 +286,7 @@ export function initApp() {
   let logSubjectFilter = 'all';
   let assignmentTypeFilter = 'all';
 
-  // Squads state (isolated to squads.html)
+  // Squads & Friends state (isolated to squads.html)
   let squads = [];
   let activeSquadId = profile.activeSquadId || null;
   let squadMembers = [];
@@ -290,6 +299,13 @@ export function initApp() {
   let squadPresenceUnsub = null;
   let squadActivitiesUnsub = null;
   let liveTimerInterval = null;
+  let friendships = [];
+  let friendSearchQuery = '';
+  let selectedFriendUid = null;
+  let selectedFriendTelemetry = null;
+  let friendActionNotice = null;
+  let friendshipsUnsub = null;
+  let selectedFriendDocUnsub = null;
 
   // Auth UI state
   let authNotice = null;
@@ -638,7 +654,7 @@ export function initApp() {
     }
   }
 
-  function cleanupSquadListeners() {
+  function cleanupActiveSquadListeners() {
     if (squadDocUnsub) {
       squadDocUnsub();
       squadDocUnsub = null;
@@ -658,6 +674,18 @@ export function initApp() {
     if (liveTimerInterval) {
       window.clearInterval(liveTimerInterval);
       liveTimerInterval = null;
+    }
+  }
+
+  function cleanupSquadListeners() {
+    cleanupActiveSquadListeners();
+    if (friendshipsUnsub) {
+      friendshipsUnsub();
+      friendshipsUnsub = null;
+    }
+    if (selectedFriendDocUnsub) {
+      selectedFriendDocUnsub();
+      selectedFriendDocUnsub = null;
     }
   }
 
@@ -689,6 +717,11 @@ export function initApp() {
     squadPresence = [];
     squadActivities = [];
     myLiveSession = null;
+    friendships = [];
+    friendSearchQuery = '';
+    selectedFriendUid = null;
+    selectedFriendTelemetry = null;
+    friendActionNotice = null;
     authNotice = { type: 'success', text: 'You have been logged out.' };
     await loadAndRenderPage('login', true);
     setStatus('Logged out');
@@ -1621,6 +1654,15 @@ export function initApp() {
         .join('');
     }
 
+    const { acceptedFriends, incomingRequests, outgoingRequests } = partitionFriendships(
+      friendships,
+      myUid
+    );
+    const acceptedSet = new Set(acceptedFriends.map((f) => f.uid));
+    const pendingSet = new Set(
+      [...incomingRequests, ...outgoingRequests].map((r) => r.uid)
+    );
+
     const sortedMembers = sortSquadMembers(allMembers, squadMembersSort);
     const membersTbody = document.getElementById('squad-members-tbody');
     if (membersTbody) {
@@ -1634,12 +1676,24 @@ export function initApp() {
           : sortedMembers
               .map((m) => {
                 const isMe = m.uid === myUid;
+                const normMemberUid = getEmailDocId(m.uid || '');
                 const liveEntry = liveMap.get(m.uid);
                 let statusHtml = '<span class="status-offline">Offline</span>';
                 if (liveEntry) {
                   statusHtml = `<span class="status-live">Live · ${escapeHtml(liveEntry.subject || 'General Study')}</span>`;
                 } else if (isMe || m.isStreakActive || m.status === 'online') {
                   statusHtml = '<span class="status-online">Online</span>';
+                }
+
+                let friendActionHtml = '';
+                if (!isMe && normMemberUid) {
+                  if (acceptedSet.has(normMemberUid)) {
+                    friendActionHtml = ` · <a href="#" data-select-friend="${escapeHtml(normMemberUid)}">Friend Stats</a>`;
+                  } else if (pendingSet.has(normMemberUid)) {
+                    friendActionHtml = ` · <span class="item-meta" style="margin-left:0;">Pending</span>`;
+                  } else {
+                    friendActionHtml = ` · <a href="#" data-send-friend-request="${escapeHtml(normMemberUid)}" data-friend-name="${escapeHtml(m.displayName || 'Student')}">+ Friend</a>`;
+                  }
                 }
 
                 return `
@@ -1656,7 +1710,7 @@ export function initApp() {
                   ${
                     isMe
                       ? `<span class="item-meta" style="margin-left: 0;">You · <a href="#" data-open-friend-calendar="${escapeHtml(m.uid)}">Calendar</a></span>`
-                      : `<a href="#" data-nudge-member="${escapeHtml(m.uid)}" data-nudge-name="${escapeHtml(m.displayName || 'Student')}">Nudge</a> · <a href="#" data-open-friend-calendar="${escapeHtml(m.uid)}">Calendar</a>`
+                      : `<a href="#" data-nudge-member="${escapeHtml(m.uid)}" data-nudge-name="${escapeHtml(m.displayName || 'Student')}">Nudge</a> · <a href="#" data-open-friend-calendar="${escapeHtml(m.uid)}">Calendar</a>${friendActionHtml}`
                   }
                 </td>
               </tr>`;
@@ -1780,7 +1834,294 @@ export function initApp() {
               .join('');
     }
 
+    // 7. Populate Friends Left Sidebar & Right Dual-View (#44)
+    populateFriendsSidebarAndStatsView(
+      myUid,
+      acceptedFriends,
+      incomingRequests,
+      outgoingRequests,
+      allMembers,
+      liveMap
+    );
+
     updateScrollableTablesMaxHeight();
+  }
+
+  function populateFriendsSidebarAndStatsView(
+    myUid,
+    acceptedFriends = [],
+    incomingRequests = [],
+    outgoingRequests = [],
+    allMembers = [],
+    liveMap = new Map()
+  ) {
+    if (selectedFriendUid && !acceptedFriends.some((f) => f.uid === selectedFriendUid)) {
+      selectedFriendUid = null;
+      selectedFriendTelemetry = null;
+      if (selectedFriendDocUnsub) {
+        selectedFriendDocUnsub();
+        selectedFriendDocUnsub = null;
+      }
+    }
+
+    const searchInputEl = document.getElementById('friend-search-input');
+    if (searchInputEl && document.activeElement !== searchInputEl) {
+      searchInputEl.value = friendSearchQuery;
+    }
+
+    const noticeEl = document.getElementById('friend-action-notice');
+    if (noticeEl) {
+      if (friendActionNotice && friendActionNotice.text) {
+        noticeEl.hidden = false;
+        noticeEl.className = `notice-box ${
+          friendActionNotice.type === 'error' ? 'notice-error' : 'notice-success'
+        }`;
+        noticeEl.textContent = friendActionNotice.text;
+      } else {
+        noticeEl.hidden = true;
+        noticeEl.textContent = '';
+      }
+    }
+
+    const viewSquadBtn = document.getElementById('btn-view-current-squad');
+    if (viewSquadBtn) {
+      viewSquadBtn.hidden = !selectedFriendUid;
+    }
+
+    const requestsSectionEl = document.getElementById('friends-requests-section');
+    const incomingWrapEl = document.getElementById('friends-incoming-wrap');
+    const incomingListEl = document.getElementById('friends-incoming-list');
+    const outgoingWrapEl = document.getElementById('friends-outgoing-wrap');
+    const outgoingListEl = document.getElementById('friends-outgoing-list');
+
+    const hasIncoming = incomingRequests.length > 0;
+    const hasOutgoing = outgoingRequests.length > 0;
+
+    if (requestsSectionEl) {
+      requestsSectionEl.hidden = !hasIncoming && !hasOutgoing;
+    }
+    if (incomingWrapEl && incomingListEl) {
+      incomingWrapEl.hidden = !hasIncoming;
+      incomingListEl.innerHTML = incomingRequests
+        .map(
+          (req) => `
+          <li class="friend-request-item">
+            <div>
+              <strong>${escapeHtml(req.displayName)}</strong>
+              <div class="friend-sidebar-meta">${escapeHtml(req.email)}</div>
+            </div>
+            <div class="friend-request-actions">
+              <button type="button" data-accept-friend-request="${escapeHtml(req.friendshipId)}">Accept</button>
+              <button type="button" class="btn-danger" data-decline-friend-request="${escapeHtml(req.friendshipId)}">Decline</button>
+            </div>
+          </li>`
+        )
+        .join('');
+    }
+    if (outgoingWrapEl && outgoingListEl) {
+      outgoingWrapEl.hidden = !hasOutgoing;
+      outgoingListEl.innerHTML = outgoingRequests
+        .map(
+          (req) => `
+          <li class="friend-request-item">
+            <div>
+              <strong>${escapeHtml(req.displayName)}</strong>
+              <span class="friend-sidebar-meta">(Pending)</span>
+            </div>
+            <div class="friend-request-actions">
+              <a href="#" class="squad-leave-link" data-decline-friend-request="${escapeHtml(req.friendshipId)}">Cancel</a>
+            </div>
+          </li>`
+        )
+        .join('');
+    }
+
+    const filteredFriends = filterFriendsByQuery(acceptedFriends, friendSearchQuery);
+    const friendsListEl = document.getElementById('friends-sidebar-list');
+    if (friendsListEl) {
+      if (acceptedFriends.length === 0) {
+        friendsListEl.innerHTML = `<li class="empty-cell">No friends yet. Enter an email above and click Add to send a request.</li>`;
+      } else if (filteredFriends.length === 0) {
+        friendsListEl.innerHTML = `<li class="empty-cell">No matching friends. Press Add to send a request to "${escapeHtml(friendSearchQuery.trim())}".</li>`;
+      } else {
+        friendsListEl.innerHTML = filteredFriends
+          .map((friend) => {
+            const isSelected = friend.uid === selectedFriendUid;
+            const squadMatch = allMembers.find(
+              (m) => getEmailDocId(m.uid || '') === friend.uid
+            );
+            const isLive = liveMap.has(friend.uid) || squadMatch?.status === 'live';
+            const weeklyMins =
+              isSelected && selectedFriendTelemetry
+                ? selectedFriendTelemetry.weekTotalMinutes
+                : Number(squadMatch?.minutesThisWeek) || 0;
+            const badgeText = weeklyMins > 0 ? formatStudyDuration(weeklyMins) : 'View';
+
+            return `
+              <li
+                class="friend-sidebar-item ${isSelected ? 'active' : ''}"
+                data-select-friend="${escapeHtml(friend.uid)}"
+                title="View ${escapeHtml(friend.displayName)}'s Infos and Stats"
+              >
+                <span class="friend-sidebar-name">
+                  ${isLive ? '<span class="live-badge-dot" aria-hidden="true"></span>' : ''}
+                  ${escapeHtml(friend.displayName)}
+                </span>
+                <span class="friend-sidebar-meta">${escapeHtml(badgeText)}</span>
+              </li>`;
+          })
+          .join('');
+      }
+    }
+
+    const squadViewContainer = document.getElementById('squads-current-view-container');
+    const friendStatsView = document.getElementById('friend-info-stats-view');
+    if (squadViewContainer) {
+      squadViewContainer.hidden = Boolean(selectedFriendUid);
+    }
+    if (friendStatsView) {
+      friendStatsView.hidden = !selectedFriendUid;
+    }
+
+    if (!selectedFriendUid) return;
+
+    const friendObj = acceptedFriends.find((f) => f.uid === selectedFriendUid) || {
+      uid: selectedFriendUid,
+      displayName: 'Friend',
+      email: selectedFriendUid,
+    };
+    const squadMemberFallback =
+      allMembers.find((m) => getEmailDocId(m.uid || '') === selectedFriendUid) || {};
+    const stats =
+      selectedFriendTelemetry && selectedFriendTelemetry.uid === selectedFriendUid
+        ? selectedFriendTelemetry
+        : buildFriendTelemetrySummary(squadMemberFallback, friendObj);
+
+    const nameEl = document.getElementById('friend-view-name');
+    if (nameEl) {
+      nameEl.textContent = `${stats.displayName} — Infos & Stats`;
+    }
+
+    const metaEl = document.getElementById('friend-view-meta');
+    if (metaEl) {
+      const metaParts = [
+        stats.email,
+        stats.institution,
+        stats.degreeName,
+        stats.academicYear,
+      ].filter(Boolean);
+      metaEl.textContent = metaParts.join(' · ') || 'UniSphere Student';
+    }
+
+    const removeBtn = document.getElementById('btn-remove-friend');
+    if (removeBtn) {
+      removeBtn.setAttribute(
+        'data-friendship-id',
+        friendObj.friendshipId || getFriendshipId(myUid, selectedFriendUid)
+      );
+      removeBtn.setAttribute('data-friend-name', stats.displayName || 'Friend');
+    }
+
+    const weeklyTimeEl = document.getElementById('friend-summary-weekly-time');
+    if (weeklyTimeEl) {
+      weeklyTimeEl.textContent = `${stats.weekTotalHours} / ${stats.weeklyGoalHours}h`;
+    }
+    const goalPctEl = document.getElementById('friend-summary-goal-pct');
+    if (goalPctEl) {
+      goalPctEl.textContent = `${stats.weeklyGoalPercent}%`;
+    }
+    const streakEl = document.getElementById('friend-summary-streak');
+    if (streakEl) {
+      streakEl.textContent = `${stats.currentStreak} days`;
+    }
+    const tasksEl = document.getElementById('friend-summary-tasks');
+    if (tasksEl) {
+      tasksEl.textContent = String(stats.tasksCompletedThisWeek || 0);
+    }
+    const eloEl = document.getElementById('friend-summary-elo');
+    if (eloEl) {
+      eloEl.textContent = String(stats.elo || 1000);
+    }
+
+    const thead7Day = document.getElementById('friend-view-7day-thead');
+    if (thead7Day) {
+      thead7Day.innerHTML = stats.weekDays
+        .map(
+          (d) =>
+            `<th>${escapeHtml(d.shortDay)}<span class="day-sub">${escapeHtml(d.formattedDate)}</span></th>`
+        )
+        .join('');
+    }
+    const tbody7Day = document.getElementById('friend-view-7day-tbody');
+    if (tbody7Day) {
+      tbody7Day.innerHTML = stats.weekDays
+        .map(
+          (d) =>
+            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
+        )
+        .join('');
+    }
+
+    const subjTbody = document.getElementById('friend-view-subjects-tbody');
+    if (subjTbody) {
+      subjTbody.innerHTML =
+        stats.subjects.length === 0
+          ? `<tr><td colspan="2" class="empty-cell">No subjects logged this week yet.</td></tr>`
+          : stats.subjects
+              .map(
+                (s) => `
+              <tr>
+                <td>${escapeHtml(s.subject)}</td>
+                <td><strong>${escapeHtml(s.hours)}</strong></td>
+              </tr>`
+              )
+              .join('');
+    }
+
+    const profileTbody = document.getElementById('friend-view-profile-tbody');
+    if (profileTbody) {
+      profileTbody.innerHTML = `
+        <tr>
+          <th>Name</th>
+          <td><strong>${escapeHtml(stats.displayName)}</strong></td>
+        </tr>
+        <tr>
+          <th>Email</th>
+          <td>${escapeHtml(stats.email || '-')}</td>
+        </tr>
+        <tr>
+          <th>Institution</th>
+          <td>${escapeHtml(stats.institution || 'Not specified')}</td>
+        </tr>
+        <tr>
+          <th>Degree Program</th>
+          <td>${escapeHtml(
+            [stats.degreeName, stats.degreeType].filter(Boolean).join(' — ') || 'Not specified'
+          )}</td>
+        </tr>
+        <tr>
+          <th>Academic Year &amp; Status</th>
+          <td>${escapeHtml([stats.academicYear, stats.status].filter(Boolean).join(' · ') || 'Enrolled')}</td>
+        </tr>
+      `;
+    }
+
+    const coursesTbody = document.getElementById('friend-view-courses-tbody');
+    if (coursesTbody) {
+      coursesTbody.innerHTML =
+        stats.courses.length === 0
+          ? `<tr><td colspan="3" class="empty-cell">No courses shared on profile yet.</td></tr>`
+          : stats.courses
+              .map(
+                (c) => `
+              <tr>
+                <td><strong>${escapeHtml(c.title)}</strong></td>
+                <td>${escapeHtml(c.code || '-')}</td>
+                <td>${escapeHtml(c.status || 'Active')}</td>
+              </tr>`
+              )
+              .join('');
+    }
   }
 
   function populateSettingsPage() {
@@ -1890,6 +2231,7 @@ export function initApp() {
   async function loadUserSquads() {
     const email = sessionEmail || profile.email;
     const uid = email ? getEmailDocId(email) : 'local_student';
+    void subscribeToUserFriendships(uid);
     try {
       const result = await fetchUserSquads(uid, email);
       const loaded = Array.isArray(result)
@@ -1906,7 +2248,7 @@ export function initApp() {
         void syncUserSquadTelemetry(activeSquadId);
       } else {
         activeSquadId = null;
-        cleanupSquadListeners();
+        cleanupActiveSquadListeners();
         squadMembers = [];
         squadPresence = [];
         squadActivities = [];
@@ -1917,8 +2259,168 @@ export function initApp() {
     }
   }
 
+  async function subscribeToUserFriendships(myUid) {
+    const normUid = getEmailDocId(myUid || sessionEmail || profile.email || 'local_student');
+    if (friendshipsUnsub) {
+      friendshipsUnsub();
+      friendshipsUnsub = null;
+    }
+
+    try {
+      const initial = await fetchUserFriendships(normUid);
+      if (Array.isArray(initial)) {
+        friendships = initial;
+        populateCurrentPageData();
+      }
+    } catch {}
+
+    if (!db || !normUid) return;
+
+    try {
+      const q = query(collection(db, 'friendships'), where('users', 'array-contains', normUid));
+      friendshipsUnsub = onSnapshot(
+        q,
+        (snap) => {
+          const cloudItems = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          const merged = new Map();
+          for (const item of friendships) {
+            if (item?.id) merged.set(item.id, item);
+          }
+          for (const item of cloudItems) {
+            if (item?.id) merged.set(item.id, item);
+          }
+          friendships = Array.from(merged.values());
+          populateCurrentPageData();
+        },
+        (err) => {
+          console.warn('Friendships listener notice:', err);
+        }
+      );
+    } catch (err) {
+      console.warn('Friendships subscription notice:', err);
+    }
+  }
+
+  async function selectFriendForStatsView(friendUid) {
+    const normUid = friendUid ? getEmailDocId(friendUid) : null;
+    if (!normUid || selectedFriendUid === normUid) {
+      selectedFriendUid = null;
+      selectedFriendTelemetry = null;
+      if (selectedFriendDocUnsub) {
+        selectedFriendDocUnsub();
+        selectedFriendDocUnsub = null;
+      }
+      populateSquadsPage();
+      return;
+    }
+
+    selectedFriendUid = normUid;
+    if (selectedFriendDocUnsub) {
+      selectedFriendDocUnsub();
+      selectedFriendDocUnsub = null;
+    }
+
+    const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+    const { acceptedFriends } = partitionFriendships(friendships, myUid);
+    const friendMeta = acceptedFriends.find((f) => f.uid === normUid) || {
+      uid: normUid,
+      email: normUid,
+    };
+    const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
+    const { allMembers } = getProcessedSquadMembers(activeSquad);
+    const squadMatch = allMembers.find((m) => getEmailDocId(m.uid || '') === normUid);
+
+    selectedFriendTelemetry = buildFriendTelemetrySummary(squadMatch || {}, friendMeta);
+    populateSquadsPage();
+
+    try {
+      const fetched = await fetchFriendProfileTelemetry(normUid, {
+        ...squadMatch,
+        ...friendMeta,
+      });
+      if (selectedFriendUid === normUid && fetched) {
+        selectedFriendTelemetry = fetched;
+        populateSquadsPage();
+      }
+    } catch {}
+
+    if (db) {
+      try {
+        selectedFriendDocUnsub = onSnapshot(
+          doc(db, 'users', normUid),
+          (snap) => {
+            if (selectedFriendUid !== normUid) return;
+            if (snap.exists()) {
+              selectedFriendTelemetry = buildFriendTelemetrySummary(snap.data(), {
+                ...squadMatch,
+                ...friendMeta,
+              });
+              populateSquadsPage();
+            }
+          },
+          () => {}
+        );
+      } catch {}
+    }
+  }
+
+  async function handleSendFriendRequest(targetInput, targetDisplayName = '') {
+    const myEmail = sessionEmail || profile.email || auth?.currentUser?.email || 'local_student';
+    const myUid = getEmailDocId(myEmail);
+    const myName = sanitizeTextInput(profile.name || 'Student', 100);
+    const cleanTarget = String(targetInput || '').trim();
+
+    if (!cleanTarget) {
+      friendActionNotice = {
+        type: 'error',
+        text: 'Enter a friend email address in the search bar to send a request.',
+      };
+      populateSquadsPage();
+      return;
+    }
+
+    const res = await sendFriendRequest({
+      fromUid: myUid,
+      fromEmail: myEmail,
+      fromName: myName,
+      toEmailOrUid: cleanTarget,
+      toName: targetDisplayName,
+    });
+
+    if (!res.ok) {
+      friendActionNotice = { type: 'error', text: res.error || 'Could not send friend request.' };
+      populateSquadsPage();
+      return;
+    }
+
+    if (res.friendship) {
+      friendships = [
+        res.friendship,
+        ...friendships.filter((f) => f.id !== res.friendship.id),
+      ];
+    }
+
+    friendSearchQuery = '';
+    const searchInputEl = document.getElementById('friend-search-input');
+    if (searchInputEl) searchInputEl.value = '';
+
+    if (res.status === 'already_friends') {
+      friendActionNotice = { type: 'success', text: 'You are already friends!' };
+    } else if (res.status === 'accepted') {
+      friendActionNotice = { type: 'success', text: 'Friend request accepted!' };
+    } else {
+      friendActionNotice = {
+        type: 'success',
+        text: `Friend request sent to ${res.friendship?.recipientName || cleanTarget}!`,
+      };
+    }
+
+    populateSquadsPage();
+    setStatus(friendActionNotice.text);
+  }
+
   function subscribeToSquadMembers(squadId) {
-    cleanupSquadListeners();
+    cleanupActiveSquadListeners();
     if (!squadId || !db) {
       squadMembers = [];
       squadPresence = [];
@@ -3059,6 +3561,27 @@ export function initApp() {
           populateSquadsPage();
         });
       }
+
+      const friendSearchInput = document.getElementById('friend-search-input');
+      if (friendSearchInput && !boundElements.has(friendSearchInput)) {
+        boundElements.add(friendSearchInput);
+        friendSearchInput.addEventListener('input', (e) => {
+          friendSearchQuery = e.target.value || '';
+          if (friendActionNotice) friendActionNotice = null;
+          populateSquadsPage();
+        });
+      }
+
+      const friendSearchForm = document.getElementById('form-friend-search-add');
+      if (friendSearchForm && !boundElements.has(friendSearchForm)) {
+        boundElements.add(friendSearchForm);
+        friendSearchForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const inputEl = document.getElementById('friend-search-input');
+          const rawVal = inputEl?.value || friendSearchQuery;
+          void handleSendFriendRequest(rawVal);
+        });
+      }
     }
 
     if (route === 'settings') {
@@ -3196,7 +3719,7 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-nudge-member], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], #btn-google-sso, #btn-header-logout, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending'
+            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-nudge-member], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], #btn-google-sso, #btn-header-logout, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-view-current-squad, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
@@ -3523,6 +4046,68 @@ export function initApp() {
       void removeMemberFromSquad(activeSquad.id, removeMemberUid, removeMemberName);
       populateSquadsPage();
       setStatus(`Removed ${removeMemberName || 'member'} from squad`);
+      return;
+    }
+
+    if (target.id === 'btn-back-to-squad-view' || target.id === 'btn-view-current-squad') {
+      e.preventDefault();
+      void selectFriendForStatsView(null);
+      return;
+    }
+
+    if (target.id === 'btn-remove-friend') {
+      e.preventDefault();
+      const friendshipId = target.getAttribute('data-friendship-id');
+      const friendName = target.getAttribute('data-friend-name') || 'Friend';
+      if (!friendshipId) return;
+      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      friendships = friendships.filter((f) => f.id !== friendshipId);
+      void selectFriendForStatsView(null);
+      void declineOrRemoveFriendship(friendshipId, myUid);
+      friendActionNotice = { type: 'success', text: `Removed ${friendName} from friends.` };
+      populateSquadsPage();
+      setStatus(`Removed ${friendName}`);
+      return;
+    }
+
+    const selectFriendUidAttr = target.getAttribute('data-select-friend');
+    if (selectFriendUidAttr) {
+      e.preventDefault();
+      void selectFriendForStatsView(selectFriendUidAttr);
+      return;
+    }
+
+    const sendFriendTarget = target.getAttribute('data-send-friend-request');
+    if (sendFriendTarget) {
+      e.preventDefault();
+      const friendName = target.getAttribute('data-friend-name') || '';
+      void handleSendFriendRequest(sendFriendTarget, friendName);
+      return;
+    }
+
+    const acceptFriendshipId = target.getAttribute('data-accept-friend-request');
+    if (acceptFriendshipId) {
+      e.preventDefault();
+      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      friendships = friendships.map((f) =>
+        f.id === acceptFriendshipId ? { ...f, status: 'accepted', updatedAt: new Date().toISOString() } : f
+      );
+      void acceptFriendRequest(acceptFriendshipId, myUid);
+      friendActionNotice = { type: 'success', text: 'Friend request accepted!' };
+      populateSquadsPage();
+      setStatus('Friend request accepted');
+      return;
+    }
+
+    const declineFriendshipId = target.getAttribute('data-decline-friend-request');
+    if (declineFriendshipId) {
+      e.preventDefault();
+      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      friendships = friendships.filter((f) => f.id !== declineFriendshipId);
+      void declineOrRemoveFriendship(declineFriendshipId, myUid);
+      friendActionNotice = null;
+      populateSquadsPage();
+      setStatus('Friend request removed');
       return;
     }
   });

@@ -700,5 +700,52 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       assert.match(rules, /recipientUid/);
       assert.match(rules, /data\.requesterUid != data\.recipientUid/);
     });
+
+    it('renders the Friends left sidebar + right Current Squad / Friend Infos & Stats dual view in pages/squads.html and wires real-time friends workflow in src/app.js (#44)', () => {
+      const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+      const squadsHtml = fs.readFileSync(path.join(repoRoot, 'pages/squads.html'), 'utf8');
+      const cssSrc = fs.readFileSync(path.join(repoRoot, 'src/index.css'), 'utf8');
+      const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+
+      // Left Friends sidebar with search bar, requests section, and friends list
+      assert.match(squadsHtml, /id="friends-sidebar"/);
+      assert.match(squadsHtml, /id="form-friend-search-add"/);
+      assert.match(squadsHtml, /id="friend-search-input"/);
+      assert.match(squadsHtml, /id="btn-send-friend-request"/);
+      assert.match(squadsHtml, /id="friends-requests-section"/);
+      assert.match(squadsHtml, /id="friends-incoming-list"/);
+      assert.match(squadsHtml, /id="friends-outgoing-list"/);
+      assert.match(squadsHtml, /id="friends-sidebar-list"/);
+
+      // Right main pane with Current Squad View container and Friend Infos & Stats container
+      assert.match(squadsHtml, /id="squads-current-view-container"/);
+      assert.match(squadsHtml, /id="friend-info-stats-view"[^>]*hidden/);
+      assert.match(squadsHtml, /id="friend-view-name"/);
+      assert.match(squadsHtml, /id="btn-back-to-squad-view"/);
+      assert.match(squadsHtml, /id="btn-remove-friend"/);
+      assert.match(squadsHtml, /id="friend-summary-weekly-time"/);
+      assert.match(squadsHtml, /id="friend-summary-streak"/);
+      assert.match(squadsHtml, /id="friend-view-7day-thead"/);
+      assert.match(squadsHtml, /id="friend-view-7day-tbody"/);
+      assert.match(squadsHtml, /id="friend-view-subjects-tbody"/);
+      assert.match(squadsHtml, /id="friend-view-profile-tbody"/);
+      assert.match(squadsHtml, /id="friend-view-courses-tbody"/);
+
+      // CSS layout classes for the two-column Friends + Squads workspace
+      assert.match(cssSrc, /\.squads-workspace-layout/);
+      assert.match(cssSrc, /\.friends-sidebar-card/);
+      assert.match(cssSrc, /\.friends-sidebar-list/);
+
+      // App.js wiring for real-time friendships listener, cleanup, and friend stats view
+      assert.match(appSrc, /subscribeToUserFriendships/);
+      assert.match(appSrc, /friendshipsUnsub/);
+      assert.match(appSrc, /selectedFriendDocUnsub/);
+      assert.match(appSrc, /sendFriendRequest/);
+      assert.match(appSrc, /acceptFriendRequest/);
+      assert.match(appSrc, /declineOrRemoveFriendship/);
+      assert.match(appSrc, /partitionFriendships/);
+      assert.match(appSrc, /filterFriendsByQuery/);
+      assert.match(appSrc, /buildFriendTelemetrySummary/);
+    });
   });
 });
