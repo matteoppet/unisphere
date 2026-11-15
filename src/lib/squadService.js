@@ -13,8 +13,12 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from './firebase.js';
 import { getEmailDocId, sanitizeTextInput, sanitizeResourceUrl } from './authService.js';
+import { getFriendshipId, buildFriendTelemetrySummary } from '../utils/telemetry.js';
 
 const LEFT_SQUADS_STORAGE_KEY = 'unisphere_workspace_left_squad_ids';
+const FRIENDSHIPS_STORAGE_KEY = 'unisphere_workspace_friendships_v1';
+const inMemoryFriendshipsMap = new Map();
+const isBrowserRuntime = typeof window !== 'undefined' && typeof document !== 'undefined';
 
 function getLeftSquadIdsSet() {
   try {
@@ -579,4 +583,290 @@ export async function nudgeSquadMember(squadId, targetUid, targetName, fromUid, 
     text: `nudged ${recipient} to lock in for a study session!`,
     createdAt: nowIso,
   });
+}
+
+// ===============================================================
+// Friends System (#44) — Friend Requests & Friend Telemetry
+// ===============================================================
+
+function loadLocalFriendshipsMap() {
+  const map = new Map(inMemoryFriendshipsMap);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(FRIENDSHIPS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (item && item.id) {
+              map.set(item.id, item);
+              inMemoryFriendshipsMap.set(item.id, item);
+            }
+          }
+        }
+      }
+    }
+  } catch {}
+  return map;
+}
+
+function saveLocalFriendshipDoc(docObj) {
+  if (!docObj || !docObj.id) return;
+  const map = loadLocalFriendshipsMap();
+  map.set(docObj.id, docObj);
+  inMemoryFriendshipsMap.set(docObj.id, docObj);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(FRIENDSHIPS_STORAGE_KEY, JSON.stringify(Array.from(map.values())));
+    }
+  } catch {}
+}
+
+function deleteLocalFriendshipDoc(friendshipId) {
+  if (!friendshipId) return;
+  const map = loadLocalFriendshipsMap();
+  map.delete(friendshipId);
+  inMemoryFriendshipsMap.delete(friendshipId);
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(FRIENDSHIPS_STORAGE_KEY, JSON.stringify(Array.from(map.values())));
+    }
+  } catch {}
+}
+
+function withFastTimeout(promise, ms = 1200) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+}
+
+function deriveDisplayNameFromEmail(emailOrUid = '') {
+  const raw = String(emailOrUid || '').trim();
+  if (!raw) return 'Student';
+  const local = raw.includes('@') ? raw.split('@')[0] : raw;
+  const parts = local
+    .replace(/[._-]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return 'Student';
+  return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+}
+
+/**
+ * Sends a friend request or auto-accepts if the target has already sent a pending request (#44).
+ */
+export async function sendFriendRequest({
+  fromUid,
+  fromEmail,
+  fromName,
+  toEmailOrUid,
+  toName = '',
+} = {}) {
+  const senderUid = getEmailDocId(fromEmail || fromUid || '');
+  const rawTarget = String(toEmailOrUid || '').trim();
+  const targetUid = getEmailDocId(rawTarget);
+
+  if (!senderUid || !targetUid) {
+    return { ok: false, error: 'Please enter a valid student email address.' };
+  }
+
+  const friendshipId = getFriendshipId(senderUid, targetUid);
+  if (!friendshipId) {
+    return { ok: false, error: 'You cannot send a friend request to yourself.' };
+  }
+
+  const cloudDb = isBrowserRuntime ? db : null;
+  const localMap = loadLocalFriendshipsMap();
+  let existing = localMap.get(friendshipId) || null;
+
+  if (cloudDb && !existing) {
+    try {
+      const snap = await withFastTimeout(getDoc(doc(cloudDb, 'friendships', friendshipId)), 900);
+      if (snap && snap.exists()) {
+        existing = snap.data();
+      }
+    } catch {}
+  }
+
+  const nowIso = new Date().toISOString();
+
+  if (existing) {
+    if (existing.status === 'accepted') {
+      saveLocalFriendshipDoc(existing);
+      return { ok: true, status: 'already_friends', friendship: existing };
+    }
+    const existingRecipient = getEmailDocId(existing.recipientUid || '');
+    if (existing.status === 'pending' && existingRecipient === senderUid) {
+      const acceptedDoc = {
+        ...existing,
+        id: friendshipId,
+        status: 'accepted',
+        updatedAt: nowIso,
+      };
+      saveLocalFriendshipDoc(acceptedDoc);
+      if (cloudDb) {
+        await withFastTimeout(
+          setDoc(doc(cloudDb, 'friendships', friendshipId), acceptedDoc, { merge: true }),
+          900
+        ).catch(() => {});
+      }
+      return { ok: true, status: 'accepted', friendship: acceptedDoc };
+    }
+    saveLocalFriendshipDoc(existing);
+    return { ok: true, status: 'pending', friendship: existing };
+  }
+
+  let resolvedTargetName = sanitizeTextInput(toName, 100);
+  if (!resolvedTargetName && cloudDb) {
+    try {
+      const targetSnap = await withFastTimeout(getDoc(doc(cloudDb, 'users', targetUid)), 900);
+      if (targetSnap && targetSnap.exists()) {
+        const tData = targetSnap.data();
+        resolvedTargetName = sanitizeTextInput(tData?.name || '', 100);
+      }
+    } catch {}
+  }
+  if (!resolvedTargetName) {
+    resolvedTargetName = sanitizeTextInput(deriveDisplayNameFromEmail(rawTarget), 100) || 'Student';
+  }
+
+  const cleanSenderName =
+    sanitizeTextInput(fromName || deriveDisplayNameFromEmail(fromEmail || senderUid), 100) ||
+    'Student';
+  const cleanSenderEmail = String(fromEmail || senderUid).trim().toLowerCase();
+  const cleanTargetEmail = rawTarget.toLowerCase();
+
+  const friendshipDoc = {
+    id: friendshipId,
+    users: [senderUid, targetUid].sort(),
+    requesterUid: senderUid,
+    requesterEmail: cleanSenderEmail,
+    requesterName: cleanSenderName,
+    recipientUid: targetUid,
+    recipientEmail: cleanTargetEmail,
+    recipientName: resolvedTargetName,
+    status: 'pending',
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  };
+
+  saveLocalFriendshipDoc(friendshipDoc);
+
+  if (cloudDb) {
+    await withFastTimeout(
+      setDoc(doc(cloudDb, 'friendships', friendshipId), friendshipDoc),
+      900
+    ).catch(() => {});
+  }
+
+  return { ok: true, status: 'pending', friendship: friendshipDoc };
+}
+
+/**
+ * Accepts an incoming pending friend request (#44).
+ */
+export async function acceptFriendRequest(friendshipId, currentUid = '') {
+  if (!friendshipId) return null;
+  const cloudDb = isBrowserRuntime ? db : null;
+  const cleanId = String(friendshipId).trim();
+  const nowIso = new Date().toISOString();
+  const localMap = loadLocalFriendshipsMap();
+  const existing = localMap.get(cleanId) || { id: cleanId };
+
+  const updated = {
+    ...existing,
+    id: cleanId,
+    status: 'accepted',
+    updatedAt: nowIso,
+  };
+  saveLocalFriendshipDoc(updated);
+
+  if (cloudDb) {
+    await withFastTimeout(
+      setDoc(
+        doc(cloudDb, 'friendships', cleanId),
+        { status: 'accepted', updatedAt: nowIso },
+        { merge: true }
+      ),
+      900
+    ).catch(() => {});
+  }
+
+  return updated;
+}
+
+/**
+ * Declines a friend request or removes an existing friend (#44).
+ */
+export async function declineOrRemoveFriendship(friendshipId, currentUid = '') {
+  if (!friendshipId) return false;
+  const cloudDb = isBrowserRuntime ? db : null;
+  const cleanId = String(friendshipId).trim();
+  deleteLocalFriendshipDoc(cleanId);
+
+  if (cloudDb) {
+    await withFastTimeout(deleteDoc(doc(cloudDb, 'friendships', cleanId)), 900).catch(() => {});
+  }
+  return true;
+}
+
+/**
+ * Fetches all friendship records involving `currentUid` (#44).
+ */
+export async function fetchUserFriendships(currentUid) {
+  const normUid = getEmailDocId(currentUid || '');
+  if (!normUid) return [];
+  const cloudDb = isBrowserRuntime ? db : null;
+
+  const mergedMap = new Map();
+  const localMap = loadLocalFriendshipsMap();
+  for (const [id, item] of localMap.entries()) {
+    if (
+      item &&
+      Array.isArray(item.users) &&
+      item.users.some((u) => getEmailDocId(u) === normUid)
+    ) {
+      mergedMap.set(id, item);
+    }
+  }
+
+  if (cloudDb) {
+    try {
+      const q = query(collection(cloudDb, 'friendships'), where('users', 'array-contains', normUid));
+      const snap = await withFastTimeout(getDocs(q), 1500);
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data) {
+          const id = data.id || d.id;
+          const record = { ...data, id };
+          mergedMap.set(id, record);
+          saveLocalFriendshipDoc(record);
+        }
+      });
+    } catch {}
+  }
+
+  return Array.from(mergedMap.values());
+}
+
+/**
+ * Fetches a friend's user document from Firestore and returns a privacy-safe telemetry summary (#44).
+ */
+export async function fetchFriendProfileTelemetry(friendUid, fallbackFriend = {}) {
+  const normUid = getEmailDocId(friendUid || fallbackFriend?.uid || '');
+  const cloudDb = isBrowserRuntime ? db : null;
+  let userDocData = {};
+
+  if (cloudDb && normUid) {
+    try {
+      const snap = await withFastTimeout(getDoc(doc(cloudDb, 'users', normUid)), 1500);
+      if (snap && snap.exists()) {
+        userDocData = snap.data() || {};
+      }
+    } catch {}
+  }
+
+  return buildFriendTelemetrySummary(userDocData, { ...fallbackFriend, uid: normUid });
 }

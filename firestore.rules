@@ -90,6 +90,21 @@ rules_version = '2';
 //   - activities/{activityId}: id, uid, displayName, type, text, courseName, url, title, createdAt, updatedAt
 //   - sessions/{sessionId}: id, uid, displayName, durationMinutes, subject, courseName, completedAt, createdAt
 //
+// Collection: friendships
+// Document ID: {friendshipId} (canonical sorted pair uidA__uidB)
+// Fields:
+//   - id: string (optional, <= 512 chars) - friendship document ID
+//   - users: list of 2 strings (required, size == 2) - [uidA, uidB] participant UIDs
+//   - requesterUid: string (required, 1..254 chars, immutable) - UID of requester
+//   - requesterEmail: string (optional, <= 254 chars) - email of requester
+//   - requesterName: string (optional, <= 120 chars) - display name of requester
+//   - recipientUid: string (required, 1..254 chars, immutable) - UID of recipient
+//   - recipientEmail: string (optional, <= 254 chars) - email of recipient
+//   - recipientName: string (optional, <= 120 chars) - display name of recipient
+//   - status: string (required, 'pending' | 'accepted') - friendship status
+//   - createdAt: string|number|timestamp (optional)
+//   - updatedAt: string|number|timestamp (optional)
+//
 // Collection: test
 // Document ID: connection
 //   - Connectivity check document read via getDocFromServer(doc(db, 'test', 'connection'))
@@ -426,6 +441,38 @@ service cloud.firestore {
              isValidOptionalTimestampField(data, 'completedAt');
     }
 
+    function isValidFriendshipPayload(data, friendshipId) {
+      let allowedKeys = [
+        'id', 'users', 'requesterUid', 'requesterEmail', 'requesterName',
+        'recipientUid', 'recipientEmail', 'recipientName', 'status',
+        'createdAt', 'updatedAt'
+      ];
+      return friendshipId.size() > 0 &&
+             friendshipId.size() <= 512 &&
+             data.keys().hasOnly(allowedKeys) &&
+             data.users is list &&
+             data.users.size() == 2 &&
+             data.users[0] is string &&
+             data.users[1] is string &&
+             data.requesterUid is string &&
+             data.requesterUid.size() > 0 &&
+             data.requesterUid.size() <= 254 &&
+             data.recipientUid is string &&
+             data.recipientUid.size() > 0 &&
+             data.recipientUid.size() <= 254 &&
+             data.requesterUid != data.recipientUid &&
+             data.requesterUid in data.users &&
+             data.recipientUid in data.users &&
+             data.status in ['pending', 'accepted'] &&
+             isValidOptionalString(data, 'id', 512) &&
+             isValidOptionalString(data, 'requesterEmail', 254) &&
+             isValidOptionalString(data, 'requesterName', 120) &&
+             isValidOptionalString(data, 'recipientEmail', 254) &&
+             isValidOptionalString(data, 'recipientName', 120) &&
+             isValidOptionalTimestampField(data, 'createdAt') &&
+             isValidOptionalTimestampField(data, 'updatedAt');
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -517,6 +564,17 @@ service cloud.firestore {
                               isValidSquadSubdoc(request.resource.data, sessionId);
         allow delete: if false;
       }
+    }
+
+    // Friends System (#44): Bidirectional friendship & friend request documents
+    match /friendships/{friendshipId} {
+      allow get, list: if true;
+      allow create: if isValidFriendshipPayload(request.resource.data, friendshipId);
+      allow update: if isValidFriendshipPayload(request.resource.data, friendshipId) &&
+                    resource.data.requesterUid == request.resource.data.requesterUid &&
+                    resource.data.recipientUid == request.resource.data.recipientUid &&
+                    resource.data.users == request.resource.data.users;
+      allow delete: if friendshipId.size() > 0 && friendshipId.size() <= 512;
     }
 
     // Default deny catch-all

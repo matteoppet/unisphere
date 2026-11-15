@@ -631,5 +631,74 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       assert.equal(priorOnlySummary.weekTotalHours, '0h');
       assert.equal(priorOnlySummary.subjects.length, 0);
     });
+
+    it('supports friend-request send, auto-accept on reverse pending, accept, and remove workflow in squadService.js', async () => {
+      assert.equal(typeof squadService.sendFriendRequest, 'function');
+      assert.equal(typeof squadService.acceptFriendRequest, 'function');
+      assert.equal(typeof squadService.declineOrRemoveFriendship, 'function');
+      assert.equal(typeof squadService.fetchUserFriendships, 'function');
+      assert.equal(typeof squadService.fetchFriendProfileTelemetry, 'function');
+
+      // Reject self-request and empty input
+      const selfRes = await squadService.sendFriendRequest({
+        fromUid: 'mat.petrini@stud.uniroma3.it',
+        fromEmail: 'mat.petrini@stud.uniroma3.it',
+        fromName: 'Matteo Petrini',
+        toEmailOrUid: 'mat.petrini@stud.uniroma3.it',
+      });
+      assert.equal(selfRes.ok, false);
+      assert.match(selfRes.error || '', /yourself/i);
+
+      const emptyRes = await squadService.sendFriendRequest({
+        fromUid: 'mat.petrini@stud.uniroma3.it',
+        fromEmail: 'mat.petrini@stud.uniroma3.it',
+        fromName: 'Matteo Petrini',
+        toEmailOrUid: '   ',
+      });
+      assert.equal(emptyRes.ok, false);
+
+      // Send pending friend request from Matteo to Lorenzo
+      const sendRes = await squadService.sendFriendRequest({
+        fromUid: 'mat.petrini@stud.uniroma3.it',
+        fromEmail: 'mat.petrini@stud.uniroma3.it',
+        fromName: 'Matteo Petrini',
+        toEmailOrUid: 'lorenzo.bianchi@stud.uniroma3.it',
+        toName: 'Lorenzo Bianchi',
+      });
+      assert.equal(sendRes.ok, true);
+      assert.equal(sendRes.status, 'pending');
+      assert.equal(
+        sendRes.friendship.id,
+        'lorenzo.bianchi@stud.uniroma3.it__mat.petrini@stud.uniroma3.it'
+      );
+
+      // Reverse request from Lorenzo to Matteo auto-accepts the pending request
+      const reverseRes = await squadService.sendFriendRequest({
+        fromUid: 'lorenzo.bianchi@stud.uniroma3.it',
+        fromEmail: 'lorenzo.bianchi@stud.uniroma3.it',
+        fromName: 'Lorenzo Bianchi',
+        toEmailOrUid: 'mat.petrini@stud.uniroma3.it',
+      });
+      assert.equal(reverseRes.ok, true);
+      assert.equal(reverseRes.status, 'accepted');
+      assert.equal(reverseRes.friendship.status, 'accepted');
+
+      // Remove friendship cleanly
+      const removed = await squadService.declineOrRemoveFriendship(
+        sendRes.friendship.id,
+        'mat.petrini@stud.uniroma3.it'
+      );
+      assert.equal(removed, true);
+    });
+
+    it('verifies firestore.rules defines match /friendships/{friendshipId} and isValidFriendshipPayload (#44)', () => {
+      const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+      const rules = fs.readFileSync(path.join(repoRoot, 'firestore.rules'), 'utf8');
+      assert.match(rules, /match\s+\/friendships\/\{friendshipId\}/);
+      assert.match(rules, /isValidFriendshipPayload/);
+      assert.match(rules, /requesterUid/);
+      assert.match(rules, /recipientUid/);
+      assert.match(rules, /data\.requesterUid != data\.recipientUid/);
+    });
   });
 });
