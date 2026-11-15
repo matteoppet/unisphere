@@ -884,10 +884,9 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
       const cssSrc = fs.readFileSync(path.join(repoRoot, 'src/index.css'), 'utf8');
 
-      // Friend view unified into one card with mode distinction badge
+      // Friend view unified into one card without Squad/Friend mode badges
       assert.match(squadsHtml, /id="friend-info-stats-view"[^>]*class="card friend-unified-card"/);
-      assert.match(squadsHtml, /view-mode-badge view-mode-friend/);
-      assert.match(squadsHtml, /view-mode-badge view-mode-squad/);
+      assert.doesNotMatch(squadsHtml, /view-mode-badge/);
 
       // No Tasks Done (Week), no Code column, no Infos & Stats suffix or friend-view-meta subtitle
       assert.doesNotMatch(squadsHtml, /id="friend-summary-tasks"/);
