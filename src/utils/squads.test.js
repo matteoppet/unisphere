@@ -15,6 +15,10 @@ import {
   isCurrentUserRemovedFromSquad,
   getMemberEffectiveTelemetry,
   calculateTableScrollMaxHeight,
+  getFriendshipId,
+  partitionFriendships,
+  filterFriendsByQuery,
+  buildFriendTelemetrySummary,
 } from './telemetry.js';
 import { sanitizeUserProfile, stripUndefinedDeep } from '../lib/authService.js';
 import * as squadService from '../lib/squadService.js';
@@ -471,6 +475,161 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       );
 
       assert.match(appSrc, /isCurrentUserRemovedFromSquad\(/);
+    });
+  });
+
+  describe('Friends System Utilities & Privacy-Safe Telemetry (#44)', () => {
+    it('builds deterministic canonical friendship IDs and rejects self-friending', () => {
+      assert.equal(
+        getFriendshipId('Mat.Petrini@stud.uniroma3.it ', 'lorenzo@stud.uniroma3.it'),
+        'lorenzo@stud.uniroma3.it__mat.petrini@stud.uniroma3.it'
+      );
+      assert.equal(
+        getFriendshipId('lorenzo@stud.uniroma3.it', 'mat.petrini@stud.uniroma3.it'),
+        'lorenzo@stud.uniroma3.it__mat.petrini@stud.uniroma3.it'
+      );
+      assert.equal(getFriendshipId('mat.petrini@stud.uniroma3.it', 'MAT.PETRINI@stud.uniroma3.it'), '');
+      assert.equal(getFriendshipId('', 'lorenzo@stud.uniroma3.it'), '');
+    });
+
+    it('partitions friendships into acceptedFriends, incomingRequests, and outgoingRequests', () => {
+      const myUid = 'mat.petrini@stud.uniroma3.it';
+      const docs = [
+        {
+          id: 'giulia@stud.uniroma3.it__mat.petrini@stud.uniroma3.it',
+          users: ['giulia@stud.uniroma3.it', myUid],
+          requesterUid: myUid,
+          requesterEmail: myUid,
+          requesterName: 'Matteo Petrini',
+          recipientUid: 'giulia@stud.uniroma3.it',
+          recipientEmail: 'giulia@stud.uniroma3.it',
+          recipientName: 'Giulia Conti',
+          status: 'accepted',
+          createdAt: '2026-11-10T10:00:00.000Z',
+          updatedAt: '2026-11-11T10:00:00.000Z',
+        },
+        {
+          id: 'lorenzo@stud.uniroma3.it__mat.petrini@stud.uniroma3.it',
+          users: ['lorenzo@stud.uniroma3.it', myUid],
+          requesterUid: 'lorenzo@stud.uniroma3.it',
+          requesterEmail: 'lorenzo@stud.uniroma3.it',
+          requesterName: 'Lorenzo Bianchi',
+          recipientUid: myUid,
+          recipientEmail: myUid,
+          recipientName: 'Matteo Petrini',
+          status: 'pending',
+          createdAt: '2026-11-12T09:00:00.000Z',
+        },
+        {
+          id: 'davide@stud.uniroma3.it__mat.petrini@stud.uniroma3.it',
+          users: ['davide@stud.uniroma3.it', myUid],
+          requesterUid: myUid,
+          requesterEmail: myUid,
+          requesterName: 'Matteo Petrini',
+          recipientUid: 'davide@stud.uniroma3.it',
+          recipientEmail: 'davide@stud.uniroma3.it',
+          recipientName: 'Davide Moretti',
+          status: 'pending',
+          createdAt: '2026-11-13T11:00:00.000Z',
+        },
+      ];
+
+      const { acceptedFriends, incomingRequests, outgoingRequests } = partitionFriendships(docs, myUid);
+      assert.equal(acceptedFriends.length, 1);
+      assert.equal(acceptedFriends[0].uid, 'giulia@stud.uniroma3.it');
+      assert.equal(acceptedFriends[0].displayName, 'Giulia Conti');
+
+      assert.equal(incomingRequests.length, 1);
+      assert.equal(incomingRequests[0].uid, 'lorenzo@stud.uniroma3.it');
+      assert.equal(incomingRequests[0].displayName, 'Lorenzo Bianchi');
+
+      assert.equal(outgoingRequests.length, 1);
+      assert.equal(outgoingRequests[0].uid, 'davide@stud.uniroma3.it');
+      assert.equal(outgoingRequests[0].displayName, 'Davide Moretti');
+    });
+
+    it('filters friends case-insensitively by display name or email', () => {
+      const friends = [
+        { uid: 'giulia@stud.uniroma3.it', email: 'giulia@stud.uniroma3.it', displayName: 'Giulia Conti' },
+        { uid: 'lorenzo@stud.uniroma3.it', email: 'lorenzo@stud.uniroma3.it', displayName: 'Lorenzo Bianchi' },
+      ];
+      assert.equal(filterFriendsByQuery(friends, '').length, 2);
+      assert.deepEqual(
+        filterFriendsByQuery(friends, 'giul').map((f) => f.displayName),
+        ['Giulia Conti']
+      );
+      assert.deepEqual(
+        filterFriendsByQuery(friends, 'LORENZO@').map((f) => f.displayName),
+        ['Lorenzo Bianchi']
+      );
+      assert.equal(filterFriendsByQuery(friends, 'nonexistent').length, 0);
+    });
+
+    it('computes privacy-safe friend telemetry summary from user doc and resets stale prior-week logs', () => {
+      const userDoc = {
+        name: 'Giulia Conti',
+        email: 'giulia@stud.uniroma3.it',
+        institution: 'Università Roma Tre',
+        degreeName: 'Ingegneria Informatica',
+        degreeType: 'Laurea Triennale',
+        academicYear: 'Year 2',
+        status: 'Enrolled',
+        weeklyGoalHours: 25,
+        xp: 1450,
+        passwordHash: 'secret-hash-must-not-leak',
+        quickNotes: 'private notes must not leak',
+        checklist: 'private checklist',
+        studyLogs: [
+          { id: 'l1', date: '2026-11-09', courseName: 'Analisi 1', durationMinutes: 120 }, // Mon
+          { id: 'l2', date: '2026-11-10', courseName: 'Fisica 1', durationMinutes: 60 },  // Tue
+          { id: 'l3', date: '2026-11-11', courseName: 'Analisi 1', durationMinutes: 90 }, // Wed
+          { id: 'l4', date: '2026-11-01', courseName: 'Analisi 1', durationMinutes: 300 }, // Prior week
+        ],
+        assignments: [
+          { id: 'a1', title: 'Homework 1', status: 'completed', completedAt: new Date(2026, 10, 10, 12, 0).getTime() },
+        ],
+        courses: [
+          { id: 'c1', title: 'Analisi 1', code: 'MAT01', semester: 'Sem 1', status: 'Active', grade: 30, cfu: 12 },
+          { id: 'c2', title: 'Fisica 1', code: 'FIS01', semester: 'Sem 1', status: 'Passed', grade: 28, cfu: 9 },
+        ],
+      };
+
+      const summary = buildFriendTelemetrySummary(userDoc, { uid: 'giulia@stud.uniroma3.it' }, refWednesday);
+      assert.equal(summary.displayName, 'Giulia Conti');
+      assert.equal(summary.institution, 'Università Roma Tre');
+      assert.equal(summary.degreeName, 'Ingegneria Informatica');
+      assert.equal(summary.weekTotalMinutes, 270);
+      assert.equal(summary.weekTotalHours, '4h 30m');
+      assert.equal(summary.currentStreak, 3);
+      assert.equal(summary.tasksCompletedThisWeek, 1);
+      assert.equal(summary.weekDays.length, 7);
+      assert.equal(summary.weekDays[0].minutes, 120);
+      assert.equal(summary.subjects.length, 2);
+      assert.equal(summary.subjects[0].subject, 'Analisi 1');
+      assert.equal(summary.subjects[0].hours, '3h 30m');
+
+      // Privacy assertions: no passwordHash, quickNotes, checklist, or course grades leaked
+      assert.equal('passwordHash' in summary, false);
+      assert.equal('quickNotes' in summary, false);
+      assert.equal('checklist' in summary, false);
+      assert.equal(summary.courses.length, 2);
+      assert.equal(summary.courses[0].title, 'Analisi 1');
+      assert.equal('grade' in summary.courses[0], false);
+
+      // Prior-week-only friend must show 0h for current week
+      const priorOnlySummary = buildFriendTelemetrySummary(
+        {
+          name: 'Prior Only',
+          studyLogs: [{ id: 'p1', date: '2026-11-01', courseName: 'Analisi 1', durationMinutes: 240 }],
+          minutesStudiedThisWeek: 240,
+          updatedAt: '2026-11-01T12:00:00.000Z',
+        },
+        { uid: 'prior@stud.uniroma3.it' },
+        refWednesday
+      );
+      assert.equal(priorOnlySummary.weekTotalMinutes, 0);
+      assert.equal(priorOnlySummary.weekTotalHours, '0h');
+      assert.equal(priorOnlySummary.subjects.length, 0);
     });
   });
 });

@@ -825,6 +825,239 @@ export function isCurrentUserRemovedFromSquad(
   return false;
 }
 
+/**
+ * Builds a canonical, order-independent document ID for a friendship between two users (#44).
+ * Returns '' if either ID is empty or if both IDs resolve to the same user.
+ */
+export function getFriendshipId(uidA, uidB) {
+  const normA = String(uidA || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, '_');
+  const normB = String(uidB || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, '_');
+  if (!normA || !normB || normA === normB) return '';
+  return [normA, normB].sort().join('__');
+}
+
+function formatReadableFallbackName(uidOrEmail = '') {
+  const raw = String(uidOrEmail || '').trim();
+  if (!raw) return 'Student';
+  const localPart = raw.includes('@') ? raw.split('@')[0] : raw;
+  const words = localPart
+    .replace(/[._-]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) return 'Student';
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+/**
+ * Classifies friendship records for `myUid` into acceptedFriends, incomingRequests, and outgoingRequests (#44).
+ */
+export function partitionFriendships(friendships = [], myUid = '') {
+  const normMe = String(myUid || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, '_');
+  const acceptedFriends = [];
+  const incomingRequests = [];
+  const outgoingRequests = [];
+
+  if (!Array.isArray(friendships) || !normMe) {
+    return { acceptedFriends, incomingRequests, outgoingRequests };
+  }
+
+  const seenFriendUids = new Set();
+
+  for (const item of friendships) {
+    if (!item || typeof item !== 'object') continue;
+    const reqUid = String(item.requesterUid || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\//g, '_');
+    const recUid = String(item.recipientUid || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\//g, '_');
+    if (!reqUid || !recUid || reqUid === recUid) continue;
+
+    const isRequester = reqUid === normMe;
+    const isRecipient = recUid === normMe;
+    if (!isRequester && !isRecipient) continue;
+
+    const friendUid = isRequester ? recUid : reqUid;
+    if (seenFriendUids.has(friendUid)) continue;
+    seenFriendUids.add(friendUid);
+
+    const friendEmail = isRequester
+      ? String(item.recipientEmail || friendUid).trim()
+      : String(item.requesterEmail || friendUid).trim();
+    const rawDisplayName = isRequester ? item.recipientName : item.requesterName;
+    const displayName =
+      String(rawDisplayName || '').trim() || formatReadableFallbackName(friendEmail || friendUid);
+    const friendshipId = item.id || getFriendshipId(reqUid, recUid);
+
+    const normalizedEntry = {
+      friendshipId,
+      uid: friendUid,
+      email: friendEmail || friendUid,
+      displayName,
+      status: item.status === 'accepted' ? 'accepted' : 'pending',
+      direction: isRequester ? 'outgoing' : 'incoming',
+      createdAt: item.createdAt || null,
+      updatedAt: item.updatedAt || item.createdAt || null,
+    };
+
+    if (item.status === 'accepted') {
+      acceptedFriends.push(normalizedEntry);
+    } else if (isRecipient) {
+      incomingRequests.push(normalizedEntry);
+    } else {
+      outgoingRequests.push(normalizedEntry);
+    }
+  }
+
+  acceptedFriends.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  incomingRequests.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  outgoingRequests.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+  return {
+    acceptedFriends,
+    incomingRequests,
+    outgoingRequests,
+  };
+}
+
+/**
+ * Filters a list of friends or requests by search query against displayName, email, or uid (#44).
+ */
+export function filterFriendsByQuery(friends = [], queryStr = '') {
+  if (!Array.isArray(friends)) return [];
+  const q = String(queryStr || '').trim().toLowerCase();
+  if (!q) return [...friends];
+  return friends.filter((f) => {
+    if (!f) return false;
+    const name = String(f.displayName || '').toLowerCase();
+    const email = String(f.email || '').toLowerCase();
+    const uid = String(f.uid || '').toLowerCase();
+    return name.includes(q) || email.includes(q) || uid.includes(q);
+  });
+}
+
+/**
+ * Builds a privacy-safe telemetry & profile summary for a selected friend (#44).
+ * Strips grades, personal notes, and sensitive fields while computing current-week 7-day study stats.
+ */
+export function buildFriendTelemetrySummary(
+  userDocData = {},
+  fallbackFriend = {},
+  referenceDate = new Date()
+) {
+  const safeDoc = userDocData && typeof userDocData === 'object' ? userDocData : {};
+  const safeFallback = fallbackFriend && typeof fallbackFriend === 'object' ? fallbackFriend : {};
+
+  const uid = String(safeDoc.uid || safeFallback.uid || safeDoc.email || '').trim().toLowerCase();
+  const email = String(safeDoc.email || safeFallback.email || uid).trim().toLowerCase();
+  const displayName =
+    String(safeDoc.name || safeDoc.displayName || safeFallback.displayName || '').trim() ||
+    formatReadableFallbackName(email || uid);
+
+  const studyLogs = Array.isArray(safeDoc.studyLogs) ? safeDoc.studyLogs : null;
+  const weeklyGoalHours = Math.max(1, Number(safeDoc.weeklyGoalHours) || 20);
+
+  let weekDays = [];
+  let weekTotalMinutes = 0;
+  let subjects = [];
+  let currentStreak = 0;
+  let tasksCompletedThisWeek = 0;
+
+  if (studyLogs) {
+    const weekSummary = getWeekDaysSummary(studyLogs, referenceDate);
+    weekDays = weekSummary.weekDays;
+    weekTotalMinutes = weekSummary.weekTotalMinutes;
+
+    const subjMap = getWeeklySubjectMinutesMap(studyLogs, referenceDate);
+    subjects = Object.entries(subjMap)
+      .map(([subject, minutes]) => ({
+        subject: String(subject).trim(),
+        minutes: Math.max(0, Number(minutes) || 0),
+        hours: formatStudyDuration(Math.max(0, Number(minutes) || 0)),
+      }))
+      .filter((s) => s.subject && s.minutes > 0)
+      .sort((a, b) => b.minutes - a.minutes || a.subject.localeCompare(b.subject));
+
+    currentStreak = calculateCurrentStreak(studyLogs, safeDoc, referenceDate);
+    tasksCompletedThisWeek = Array.isArray(safeDoc.assignments)
+      ? countCompletedTasksThisWeek(safeDoc.assignments, referenceDate)
+      : 0;
+  } else {
+    const calendar = getMemberWeekDaysSummary(
+      {
+        ...safeFallback,
+        ...safeDoc,
+        minutesThisWeek:
+          safeDoc.minutesThisWeek ?? safeDoc.minutesStudiedThisWeek ?? safeFallback.minutesThisWeek ?? 0,
+      },
+      referenceDate
+    );
+    weekDays = calendar.weekDays;
+    weekTotalMinutes = calendar.totalMinutes;
+    subjects = calendar.subjects;
+    const effective = getMemberEffectiveTelemetry(
+      {
+        ...safeFallback,
+        ...safeDoc,
+        minutesThisWeek: weekTotalMinutes,
+        tasksThisWeek:
+          safeDoc.tasksThisWeek ?? safeDoc.tasksCompletedThisWeek ?? safeFallback.tasksThisWeek ?? 0,
+      },
+      referenceDate
+    );
+    currentStreak = effective.currentStreak;
+    tasksCompletedThisWeek = effective.tasksThisWeek;
+  }
+
+  const focusSummary = calculateWeeklyFocus(weekTotalMinutes, weeklyGoalHours, referenceDate);
+  const elo = calculateElo(weekTotalMinutes, tasksCompletedThisWeek, currentStreak);
+
+  const rawCourses = Array.isArray(safeDoc.courses) ? safeDoc.courses : [];
+  const courses = rawCourses
+    .filter((c) => c && typeof c === 'object' && String(c.title || '').trim())
+    .map((c) => ({
+      id: String(c.id || ''),
+      title: String(c.title || '').trim(),
+      code: String(c.code || '').trim(),
+      semester: String(c.semester || '').trim(),
+      status: String(c.status || 'Active').trim(),
+    }));
+
+  return {
+    uid,
+    displayName,
+    email,
+    institution: String(safeDoc.institution || '').trim(),
+    degreeName: String(safeDoc.degreeName || '').trim(),
+    degreeType: String(safeDoc.degreeType || '').trim(),
+    academicYear: String(safeDoc.academicYear || '').trim(),
+    status: String(safeDoc.status || 'Enrolled').trim(),
+    weeklyGoalHours,
+    weekTotalMinutes,
+    weekTotalHours: formatStudyDuration(weekTotalMinutes),
+    weeklyGoalPercent: focusSummary.weeklyGoalPercent,
+    currentStreak,
+    tasksCompletedThisWeek,
+    xp: Math.max(0, Number(safeDoc.xp) || 0),
+    elo,
+    weekDays,
+    subjects,
+    courses,
+  };
+}
+
 
 
 
