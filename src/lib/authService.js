@@ -1,4 +1,5 @@
 import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { clampExamGradeValue } from '../utils/grades.js';
 
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEY_BITS = 256;
@@ -544,23 +545,18 @@ export function sanitizeAssignmentItem(raw) {
     notes,
   };
 
-  if (raw.grade !== undefined && raw.grade !== null && raw.grade !== '') {
-    const numGrade = Number(raw.grade);
-    if (Number.isFinite(numGrade)) {
-      cleaned.grade = Math.round(Math.min(30, Math.max(0, numGrade)) * 10) / 10;
-    }
+  const cleanGrade = clampExamGradeValue(raw.grade);
+  if (cleanGrade !== null) {
+    cleaned.grade = cleanGrade;
   }
 
   if (Array.isArray(raw.examParts) && raw.examParts.length > 0) {
     cleaned.examParts = raw.examParts.slice(0, 2).map((part, idx) => {
-      const pGrade =
-        part && part.grade !== undefined && part.grade !== null && part.grade !== ''
-          ? Math.round(Math.min(30, Math.max(0, Number(part.grade))) * 10) / 10
-          : undefined;
+      const pGrade = clampExamGradeValue(part?.grade);
       const cleanPart = {
         label: sanitizeTextInput(part?.label || `Esonero ${idx + 1}`, 40),
       };
-      if (Number.isFinite(pGrade)) {
+      if (pGrade !== null) {
         cleanPart.grade = pGrade;
       }
       return cleanPart;

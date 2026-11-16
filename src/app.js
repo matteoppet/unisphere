@@ -107,6 +107,8 @@ import {
   sortAssignmentsForTable,
   shouldRenderCompletedDivider,
   findCourseForName,
+  clampExamGradeValue,
+  isValidGradeInput,
 } from './utils/grades.js';
 
 const STORAGE_KEY = 'unisphere_workspace';
@@ -3160,11 +3162,25 @@ export function initApp() {
     dialog.showModal();
   }
 
+  function validateAssignmentGradeField(inputEl, shouldValidate = true) {
+    if (!inputEl) return true;
+    if (!shouldValidate) {
+      inputEl.setCustomValidity('');
+      return true;
+    }
+    const valid = isValidGradeInput(inputEl.value);
+    inputEl.setCustomValidity(
+      valid ? '' : 'Enter a valid grade between 0 and 30 (e.g. 29,60 or 29.60).'
+    );
+    return valid;
+  }
+
   function syncAssignmentModalFields() {
     const typeEl = document.getElementById('assignment-type');
     const singlePanel = document.getElementById('assignment-single-grade-panel');
     const midtermPanel = document.getElementById('assignment-midterm-grades-panel');
     const previewEl = document.getElementById('assignment-esonero-average-preview');
+    const gradeEl = document.getElementById('assignment-grade');
     const es1El = document.getElementById('assignment-esonero1');
     const es2El = document.getElementById('assignment-esonero2');
     if (!typeEl || !singlePanel || !midtermPanel) return;
@@ -3173,17 +3189,17 @@ export function initApp() {
     singlePanel.hidden = isMidterm;
     midtermPanel.hidden = !isMidterm;
 
+    validateAssignmentGradeField(gradeEl, !isMidterm);
+    validateAssignmentGradeField(es1El, isMidterm);
+    validateAssignmentGradeField(es2El, isMidterm);
+
     if (isMidterm && previewEl && es1El && es2El) {
-      const r1 = es1El.value.trim();
-      const r2 = es2El.value.trim();
-      const g1 = r1 !== '' ? Number(r1) : NaN;
-      const g2 = r2 !== '' ? Number(r2) : NaN;
+      const g1 = isValidGradeInput(es1El.value) ? clampExamGradeValue(es1El.value) : null;
+      const g2 = isValidGradeInput(es2El.value) ? clampExamGradeValue(es2El.value) : null;
 
       previewEl.classList.remove('exam-grade-pass', 'exam-grade-fail');
-      if (Number.isFinite(g1) && Number.isFinite(g2)) {
-        const clamped1 = Math.min(30, Math.max(0, g1));
-        const clamped2 = Math.min(30, Math.max(0, g2));
-        const avg = Math.round(((clamped1 + clamped2) / 2) * 10) / 10;
+      if (g1 !== null && g2 !== null) {
+        const avg = Math.round(((g1 + g2) / 2) * 100) / 100;
         previewEl.textContent = `Average Grade: ${avg} / 30`;
         previewEl.classList.add(avg >= 18 ? 'exam-grade-pass' : 'exam-grade-fail');
       } else {
@@ -4978,6 +4994,9 @@ export function initApp() {
         .getElementById('assignment-type')
         ?.addEventListener('change', () => syncAssignmentModalFields());
       document
+        .getElementById('assignment-grade')
+        ?.addEventListener('input', () => syncAssignmentModalFields());
+      document
         .getElementById('assignment-esonero1')
         ?.addEventListener('input', () => syncAssignmentModalFields());
       document
@@ -4986,6 +5005,9 @@ export function initApp() {
 
       assignmentForm.addEventListener('submit', (e) => {
         e.preventDefault();
+        syncAssignmentModalFields();
+        if (!assignmentForm.reportValidity()) return;
+
         const id = sanitizeTextInput(document.getElementById('assignment-id').value, 80);
         const existingItem = id ? assignments.find((a) => a.id === id) : null;
         const courseName = sanitizeTextInput(
@@ -5007,17 +5029,15 @@ export function initApp() {
 
         if (type === 'Midterm') {
           if (es1Raw !== '' || es2Raw !== '') {
-            const g1 =
-              es1Raw !== '' ? Math.round(Math.min(30, Math.max(0, Number(es1Raw))) * 10) / 10 : undefined;
-            const g2 =
-              es2Raw !== '' ? Math.round(Math.min(30, Math.max(0, Number(es2Raw))) * 10) / 10 : undefined;
+            const g1 = clampExamGradeValue(es1Raw) ?? undefined;
+            const g2 = clampExamGradeValue(es2Raw) ?? undefined;
             examParts = [
               { label: 'Esonero 1', grade: g1 },
               { label: 'Esonero 2', grade: g2 },
             ];
           }
         } else if (gradeRaw !== '') {
-          grade = Math.round(Math.min(30, Math.max(0, Number(gradeRaw))) * 10) / 10;
+          grade = clampExamGradeValue(gradeRaw) ?? undefined;
         }
 
         const derivedTitle =

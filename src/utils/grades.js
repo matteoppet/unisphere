@@ -4,7 +4,7 @@ export function getExamResult(parts) {
   }
   const grades = parts.map((part) => part.grade);
   if (grades.some((grade) => grade < 18)) return null;
-  return Math.round(((grades[0] + grades[1]) / 2) * 10) / 10;
+  return Math.round(((grades[0] + grades[1]) / 2) * 100) / 100;
 }
 
 const EXAM_MONTH_NAMES = [
@@ -51,11 +51,35 @@ function parseLocalDateOnly(dateStr) {
   return d;
 }
 
-function clampExamGradeValue(val) {
-  if (val === undefined || val === null || val === '') return null;
-  const num = typeof val === 'number' ? val : Number(String(val).trim());
-  if (!Number.isFinite(num)) return null;
-  return Math.round(Math.min(30, Math.max(0, num)) * 10) / 10;
+function parseNormalizedDecimal(val) {
+  if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+  if (typeof val !== 'string') return null;
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.replace(',', '.');
+  if (!/^[+-]?(\d+(\.\d+)?|\.\d+)$/.test(normalized)) return null;
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : null;
+}
+
+/**
+ * Parses a numeric or comma/dot decimal grade, clamping it to [0, 30] with 2-decimal precision.
+ */
+export function clampExamGradeValue(val) {
+  const num = parseNormalizedDecimal(val);
+  if (num === null) return null;
+  return Math.round(Math.min(30, Math.max(0, num)) * 100) / 100;
+}
+
+/**
+ * Validates user text input for optional grade fields (empty, or decimal 0..30 with '.' or ',').
+ */
+export function isValidGradeInput(rawVal) {
+  if (rawVal === undefined || rawVal === null) return true;
+  const trimmed = String(rawVal).trim();
+  if (!trimmed) return true;
+  const num = parseNormalizedDecimal(trimmed);
+  return num !== null && num >= 0 && num <= 30;
 }
 
 /**
@@ -113,7 +137,7 @@ export function getAssignmentDisplayGrade(item = {}) {
     const text = `${part1.displayText} - ${part2.displayText}`;
 
     if (part1.value !== null && part2.value !== null) {
-      const avg = Math.round(((part1.value + part2.value) / 2) * 10) / 10;
+      const avg = Math.round(((part1.value + part2.value) / 2) * 100) / 100;
       const avgStatus = avg >= 18 ? 'pass' : 'fail';
       return {
         isSplit: true,

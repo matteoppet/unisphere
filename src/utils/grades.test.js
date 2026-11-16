@@ -27,6 +27,14 @@ describe('Grade calculation utilities', () => {
 
     assert.strictEqual(
       getExamResult([
+        { label: 'Esonero 1', grade: 29.6 },
+        { label: 'Esonero 2', grade: 29.5 },
+      ]),
+      29.55
+    );
+
+    assert.strictEqual(
+      getExamResult([
         { label: 'Esonero 1', grade: 16 },
         { label: 'Esonero 2', grade: 28 },
       ]),

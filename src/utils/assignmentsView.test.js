@@ -12,6 +12,7 @@ import {
   shouldRenderCompletedDivider,
   findCourseForName,
   calculateMediaGrades,
+  isValidGradeInput,
 } from './grades.js';
 import { sanitizeAssignmentItem } from '../lib/authService.js';
 
@@ -87,6 +88,17 @@ describe('Exams & Assignments Redesign (#exams-redesign)', () => {
         { label: 'Grade', value: 0, displayText: '0/30', status: 'fail' },
       ]);
 
+      const twoDecimals = getAssignmentDisplayGrade({ type: 'Exam', grade: 29.65 });
+      assert.equal(twoDecimals.value, 29.65);
+      assert.equal(twoDecimals.text, '29.65/30');
+      assert.equal(twoDecimals.isPass, true);
+      assert.equal(twoDecimals.parts[0].status, 'pass');
+
+      const commaDecimal = getAssignmentDisplayGrade({ type: 'Exam', grade: '29,60' });
+      assert.equal(commaDecimal.value, 29.6);
+      assert.equal(commaDecimal.text, '29.6/30');
+      assert.equal(commaDecimal.isPass, true);
+
       const ungraded = getAssignmentDisplayGrade({ type: 'Exam' });
       assert.equal(ungraded.value, null);
       assert.equal(ungraded.text, '0/30');
@@ -159,6 +171,18 @@ describe('Exams & Assignments Redesign (#exams-redesign)', () => {
       assert.equal(zeroFailPart.averageText, '12/30');
       assert.equal(zeroFailPart.averageStatus, 'fail');
       assert.equal(zeroFailPart.isFail, true);
+
+      const twoDecimalMidterm = getAssignmentDisplayGrade({
+        type: 'Midterm',
+        examParts: [
+          { label: 'Esonero 1', grade: 29.6 },
+          { label: 'Esonero 2', grade: 29.5 },
+        ],
+      });
+      assert.equal(twoDecimalMidterm.text, '29.6/30 - 29.5/30');
+      assert.equal(twoDecimalMidterm.averageValue, 29.55);
+      assert.equal(twoDecimalMidterm.averageText, '29.55/30');
+      assert.equal(twoDecimalMidterm.averageStatus, 'pass');
     });
 
     it('keeps calculateMediaGrades unaffected by ungraded 0/30 placeholders', () => {
@@ -178,6 +202,21 @@ describe('Exams & Assignments Redesign (#exams-redesign)', () => {
       );
       assert.equal(summary.gradedExamsCount, 0);
       assert.equal(summary.weightedAverage, null);
+    });
+  });
+
+  describe('isValidGradeInput', () => {
+    it('accepts optional empty input, dot decimals, and comma decimals in 0..30 and rejects invalid/out-of-range values', () => {
+      assert.equal(isValidGradeInput(''), true);
+      assert.equal(isValidGradeInput('29,60'), true);
+      assert.equal(isValidGradeInput('29.65'), true);
+      assert.equal(isValidGradeInput('0'), true);
+      assert.equal(isValidGradeInput('30'), true);
+      assert.equal(isValidGradeInput('30,00'), true);
+      assert.equal(isValidGradeInput('30.1'), false);
+      assert.equal(isValidGradeInput('-1'), false);
+      assert.equal(isValidGradeInput('abc'), false);
+      assert.equal(isValidGradeInput('29,6,0'), false);
     });
   });
 
@@ -321,6 +360,32 @@ describe('Exams & Assignments Redesign (#exams-redesign)', () => {
       assert.equal(cleaned.title, 'Analisi 1 Midterm');
       assert.equal(cleaned.examParts[0].grade, 0);
       assert.equal(cleaned.examParts[1].grade, 24);
+
+      const decimalCleaned = sanitizeAssignmentItem({
+        id: 'asg-dec-1',
+        courseName: 'Fisica 1',
+        type: 'Midterm',
+        dueDate: '2026-11-22',
+        status: 'todo',
+        examParts: [
+          { label: 'Esonero 1', grade: '29,60' },
+          { label: 'Esonero 2', grade: 28.75 },
+        ],
+      });
+      assert.ok(decimalCleaned);
+      assert.equal(decimalCleaned.examParts[0].grade, 29.6);
+      assert.equal(decimalCleaned.examParts[1].grade, 28.75);
+
+      const singleDecimalCleaned = sanitizeAssignmentItem({
+        id: 'asg-dec-2',
+        courseName: 'Algebra',
+        type: 'Exam',
+        dueDate: '2026-11-25',
+        status: 'completed',
+        grade: 29.65,
+      });
+      assert.ok(singleDecimalCleaned);
+      assert.equal(singleDecimalCleaned.grade, 29.65);
     });
   });
 
@@ -381,6 +446,12 @@ describe('Exams & Assignments Redesign (#exams-redesign)', () => {
         assert.match(pageHtml, /id="assignment-esonero2"/);
         assert.match(pageHtml, /id="assignment-esonero-average-preview"/);
         assert.match(pageHtml, /id="assignment-completed"/);
+        assert.match(pageHtml, /id="assignment-grade"[^>]*inputmode="decimal"/);
+        assert.match(pageHtml, /id="assignment-esonero1"[^>]*inputmode="decimal"/);
+        assert.match(pageHtml, /id="assignment-esonero2"[^>]*inputmode="decimal"/);
+        assert.doesNotMatch(pageHtml, /id="assignment-grade"[^>]*step="0\.5"/);
+        assert.doesNotMatch(pageHtml, /id="assignment-esonero1"[^>]*step="0\.5"/);
+        assert.doesNotMatch(pageHtml, /id="assignment-esonero2"[^>]*step="0\.5"/);
       }
 
       // App.js wiring for sorting, urgency, daily check, and modal synchronization
