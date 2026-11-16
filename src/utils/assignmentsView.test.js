@@ -403,5 +403,33 @@ describe('Exams & Assignments Redesign (#exams-redesign)', () => {
       assert.match(html, /id="form-course"/);
       assert.match(html, /id="course-title"/);
     });
+
+    it('wires 0/30 grade parts, bold completed divider, mobile 3-column drawer, and course info modal in CSS and App.js', () => {
+      const css = fs.readFileSync(path.join(repoRoot, 'src/index.css'), 'utf8');
+      const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+
+      // CSS classes for individual grade parts, bold completed separator, mobile drawer, and course info grid
+      assert.match(css, /\.exam-grade-ungraded/);
+      assert.match(css, /\.assignments-completed-divider\s+td/);
+      assert.match(css, /border-top:\s*3px\s+solid\s+#333333/);
+      assert.match(css, /\.assignment-detail-row/);
+      assert.match(css, /\.course-info-grid/);
+      assert.match(css, /@media\s*\(\s*max-width:\s*720px\s*\)[\s\S]*?\.assignments-table\s+thead\s+th:nth-child\(2\)/);
+      assert.match(css, /@media\s*\(\s*max-width:\s*720px\s*\)[\s\S]*?\.assignments-table\s+thead\s+th:nth-child\(5\)/);
+      assert.match(css, /@media\s*\(\s*max-width:\s*720px\s*\)[\s\S]*?\.assignment-main-row\s+td:nth-child\(2\)/);
+      assert.match(css, /@media\s*\(\s*max-width:\s*720px\s*\)[\s\S]*?\.assignment-main-row\s+td:nth-child\(5\)/);
+
+      // App.js wiring
+      assert.match(appSrc, /formatExamDateShort/);
+      assert.match(appSrc, /shouldRenderCompletedDivider/);
+      assert.match(appSrc, /findCourseForName/);
+      assert.match(appSrc, /expandedAssignmentIds/);
+      assert.match(appSrc, /data-open-course-info/);
+      assert.match(appSrc, /data-toggle-assignment-row/);
+      assert.match(appSrc, /assignment-detail-row/);
+      assert.match(appSrc, /assignments-completed-divider/);
+      assert.match(appSrc, /function openCourseInfoModal/);
+      assert.match(appSrc, /btn-course-info-edit/);
+    });
   });
 });

@@ -100,10 +100,13 @@ import {
   calculateMediaGrades,
   getItemExamGrade,
   formatExamDate,
+  formatExamDateShort,
   normalizeAssignmentType,
   getAssignmentDisplayGrade,
   getExamUrgencyState,
   sortAssignmentsForTable,
+  shouldRenderCompletedDivider,
+  findCourseForName,
 } from './utils/grades.js';
 
 const STORAGE_KEY = 'unisphere_workspace';
@@ -291,6 +294,7 @@ export function initApp() {
   let courseSearchQuery = '';
   let logSubjectFilter = 'all';
   let assignmentTypeFilter = 'all';
+  const expandedAssignmentIds = new Set();
   let lastAssignmentsDateKey = getLocalDateString();
   let assignmentsDailyInterval = null;
 
@@ -1273,6 +1277,72 @@ export function initApp() {
     }
   }
 
+  function renderAssignmentGradePartsHtml(gradeInfo) {
+    const parts = Array.isArray(gradeInfo?.parts) ? gradeInfo.parts : [];
+    if (parts.length === 0) {
+      return '<span class="exam-grade-part exam-grade-ungraded">0/30</span>';
+    }
+    return parts
+      .map(
+        (part) =>
+          `<span class="exam-grade-part exam-grade-${escapeHtml(part.status)}">${escapeHtml(part.displayText)}</span>`
+      )
+      .join('<span class="exam-grade-sep"> - </span>');
+  }
+
+  function renderAssignmentDetailInfoHtml(item, displayType, gradeInfo, urgency) {
+    const isCompleted = item.status === 'completed';
+    const statusLabel = urgency?.hint ? urgency.hint : isCompleted ? 'Completed' : 'Scheduled';
+    const gradeSummaryHtml = gradeInfo.isSplit
+      ? `${gradeInfo.parts
+          .map(
+            (part) =>
+              `${escapeHtml(part.label)}: <span class="exam-grade-part exam-grade-${escapeHtml(part.status)}">${escapeHtml(part.displayText)}</span>`
+          )
+          .join(' · ')} · Average: <span class="exam-grade-part exam-grade-${escapeHtml(gradeInfo.averageStatus)}">${escapeHtml(gradeInfo.averageText)}</span>`
+      : `Grade: <span class="exam-grade-part exam-grade-${escapeHtml(gradeInfo.averageStatus)}">${escapeHtml(gradeInfo.averageText === '-' ? 'Pending (0/30)' : gradeInfo.averageText)}</span>`;
+
+    return `
+      <div class="assignment-detail-card">
+        <div class="assignment-detail-row-meta">
+          <span><strong>Type:</strong> ${escapeHtml(displayType)}</span>
+          <span><strong>Status:</strong> ${escapeHtml(statusLabel)}</span>
+        </div>
+        <div class="assignment-detail-grade">${gradeSummaryHtml}</div>
+        <div class="assignment-detail-actions">
+          <strong>Actions:</strong>
+          <a href="#" data-toggle-assignment="${escapeHtml(item.id)}">${isCompleted ? 'Reopen' : 'Mark as complete'}</a> |
+          <a href="#" data-open-assignment="${escapeHtml(item.id)}">Edit</a> |
+          <a href="#" data-delete-assignment="${escapeHtml(item.id)}">Delete</a>
+        </div>
+      </div>
+    `;
+  }
+
+  function toggleAssignmentDetailRow(assignmentId) {
+    if (!assignmentId) return;
+    if (expandedAssignmentIds.has(assignmentId)) {
+      expandedAssignmentIds.delete(assignmentId);
+    } else {
+      expandedAssignmentIds.add(assignmentId);
+    }
+    const isExpanded = expandedAssignmentIds.has(assignmentId);
+    const mainRow = document.querySelector(
+      `tr[data-toggle-assignment-row="${CSS.escape(assignmentId)}"]`
+    );
+    const detailRow = document.querySelector(
+      `tr[data-assignment-detail="${CSS.escape(assignmentId)}"]`
+    );
+    if (mainRow) {
+      mainRow.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+      const indicator = mainRow.querySelector('.mobile-expand-indicator');
+      if (indicator) indicator.textContent = isExpanded ? '▾' : '▸';
+    }
+    if (detailRow) {
+      detailRow.hidden = !isExpanded;
+    }
+  }
+
   function populateAssignmentsPage() {
     const todayRef = new Date();
     lastAssignmentsDateKey = getLocalDateString(todayRef);
@@ -1288,6 +1358,10 @@ export function initApp() {
     });
 
     const sorted = sortAssignmentsForTable(filtered, todayRef);
+    const visibleIds = new Set(sorted.map((item) => item.id));
+    for (const id of expandedAssignmentIds) {
+      if (!visibleIds.has(id)) expandedAssignmentIds.delete(id);
+    }
 
     const registryTbody = document.getElementById('assignments-registry-tbody');
     if (registryTbody) {
@@ -1295,35 +1369,47 @@ export function initApp() {
         sorted.length === 0
           ? `<tr><td colspan="5" class="empty-cell">No exams or assignments scheduled yet.</td></tr>`
           : sorted
-              .map((a) => {
+              .map((a, idx) => {
                 const displayType = normalizeAssignmentType(a.type);
                 const urgency = getExamUrgencyState(a, todayRef);
                 const gradeInfo = getAssignmentDisplayGrade(a);
                 const isCompleted = a.status === 'completed';
-
-                let gradeClass = 'exam-grade-pending';
-                if (gradeInfo.isPass) gradeClass = 'exam-grade-pass';
-                else if (gradeInfo.isFail) gradeClass = 'exam-grade-fail';
-
-                const partsHtml = gradeInfo.partsText
-                  ? `<span class="exam-grade-parts-inline">(${escapeHtml(gradeInfo.partsText)})</span>`
-                  : '';
+                const hasCompletedDivider = shouldRenderCompletedDivider(sorted, idx);
+                const isExpanded = expandedAssignmentIds.has(a.id);
 
                 const hintHtml = urgency.hint
                   ? `<span class="exam-date-hint">(${escapeHtml(urgency.hint)})</span>`
                   : '';
 
                 return `
-                <tr class="${escapeHtml(urgency.rowClass)}" data-urgency="${escapeHtml(urgency.level)}">
-                  <td>${escapeHtml(a.courseName)}</td>
+                <tr
+                  class="${escapeHtml(urgency.rowClass)} assignment-main-row${hasCompletedDivider ? ' assignments-completed-divider' : ''}"
+                  data-urgency="${escapeHtml(urgency.level)}"
+                  data-toggle-assignment-row="${escapeHtml(a.id)}"
+                  tabindex="0"
+                  aria-expanded="${isExpanded ? 'true' : 'false'}"
+                >
+                  <td>
+                    <a href="#" data-open-course-info="${escapeHtml(a.courseName)}">${escapeHtml(a.courseName)}</a><span class="mobile-expand-indicator" aria-hidden="true">${isExpanded ? '▾' : '▸'}</span>
+                  </td>
                   <td>${escapeHtml(displayType)}</td>
-                  <td>${escapeHtml(formatExamDate(a.dueDate))}${hintHtml}</td>
-                  <td><span class="${gradeClass}">${escapeHtml(gradeInfo.text)}</span>${partsHtml}</td>
+                  <td>
+                    <span class="exam-date-full">${escapeHtml(formatExamDate(a.dueDate))}${hintHtml}</span>
+                    <span class="exam-date-short">${escapeHtml(formatExamDateShort(a.dueDate))}</span>
+                  </td>
+                  <td>${renderAssignmentGradePartsHtml(gradeInfo)}</td>
                   <td>
                     <a href="#" data-toggle-assignment="${escapeHtml(a.id)}">${isCompleted ? 'Reopen' : 'Mark as complete'}</a> |
                     <a href="#" data-open-assignment="${escapeHtml(a.id)}">Edit</a> |
                     <a href="#" data-delete-assignment="${escapeHtml(a.id)}">Delete</a>
                   </td>
+                </tr>
+                <tr
+                  class="assignment-detail-row ${escapeHtml(urgency.rowClass)}"
+                  data-assignment-detail="${escapeHtml(a.id)}"
+                  ${isExpanded ? '' : 'hidden'}
+                >
+                  <td colspan="5">${renderAssignmentDetailInfoHtml(a, displayType, gradeInfo, urgency)}</td>
                 </tr>`;
               })
               .join('');
@@ -2872,7 +2958,7 @@ export function initApp() {
   }
 
   // --- Modal Helpers ---
-  function openCourseModal(courseToEdit = null) {
+  function openCourseModal(courseToEdit = null, prefillTitle = '') {
     const dialog = document.getElementById('modal-course');
     if (!dialog) return;
 
@@ -2880,7 +2966,9 @@ export function initApp() {
     const deleteBtn = document.getElementById('btn-delete-course');
 
     document.getElementById('course-id').value = courseToEdit ? courseToEdit.id : '';
-    document.getElementById('course-title').value = courseToEdit ? courseToEdit.title : '';
+    document.getElementById('course-title').value = courseToEdit
+      ? courseToEdit.title
+      : prefillTitle || '';
     document.getElementById('course-status').value = courseToEdit ? courseToEdit.status : 'active';
     document.getElementById('course-cfu').value = courseToEdit ? courseToEdit.cfu : 6;
     document.getElementById('course-year').value = courseToEdit ? courseToEdit.year : 1;
@@ -2896,6 +2984,81 @@ export function initApp() {
     }
     if (deleteBtn) {
       deleteBtn.hidden = !courseToEdit;
+    }
+
+    dialog.showModal();
+  }
+
+  function openCourseInfoModal(courseName) {
+    const dialog = document.getElementById('modal-course-info');
+    if (!dialog) return;
+
+    const cleanName = sanitizeTextInput(courseName, 120);
+    const course = findCourseForName(courses, cleanName);
+    const titleEl = document.getElementById('course-info-title');
+    const noticeEl = document.getElementById('course-info-missing-notice');
+    const detailsEl = document.getElementById('course-info-details');
+    const editBtn = document.getElementById('btn-course-info-edit');
+
+    if (titleEl) {
+      titleEl.textContent = course ? course.title : cleanName || 'Course Details';
+    }
+
+    if (course) {
+      if (noticeEl) noticeEl.hidden = true;
+      if (detailsEl) {
+        detailsEl.hidden = false;
+        const validProfEmail =
+          course.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(course.email).trim())
+            ? String(course.email).trim()
+            : '';
+        detailsEl.innerHTML = `
+          <div class="course-info-item">
+            <span class="course-info-label">Status</span>
+            <span class="course-info-value">${escapeHtml(formatStatusLabel(course.status))}</span>
+          </div>
+          <div class="course-info-item">
+            <span class="course-info-label">CFU</span>
+            <span class="course-info-value">${escapeHtml(course.cfu)} CFU</span>
+          </div>
+          <div class="course-info-item">
+            <span class="course-info-label">Year / Semester</span>
+            <span class="course-info-value">Year ${escapeHtml(course.year)} / Semester ${escapeHtml(course.semester)}</span>
+          </div>
+          <div class="course-info-item">
+            <span class="course-info-label">Office Hours</span>
+            <span class="course-info-value">${escapeHtml(course.officeHours || '-')}</span>
+          </div>
+          <div class="course-info-item course-info-span-2">
+            <span class="course-info-label">Professor Email</span>
+            <span class="course-info-value">${
+              validProfEmail
+                ? `<a href="mailto:${escapeHtml(validProfEmail)}">${escapeHtml(validProfEmail)}</a>`
+                : '-'
+            }</span>
+          </div>
+          <div class="course-info-item course-info-span-2">
+            <span class="course-info-label">Notes / Syllabus</span>
+            <span class="course-info-value course-info-notes">${escapeHtml(course.notes || '-')}</span>
+          </div>
+        `;
+      }
+      if (editBtn) {
+        editBtn.textContent = 'Edit Course';
+        editBtn.setAttribute('data-course-info-id', course.id);
+        editBtn.setAttribute('data-course-info-name', course.title);
+      }
+    } else {
+      if (noticeEl) noticeEl.hidden = false;
+      if (detailsEl) {
+        detailsEl.hidden = true;
+        detailsEl.innerHTML = '';
+      }
+      if (editBtn) {
+        editBtn.textContent = 'Create Course';
+        editBtn.setAttribute('data-course-info-id', '');
+        editBtn.setAttribute('data-course-info-name', cleanName);
+      }
     }
 
     dialog.showModal();
@@ -3893,7 +4056,7 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
+            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
@@ -4024,6 +4187,25 @@ export function initApp() {
       return;
     }
 
+    const openCourseInfoName = target.getAttribute('data-open-course-info');
+    if (openCourseInfoName) {
+      e.preventDefault();
+      openCourseInfoModal(openCourseInfoName);
+      return;
+    }
+
+    if (target.id === 'btn-course-info-edit') {
+      e.preventDefault();
+      const targetId = target.getAttribute('data-course-info-id') || '';
+      const targetName = target.getAttribute('data-course-info-name') || '';
+      document.getElementById('modal-course-info')?.close();
+      const found = targetId
+        ? courses.find((c) => c.id === targetId) || null
+        : findCourseForName(courses, targetName);
+      openCourseModal(found, found ? '' : targetName);
+      return;
+    }
+
     const deleteCourseId = target.getAttribute('data-delete-course');
     if (deleteCourseId) {
       e.preventDefault();
@@ -4099,11 +4281,23 @@ export function initApp() {
     const deleteAssignmentId = target.getAttribute('data-delete-assignment');
     if (deleteAssignmentId) {
       e.preventDefault();
+      expandedAssignmentIds.delete(deleteAssignmentId);
       assignments = assignments.filter((a) => a.id !== deleteAssignmentId);
       void pushWorkstationToCloud();
       void syncUserSquadTelemetry();
       populateCurrentPageData();
       setStatus('Deleted item');
+      return;
+    }
+
+    const toggleRowId = target.getAttribute('data-toggle-assignment-row');
+    if (toggleRowId) {
+      if (
+        window.innerWidth <= 720 &&
+        !rawTarget?.closest?.('a, button, input, select, textarea')
+      ) {
+        toggleAssignmentDetailRow(toggleRowId);
+      }
       return;
     }
 
@@ -4909,11 +5103,31 @@ export function initApp() {
     });
   }
 
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (window.innerWidth > 720) return;
+    const rawTarget = e.target;
+    if (!rawTarget || typeof rawTarget.closest !== 'function') return;
+    if (rawTarget.closest('a, button, input, select, textarea')) return;
+    const row = rawTarget.closest('tr[data-toggle-assignment-row]');
+    if (!row) return;
+    const rowId = row.getAttribute('data-toggle-assignment-row');
+    if (!rowId) return;
+    if (e.key === ' ') e.preventDefault();
+    toggleAssignmentDetailRow(rowId);
+  });
+
   window.addEventListener('popstate', () => {
     void loadAndRenderPage(getRouteFromLocation(), false);
   });
 
   window.addEventListener('resize', () => {
+    if (window.innerWidth > 720 && expandedAssignmentIds.size > 0) {
+      expandedAssignmentIds.clear();
+      if (document.getElementById('app-main')?.getAttribute('data-page') === 'assignments') {
+        populateAssignmentsPage();
+      }
+    }
     updateScrollableTablesMaxHeight();
   });
 

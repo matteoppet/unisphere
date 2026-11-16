@@ -1261,19 +1261,134 @@ dialog h3 {
   color: #006600;
 }
 
-/* Grade pass/fail colors (>= 18 green, < 18 red) */
-.exam-grade-pass {
+/* Grade pass/fail/ungraded colors (>= 18 green, < 18 red, ungraded muted) */
+.exam-grade-pass,
+.exam-grade-part.exam-grade-pass {
   color: #006600;
   font-weight: bold;
 }
 
-.exam-grade-fail {
+.exam-grade-fail,
+.exam-grade-part.exam-grade-fail {
   color: #b30000;
   font-weight: bold;
 }
 
-.exam-grade-pending {
+.exam-grade-pending,
+.exam-grade-ungraded,
+.exam-grade-part.exam-grade-ungraded {
+  color: #666666;
+  font-weight: normal;
+}
+
+.exam-grade-sep {
   color: #555555;
+}
+
+.assignments-completed-divider td {
+  border-top: 3px solid #333333;
+}
+
+.mobile-expand-indicator,
+.exam-date-short,
+.assignment-detail-row {
+  display: none;
+}
+
+.assignment-detail-row td {
+  background-color: #fafafa;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.assignment-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assignment-detail-row-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.assignment-detail-grade,
+.assignment-detail-actions {
+  line-height: 1.4;
+}
+
+/* Course Info Modal */
+.course-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+  margin-bottom: 12px;
+}
+
+.course-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.course-info-span-2 {
+  grid-column: span 2;
+}
+
+.course-info-label {
+  font-size: 12px;
+  font-weight: bold;
+  color: #555555;
+}
+
+.course-info-value {
+  font-size: 14.5px;
+  color: #000000;
+  word-break: break-word;
+}
+
+.course-info-notes {
+  white-space: pre-wrap;
+}
+
+@media (max-width: 720px) {
+  .assignments-table thead th:nth-child(2),
+  .assignments-table thead th:nth-child(5),
+  .assignment-main-row td:nth-child(2),
+  .assignment-main-row td:nth-child(5),
+  .exam-date-full {
+    display: none;
+  }
+
+  .exam-date-short {
+    display: inline;
+  }
+
+  .mobile-expand-indicator {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 12px;
+    color: #555555;
+  }
+
+  .assignment-main-row {
+    cursor: pointer;
+  }
+
+  .assignment-detail-row {
+    display: table-row;
+  }
+
+  .course-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .course-info-span-2 {
+    grid-column: span 1;
+  }
 }
 
 .exam-grade-parts-inline {
