@@ -4,22 +4,33 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   formatExamDate,
+  formatExamDateShort,
   normalizeAssignmentType,
   getAssignmentDisplayGrade,
   getExamUrgencyState,
   sortAssignmentsForTable,
+  shouldRenderCompletedDivider,
+  findCourseForName,
+  calculateMediaGrades,
 } from './grades.js';
 import { sanitizeAssignmentItem } from '../lib/authService.js';
 
 const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
 
 describe('Exams & Assignments Redesign (#exams-redesign)', () => {
-  describe('formatExamDate', () => {
+  describe('formatExamDate & formatExamDateShort', () => {
     it('formats YYYY-MM-DD as readable day month year (e.g. 12 November 2026)', () => {
       assert.equal(formatExamDate('2026-11-12'), '12 November 2026');
       assert.equal(formatExamDate('2026-01-05'), '5 January 2026');
       assert.equal(formatExamDate(''), '-');
       assert.equal(formatExamDate(null), '-');
+    });
+
+    it('formats YYYY-MM-DD in short mobile form (e.g. 12 Nov 2026)', () => {
+      assert.equal(formatExamDateShort('2026-11-12'), '12 Nov 2026');
+      assert.equal(formatExamDateShort('2026-01-05'), '5 Jan 2026');
+      assert.equal(formatExamDateShort(''), '-');
+      assert.equal(formatExamDateShort(null), '-');
     });
   });
 
@@ -37,74 +48,178 @@ describe('Exams & Assignments Redesign (#exams-redesign)', () => {
   });
 
   describe('getAssignmentDisplayGrade', () => {
-    it('handles single grades from 0 to 30 with green >= 18 and red < 18', () => {
+    it('formats single grades as <grade>/30 and ungraded as ungraded 0/30 with pass/fail/ungraded states', () => {
       const passHigh = getAssignmentDisplayGrade({ type: 'Exam', grade: 28 });
+      assert.equal(passHigh.isSplit, false);
       assert.equal(passHigh.value, 28);
-      assert.equal(passHigh.text, '28 / 30');
+      assert.equal(passHigh.text, '28/30');
       assert.equal(passHigh.isPass, true);
       assert.equal(passHigh.isFail, false);
       assert.equal(passHigh.isPending, false);
+      assert.equal(passHigh.averageValue, 28);
+      assert.equal(passHigh.averageText, '28/30');
+      assert.equal(passHigh.averageStatus, 'pass');
+      assert.deepEqual(passHigh.parts, [
+        { label: 'Grade', value: 28, displayText: '28/30', status: 'pass' },
+      ]);
 
       const passBorder = getAssignmentDisplayGrade({ type: 'Exam', grade: 18 });
       assert.equal(passBorder.value, 18);
-      assert.equal(passBorder.text, '18 / 30');
+      assert.equal(passBorder.text, '18/30');
       assert.equal(passBorder.isPass, true);
       assert.equal(passBorder.isFail, false);
+      assert.equal(passBorder.parts[0].status, 'pass');
 
       const failLow = getAssignmentDisplayGrade({ type: 'Exam', grade: 17 });
       assert.equal(failLow.value, 17);
-      assert.equal(failLow.text, '17 / 30');
+      assert.equal(failLow.text, '17/30');
       assert.equal(failLow.isPass, false);
       assert.equal(failLow.isFail, true);
+      assert.equal(failLow.parts[0].status, 'fail');
 
       const failZero = getAssignmentDisplayGrade({ type: 'Assignment', grade: 0 });
       assert.equal(failZero.value, 0);
-      assert.equal(failZero.text, '0 / 30');
+      assert.equal(failZero.text, '0/30');
       assert.equal(failZero.isPass, false);
       assert.equal(failZero.isFail, true);
+      assert.equal(failZero.isPending, false);
+      assert.deepEqual(failZero.parts, [
+        { label: 'Grade', value: 0, displayText: '0/30', status: 'fail' },
+      ]);
 
       const ungraded = getAssignmentDisplayGrade({ type: 'Exam' });
       assert.equal(ungraded.value, null);
-      assert.equal(ungraded.text, '-');
+      assert.equal(ungraded.text, '0/30');
       assert.equal(ungraded.isPass, false);
       assert.equal(ungraded.isFail, false);
       assert.equal(ungraded.isPending, true);
+      assert.equal(ungraded.averageValue, null);
+      assert.equal(ungraded.averageText, '-');
+      assert.equal(ungraded.averageStatus, 'ungraded');
+      assert.deepEqual(ungraded.parts, [
+        { label: 'Grade', value: null, displayText: '0/30', status: 'ungraded' },
+      ]);
     });
 
-    it('averages two esonero grades for Midterm and evaluates pass/fail at 18', () => {
-      const passingMidterm = getAssignmentDisplayGrade({
-        type: 'Midterm',
-        examParts: [
-          { label: 'Esonero 1', grade: 27 },
-          { label: 'Esonero 2', grade: 28 },
-        ],
-      });
-      assert.equal(passingMidterm.value, 27.5);
-      assert.equal(passingMidterm.text, '27.5 / 30');
-      assert.equal(passingMidterm.isPass, true);
-      assert.equal(passingMidterm.isFail, false);
-      assert.equal(passingMidterm.partsText, 'E1: 27 · E2: 28');
+    it('formats Midterm esonero grades as 0/30 - 0/30 with independent part statuses and combined average', () => {
+      const emptyMidterm = getAssignmentDisplayGrade({ type: 'Midterm' });
+      assert.equal(emptyMidterm.isSplit, true);
+      assert.equal(emptyMidterm.text, '0/30 - 0/30');
+      assert.equal(emptyMidterm.isPending, true);
+      assert.equal(emptyMidterm.averageValue, null);
+      assert.equal(emptyMidterm.averageText, '-');
+      assert.equal(emptyMidterm.averageStatus, 'ungraded');
+      assert.deepEqual(emptyMidterm.parts, [
+        { label: 'Esonero 1', value: null, displayText: '0/30', status: 'ungraded' },
+        { label: 'Esonero 2', value: null, displayText: '0/30', status: 'ungraded' },
+      ]);
 
-      const failingMidterm = getAssignmentDisplayGrade({
+      const partialHigh = getAssignmentDisplayGrade({
+        type: 'Midterm',
+        examParts: [{ label: 'Esonero 1', grade: 29.5 }],
+      });
+      assert.equal(partialHigh.text, '29.5/30 - 0/30');
+      assert.equal(partialHigh.value, null);
+      assert.equal(partialHigh.isPending, true);
+      assert.equal(partialHigh.averageText, '-');
+      assert.equal(partialHigh.partsText, 'E1: 29.5 · E2: -');
+      assert.deepEqual(partialHigh.parts, [
+        { label: 'Esonero 1', value: 29.5, displayText: '29.5/30', status: 'pass' },
+        { label: 'Esonero 2', value: null, displayText: '0/30', status: 'ungraded' },
+      ]);
+
+      const mixedPass = getAssignmentDisplayGrade({
         type: 'Midterm',
         examParts: [
           { label: 'Esonero 1', grade: 15 },
-          { label: 'Esonero 2', grade: 17 },
+          { label: 'Esonero 2', grade: 24 },
         ],
       });
-      assert.equal(failingMidterm.value, 16);
-      assert.equal(failingMidterm.text, '16 / 30');
-      assert.equal(failingMidterm.isPass, false);
-      assert.equal(failingMidterm.isFail, true);
+      assert.equal(mixedPass.text, '15/30 - 24/30');
+      assert.equal(mixedPass.parts[0].status, 'fail');
+      assert.equal(mixedPass.parts[1].status, 'pass');
+      assert.equal(mixedPass.averageValue, 19.5);
+      assert.equal(mixedPass.averageText, '19.5/30');
+      assert.equal(mixedPass.averageStatus, 'pass');
+      assert.equal(mixedPass.isPass, true);
+      assert.equal(mixedPass.isFail, false);
 
-      const partialMidterm = getAssignmentDisplayGrade({
+      const zeroFailPart = getAssignmentDisplayGrade({
         type: 'Midterm',
-        examParts: [{ label: 'Esonero 1', grade: 24 }],
+        examParts: [
+          { label: 'Esonero 1', grade: 0 },
+          { label: 'Esonero 2', grade: 24 },
+        ],
       });
-      assert.equal(partialMidterm.value, null);
-      assert.equal(partialMidterm.text, '-');
-      assert.equal(partialMidterm.isPending, true);
-      assert.equal(partialMidterm.partsText, 'E1: 24 · E2: -');
+      assert.equal(zeroFailPart.text, '0/30 - 24/30');
+      assert.equal(zeroFailPart.parts[0].status, 'fail');
+      assert.equal(zeroFailPart.parts[0].value, 0);
+      assert.equal(zeroFailPart.parts[1].status, 'pass');
+      assert.equal(zeroFailPart.averageValue, 12);
+      assert.equal(zeroFailPart.averageText, '12/30');
+      assert.equal(zeroFailPart.averageStatus, 'fail');
+      assert.equal(zeroFailPart.isFail, true);
+    });
+
+    it('keeps calculateMediaGrades unaffected by ungraded 0/30 placeholders', () => {
+      const courses = [{ id: 'c1', title: 'Analisi 1', shortTitle: 'An1', code: 'MAT1', cfu: 12 }];
+      const summary = calculateMediaGrades(
+        [
+          { id: 'a1', courseName: 'Analisi 1', type: 'Exam', status: 'todo' },
+          {
+            id: 'a2',
+            courseName: 'Analisi 1',
+            type: 'Midterm',
+            status: 'todo',
+            examParts: [{ label: 'Esonero 1', grade: 29.5 }],
+          },
+        ],
+        courses
+      );
+      assert.equal(summary.gradedExamsCount, 0);
+      assert.equal(summary.weightedAverage, null);
+    });
+  });
+
+  describe('shouldRenderCompletedDivider', () => {
+    it('returns true strictly at the transition from incomplete to completed items', () => {
+      assert.equal(shouldRenderCompletedDivider([], 0), false);
+      assert.equal(
+        shouldRenderCompletedDivider([{ status: 'todo' }, { status: 'in-progress' }], 1),
+        false
+      );
+      assert.equal(
+        shouldRenderCompletedDivider([{ status: 'completed' }, { status: 'completed' }], 0),
+        false
+      );
+      assert.equal(
+        shouldRenderCompletedDivider([{ status: 'completed' }, { status: 'completed' }], 1),
+        false
+      );
+
+      const mixed = [
+        { status: 'todo' },
+        { status: 'in-progress' },
+        { status: 'completed' },
+        { status: 'completed' },
+      ];
+      assert.deepEqual(
+        mixed.map((_, idx) => shouldRenderCompletedDivider(mixed, idx)),
+        [false, false, true, false]
+      );
+    });
+  });
+
+  describe('findCourseForName', () => {
+    it('matches case-insensitively by title, shortTitle, or code and returns null when missing', () => {
+      const courses = [
+        { id: 'c1', title: 'Analisi Matematica 1', shortTitle: 'Analisi 1', code: 'MAT101' },
+      ];
+      assert.equal(findCourseForName(courses, '  analisi matematica 1 ')?.id, 'c1');
+      assert.equal(findCourseForName(courses, 'analisi 1')?.id, 'c1');
+      assert.equal(findCourseForName(courses, 'mat101')?.id, 'c1');
+      assert.equal(findCourseForName(courses, 'Fisica 1'), null);
+      assert.equal(findCourseForName(courses, ''), null);
     });
   });
 

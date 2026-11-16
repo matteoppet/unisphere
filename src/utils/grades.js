@@ -22,6 +22,21 @@ const EXAM_MONTH_NAMES = [
   'December',
 ];
 
+const EXAM_SHORT_MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
 function parseLocalDateOnly(dateStr) {
   if (typeof dateStr !== 'string') return null;
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
@@ -54,6 +69,16 @@ export function formatExamDate(dateStr) {
 }
 
 /**
+ * Formats an ISO YYYY-MM-DD date into compact mobile form (e.g. "12 Nov 2026").
+ */
+export function formatExamDateShort(dateStr) {
+  if (!dateStr) return '-';
+  const parsed = parseLocalDateOnly(String(dateStr));
+  if (!parsed) return String(dateStr);
+  return `${parsed.getDate()} ${EXAM_SHORT_MONTH_NAMES[parsed.getMonth()]} ${parsed.getFullYear()}`;
+}
+
+/**
  * Normalizes legacy assignment types into the three table types: Exam, Midterm, or Assignment.
  */
 export function normalizeAssignmentType(type) {
@@ -62,61 +87,113 @@ export function normalizeAssignmentType(type) {
   return 'Exam';
 }
 
+function buildGradePart(label, rawVal) {
+  const clamped = clampExamGradeValue(rawVal);
+  return {
+    label,
+    value: clamped,
+    displayText: clamped !== null ? `${clamped}/30` : '0/30',
+    status: clamped === null ? 'ungraded' : clamped >= 18 ? 'pass' : 'fail',
+  };
+}
+
 /**
- * Computes the display grade, Italian pass/fail state (>= 18 pass, < 18 fail), and partial details.
+ * Computes structured display grade parts (0/30 or 0/30 - 0/30), pass/fail/ungraded states, and averages.
  */
 export function getAssignmentDisplayGrade(item = {}) {
   const normalizedType = normalizeAssignmentType(item?.type);
-  const parts = Array.isArray(item?.examParts) ? item.examParts : [];
-  const isMidtermOrSplit = normalizedType === 'Midterm' || parts.length > 0;
+  const rawParts = Array.isArray(item?.examParts) ? item.examParts : [];
+  const isSplit = normalizedType === 'Midterm' || rawParts.length > 0;
 
-  if (isMidtermOrSplit && parts.length > 0) {
-    const g1 = clampExamGradeValue(parts[0]?.grade);
-    const g2 = clampExamGradeValue(parts[1]?.grade);
-    const partsText = `E1: ${g1 !== null ? g1 : '-'} · E2: ${g2 !== null ? g2 : '-'}`;
+  if (isSplit) {
+    const part1 = buildGradePart(rawParts[0]?.label || 'Esonero 1', rawParts[0]?.grade);
+    const part2 = buildGradePart(rawParts[1]?.label || 'Esonero 2', rawParts[1]?.grade);
+    const parts = [part1, part2];
+    const partsText = `E1: ${part1.value !== null ? part1.value : '-'} · E2: ${part2.value !== null ? part2.value : '-'}`;
+    const text = `${part1.displayText} - ${part2.displayText}`;
 
-    if (g1 !== null && g2 !== null) {
-      const avg = Math.round(((g1 + g2) / 2) * 10) / 10;
+    if (part1.value !== null && part2.value !== null) {
+      const avg = Math.round(((part1.value + part2.value) / 2) * 10) / 10;
+      const avgStatus = avg >= 18 ? 'pass' : 'fail';
       return {
+        isSplit: true,
         value: avg,
-        text: `${avg} / 30`,
-        isPass: avg >= 18,
-        isFail: avg < 18,
+        text,
+        isPass: avgStatus === 'pass',
+        isFail: avgStatus === 'fail',
         isPending: false,
         partsText,
+        averageValue: avg,
+        averageText: `${avg}/30`,
+        averageStatus: avgStatus,
+        parts,
       };
     }
 
     return {
+      isSplit: true,
       value: null,
-      text: '-',
+      text,
       isPass: false,
       isFail: false,
       isPending: true,
       partsText,
+      averageValue: null,
+      averageText: '-',
+      averageStatus: 'ungraded',
+      parts,
     };
   }
 
-  const singleGrade = clampExamGradeValue(item?.grade);
-  if (singleGrade !== null) {
-    return {
-      value: singleGrade,
-      text: `${singleGrade} / 30`,
-      isPass: singleGrade >= 18,
-      isFail: singleGrade < 18,
-      isPending: false,
-      partsText: '',
-    };
-  }
-
+  const singlePart = buildGradePart('Grade', item?.grade);
   return {
-    value: null,
-    text: '-',
-    isPass: false,
-    isFail: false,
-    isPending: true,
+    isSplit: false,
+    value: singlePart.value,
+    text: singlePart.displayText,
+    isPass: singlePart.status === 'pass',
+    isFail: singlePart.status === 'fail',
+    isPending: singlePart.status === 'ungraded',
     partsText: '',
+    averageValue: singlePart.value,
+    averageText: singlePart.value !== null ? singlePart.displayText : '-',
+    averageStatus: singlePart.status,
+    parts: [singlePart],
   };
+}
+
+/**
+ * Returns true strictly at the transition row from incomplete items to completed items.
+ */
+export function shouldRenderCompletedDivider(sortedItems = [], index = 0) {
+  if (!Array.isArray(sortedItems) || index <= 0 || index >= sortedItems.length) {
+    return false;
+  }
+  return (
+    sortedItems[index]?.status === 'completed' &&
+    sortedItems[index - 1]?.status !== 'completed'
+  );
+}
+
+/**
+ * Finds a matching course record by title, shortTitle, or code (case-insensitive).
+ */
+export function findCourseForName(courses = [], courseName = '') {
+  if (!Array.isArray(courses)) return null;
+  const normalized = String(courseName || '').trim().toLowerCase();
+  if (!normalized) return null;
+
+  return (
+    courses.find((c) => {
+      const title = (c?.title || '').trim().toLowerCase();
+      const shortTitle = (c?.shortTitle || '').trim().toLowerCase();
+      const code = (c?.code || '').trim().toLowerCase();
+      return (
+        (title && title === normalized) ||
+        (shortTitle && shortTitle === normalized) ||
+        (code && code === normalized)
+      );
+    }) || null
+  );
 }
 
 /**
@@ -241,17 +318,7 @@ export function calculateMediaGrades(assignments = [], courses = []) {
     const grade = getItemExamGrade(item);
     if (grade === null) continue;
 
-    const normalizedItemCourse = (item.courseName || '').trim().toLowerCase();
-    const course = courses.find((c) => {
-      const title = (c.title || '').trim().toLowerCase();
-      const shortTitle = (c.shortTitle || '').trim().toLowerCase();
-      const code = (c.code || '').trim().toLowerCase();
-      return (
-        (title && title === normalizedItemCourse) ||
-        (shortTitle && shortTitle === normalizedItemCourse) ||
-        (code && code === normalizedItemCourse)
-      );
-    });
+    const course = findCourseForName(courses, item.courseName);
 
     const cfu = course && course.cfu > 0 ? course.cfu : 6;
     const isSplit = Boolean(item.examParts && item.examParts.length === 2);
