@@ -390,5 +390,18 @@ describe('Exams & Assignments Redesign (#exams-redesign)', () => {
       assert.match(appSrc, /normalizeAssignmentType/);
       assert.match(appSrc, /lastAssignmentsDateKey/);
     });
+
+    it('includes centered #modal-course-info and #modal-course dialogs in pages/assignments.html', () => {
+      const html = fs.readFileSync(path.join(repoRoot, 'pages/assignments.html'), 'utf8');
+      assert.match(html, /id="modal-course-info"/);
+      assert.match(html, /id="course-info-title"/);
+      assert.match(html, /id="course-info-details"/);
+      assert.match(html, /id="course-info-missing-notice"/);
+      assert.match(html, /id="btn-course-info-edit"/);
+      assert.match(html, /data-close-modal="modal-course-info"/);
+      assert.match(html, /id="modal-course"/);
+      assert.match(html, /id="form-course"/);
+      assert.match(html, /id="course-title"/);
+    });
   });
 });

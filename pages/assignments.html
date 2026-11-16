@@ -156,6 +156,87 @@
           </div>
         </form>
       </dialog>
+
+      <!-- Native HTML Dialog: Course Details (Read-Only Info View) -->
+      <dialog id="modal-course-info" aria-labelledby="course-info-title">
+        <div class="course-info-modal-body">
+          <h3 id="course-info-title">Course Details</h3>
+          <div id="course-info-missing-notice" class="notice-box" hidden>
+            This course is not saved in your Courses registry yet.
+          </div>
+          <div id="course-info-details" class="course-info-grid"></div>
+          <div class="dialog-actions">
+            <button type="button" id="btn-course-info-edit">Edit Course</button>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-course-info">Close</button>
+            </div>
+          </div>
+        </div>
+      </dialog>
+
+      <!-- Native HTML Dialog: Add / Edit Course -->
+      <dialog id="modal-course">
+        <form id="form-course" method="dialog">
+          <h3 id="modal-course-title">Add Course</h3>
+          <input type="hidden" id="course-id" />
+          <div class="form-row">
+            <label for="course-title">Title *</label>
+            <input type="text" id="course-title" required placeholder="e.g. Analisi 1" />
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="course-status">Status</label>
+              <select id="course-status">
+                <option value="active">Active</option>
+                <option value="completed">Passed</option>
+                <option value="planned">Planned</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="course-cfu">CFU</label>
+              <input type="number" id="course-cfu" min="1" max="60" value="6" required />
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="course-year">Year</label>
+              <select id="course-year">
+                <option value="1">Year 1</option>
+                <option value="2">Year 2</option>
+                <option value="3">Year 3</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="course-semester">Semester</label>
+              <select id="course-semester">
+                <option value="1">Semester 1</option>
+                <option value="2">Semester 2</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="course-email">Professor Email</label>
+              <input type="email" id="course-email" placeholder="prof@university.edu" />
+            </div>
+            <div class="form-row">
+              <label for="course-office">Office Hours</label>
+              <input type="text" id="course-office" placeholder="e.g. Tue 14:00 - 16:00" />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="course-notes">Notes / Syllabus</label>
+            <textarea id="course-notes" rows="3" placeholder="Course notes..."></textarea>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" id="btn-delete-course" class="btn-danger" hidden>Delete Course</button>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-course">Cancel</button>
+              <button type="submit">Save Course</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
     </div>
 
     <script type="module" src="/src/main.js"></script>
