@@ -791,28 +791,44 @@ export function initApp() {
     });
   }
 
-  function populateGoalTagSelect(selectedTag = 'Skill') {
-    const goalSelect = document.getElementById('goal-tag');
-    if (!goalSelect) return;
+  function populateGoalCourseSelect(selectedCourse = '') {
+    const goalCourseSelect = document.getElementById('goal-course');
+    if (!goalCourseSelect) return;
     const courseTitles = Array.from(
       new Set(courses.map((c) => c.title).filter((t) => t && t !== 'Skill'))
     );
-    const hasCustomLegacyTag =
-      selectedTag && selectedTag !== 'Skill' && !courseTitles.includes(selectedTag);
+    const hasCustomCourse =
+      selectedCourse && selectedCourse !== 'Skill' && !courseTitles.includes(selectedCourse);
 
-    const courseOptionsHtml = courseTitles
+    const allOptions = [
+      ...(hasCustomCourse ? [selectedCourse] : []),
+      ...courseTitles,
+    ];
+
+    if (allOptions.length === 0) {
+      goalCourseSelect.innerHTML = `<option value="">No courses added yet</option>`;
+      goalCourseSelect.value = '';
+      return;
+    }
+
+    goalCourseSelect.innerHTML = allOptions
       .map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`)
       .join('');
 
-    goalSelect.innerHTML = [
-      `<option value="Skill">Skill</option>`,
-      hasCustomLegacyTag
-        ? `<option value="${escapeHtml(selectedTag)}">${escapeHtml(selectedTag)}</option>`
-        : '',
-      courseOptionsHtml,
-    ].join('');
+    goalCourseSelect.value =
+      selectedCourse && allOptions.includes(selectedCourse) ? selectedCourse : allOptions[0];
+  }
 
-    goalSelect.value = selectedTag || 'Skill';
+  function syncGoalModalFields() {
+    const typeEl = document.getElementById('goal-type');
+    const courseRow = document.getElementById('goal-course-row');
+    const courseSelect = document.getElementById('goal-course');
+    if (!typeEl || !courseRow) return;
+    const isCourse = typeEl.value === 'course';
+    courseRow.hidden = !isCourse;
+    if (courseSelect) {
+      courseSelect.required = isCourse && courses.length > 0;
+    }
   }
 
   function updateCourseSuggestionsDatalist() {
@@ -822,9 +838,9 @@ export function initApp() {
         .map((c) => `<option value="${escapeHtml(c.title)}"></option>`)
         .join('');
     }
-    const goalSelect = document.getElementById('goal-tag');
-    if (goalSelect) {
-      populateGoalTagSelect(goalSelect.value || 'Skill');
+    const goalCourseSelect = document.getElementById('goal-course');
+    if (goalCourseSelect) {
+      populateGoalCourseSelect(goalCourseSelect.value || '');
     }
   }
 
@@ -3244,11 +3260,16 @@ export function initApp() {
     const deleteBtn = document.getElementById('btn-delete-goal');
     const idInput = document.getElementById('goal-id');
     const titleInput = document.getElementById('goal-title');
+    const typeInput = document.getElementById('goal-type');
     const completedInput = document.getElementById('goal-completed');
+
+    const isCourseGoal = Boolean(goalToEdit && goalToEdit.tag && goalToEdit.tag !== 'Skill');
 
     if (idInput) idInput.value = goalToEdit ? goalToEdit.id : '';
     if (titleInput) titleInput.value = goalToEdit ? goalToEdit.title : '';
-    populateGoalTagSelect(goalToEdit ? goalToEdit.tag : 'Skill');
+    if (typeInput) typeInput.value = isCourseGoal ? 'course' : 'skill';
+    populateGoalCourseSelect(isCourseGoal ? goalToEdit.tag : courses[0]?.title || '');
+    syncGoalModalFields();
     if (completedInput) {
       completedInput.checked = goalToEdit ? Boolean(goalToEdit.completed) : false;
     }
@@ -5114,11 +5135,21 @@ export function initApp() {
     const goalForm = document.getElementById('form-goal');
     if (goalForm && !boundElements.has(goalForm)) {
       boundElements.add(goalForm);
+
+      document
+        .getElementById('goal-type')
+        ?.addEventListener('change', () => syncGoalModalFields());
+
       goalForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const id = sanitizeTextInput(document.getElementById('goal-id')?.value, 80);
         const title = sanitizeTextInput(document.getElementById('goal-title')?.value, 150);
-        const tag = sanitizeTextInput(document.getElementById('goal-tag')?.value, 60) || 'Skill';
+        const goalType = document.getElementById('goal-type')?.value || 'skill';
+        const selectedCourse = sanitizeTextInput(
+          document.getElementById('goal-course')?.value,
+          60
+        );
+        const tag = goalType === 'course' && selectedCourse ? selectedCourse : 'Skill';
         const completed = Boolean(document.getElementById('goal-completed')?.checked);
 
         if (!title) return;

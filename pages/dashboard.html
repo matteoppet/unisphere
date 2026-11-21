@@ -420,10 +420,15 @@
             />
           </div>
           <div class="form-row">
-            <label for="goal-tag">Course or Personal Skill *</label>
-            <select id="goal-tag" required>
-              <option value="Skill">Skill</option>
+            <label for="goal-type">Type *</label>
+            <select id="goal-type" required>
+              <option value="skill">Personal Skill</option>
+              <option value="course">Course</option>
             </select>
+          </div>
+          <div id="goal-course-row" class="form-row" hidden>
+            <label for="goal-course">Course *</label>
+            <select id="goal-course"></select>
           </div>
           <div class="form-row assignment-completed-row">
             <label class="checkbox-inline" for="goal-completed">

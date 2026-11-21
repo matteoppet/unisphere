@@ -160,8 +160,9 @@ describe('Dashboard Goals data model and sanitization', () => {
       assert.ok(content.includes('id="modal-goal"'), `${htmlFile} must include #modal-goal`);
       assert.ok(content.includes('id="form-goal"'), `${htmlFile} must include #form-goal`);
       assert.ok(content.includes('id="goal-title"'), `${htmlFile} must include #goal-title`);
-      assert.match(content, /<select[^>]*id="goal-tag"/, `${htmlFile} must use a <select id="goal-tag"> dropdown menu`);
-      assert.ok(!content.includes('id="goal-tag-presets"'), `${htmlFile} must not include suggestion chips #goal-tag-presets`);
+      assert.match(content, /<select[^>]*id="goal-type"/, `${htmlFile} must include <select id="goal-type"> to choose Personal Skill or Course`);
+      assert.ok(content.includes('id="goal-course-row"'), `${htmlFile} must include #goal-course-row`);
+      assert.match(content, /<select[^>]*id="goal-course"/, `${htmlFile} must include a separate <select id="goal-course"> menu for courses`);
       assert.ok(content.includes('id="goal-completed"'), `${htmlFile} must include #goal-completed`);
       assert.ok(content.includes('id="btn-delete-goal"'), `${htmlFile} must include #btn-delete-goal`);
     }
@@ -175,20 +176,24 @@ describe('Dashboard Goals data model and sanitization', () => {
     const appContent = fs.readFileSync(path.resolve('src/app.js'), 'utf8');
     assert.ok(appContent.includes('dash-goals-list'), 'app.js must populate #dash-goals-list');
     assert.ok(appContent.includes('openGoalModal'), 'app.js must define openGoalModal');
+    assert.ok(appContent.includes('syncGoalModalFields'), 'app.js must define syncGoalModalFields to toggle course dropdown visibility');
     assert.ok(appContent.includes('data-open-goal'), 'app.js must handle data-open-goal');
     assert.ok(appContent.includes('data-toggle-goal'), 'app.js must handle data-toggle-goal');
   });
 
-  it('guards #btn-dash-add-goal against duplicate listener binding, checks !dialog.open before showModal, and populates #goal-tag select menu with only Skill and user courses', () => {
+  it('guards #btn-dash-add-goal against duplicate listener binding, checks !dialog.open before showModal, and separates Personal Skill from the Course dropdown menu', () => {
     const appContent = fs.readFileSync(path.resolve('src/app.js'), 'utf8');
     assert.ok(
-      !appContent.includes('goal-tag-presets'),
-      'app.js must not render goal-tag-presets chips'
+      appContent.includes("getElementById('goal-type')"),
+      'app.js must read #goal-type selector'
     );
-    assert.match(
-      appContent,
-      /<option value="Skill">Skill<\/option>/,
-      'app.js must include Skill option in #goal-tag select menu'
+    assert.ok(
+      appContent.includes("getElementById('goal-course')"),
+      'app.js must read #goal-course selector'
+    );
+    assert.ok(
+      appContent.includes("getElementById('goal-course-row')"),
+      'app.js must toggle #goal-course-row visibility'
     );
     assert.match(
       appContent,
