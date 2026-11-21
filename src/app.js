@@ -110,6 +110,14 @@ import {
   clampExamGradeValue,
   isValidGradeInput,
 } from './utils/grades.js';
+import {
+  sanitizeGoalItem,
+  normalizeGoalsList,
+  sortGoalsForDisplay,
+  upsertGoalItem,
+  toggleGoalCompletion,
+  deleteGoalItem,
+} from './utils/checklist.js';
 
 const STORAGE_KEY = 'unisphere_workspace';
 
@@ -253,9 +261,9 @@ export function initApp() {
   let checklist = (() => {
     try {
       const saved = localStorage.getItem(`${STORAGE_KEY}_checklist`);
-      if (saved !== null) return sanitizeTextInput(saved, 5000, true);
+      if (saved !== null) return normalizeGoalsList(saved);
     } catch {}
-    return '';
+    return [];
   })();
 
   let resourceLinks = (() => {
@@ -400,7 +408,7 @@ export function initApp() {
       localStorage.setItem(`${STORAGE_KEY}_logs`, JSON.stringify(studyLogs));
       localStorage.setItem(`${STORAGE_KEY}_assignments`, JSON.stringify(assignments));
       localStorage.setItem(`${STORAGE_KEY}_quick_notes`, quickNotes);
-      localStorage.setItem(`${STORAGE_KEY}_checklist`, checklist);
+      localStorage.setItem(`${STORAGE_KEY}_checklist`, JSON.stringify(normalizeGoalsList(checklist)));
       localStorage.setItem(`${STORAGE_KEY}_resource_links`, JSON.stringify(resourceLinks));
     } catch (err) {
       console.warn('Local storage save notice:', err);
@@ -456,8 +464,8 @@ export function initApp() {
     if (typeof data.quickNotes === 'string') {
       quickNotes = sanitizeTextInput(data.quickNotes, 5000, true);
     }
-    if (typeof data.checklist === 'string') {
-      checklist = sanitizeTextInput(data.checklist, 5000, true);
+    if (Array.isArray(data.checklist) || typeof data.checklist === 'string') {
+      checklist = normalizeGoalsList(data.checklist);
     }
     if (Array.isArray(data.resourceLinks)) {
       resourceLinks = sanitizeResourceLinksList(
@@ -552,6 +560,12 @@ export function initApp() {
               if (Array.isArray(existingData.assignments)) {
                 assignments = sanitizeAssignmentList(existingData.assignments);
               }
+              if (
+                checklist.length === 0 &&
+                (Array.isArray(existingData.checklist) || typeof existingData.checklist === 'string')
+              ) {
+                checklist = normalizeGoalsList(existingData.checklist);
+              }
               saveToLocalStorage();
               populateCurrentPageData();
             }
@@ -580,7 +594,7 @@ export function initApp() {
         studyLogs: sanitizeStudyLogList(studyLogs),
         assignments: sanitizeAssignmentList(assignments),
         quickNotes: typeof quickNotes === 'string' ? quickNotes : '',
-        checklist: typeof checklist === 'string' ? checklist : '',
+        checklist: normalizeGoalsList(checklist),
         resourceLinks: sanitizeResourceLinksList(resourceLinks),
         activeSquadId: profile.activeSquadId || null,
         squadIds: Array.isArray(profile.squadIds) ? profile.squadIds : [],
@@ -726,7 +740,7 @@ export function initApp() {
     studyLogs = [];
     assignments = [];
     quickNotes = '';
-    checklist = '';
+    checklist = [];
     resourceLinks = [];
     squads = [];
     activeSquadId = null;
@@ -779,10 +793,30 @@ export function initApp() {
 
   function updateCourseSuggestionsDatalist() {
     const datalist = document.getElementById('course-suggestions');
-    if (!datalist) return;
-    datalist.innerHTML = courses
-      .map((c) => `<option value="${escapeHtml(c.title)}"></option>`)
-      .join('');
+    if (datalist) {
+      datalist.innerHTML = courses
+        .map((c) => `<option value="${escapeHtml(c.title)}"></option>`)
+        .join('');
+    }
+    const goalTagOptions = Array.from(
+      new Set(['Skill', 'Project', ...courses.map((c) => c.title).filter(Boolean)])
+    );
+    const goalDatalist = document.getElementById('goal-tag-suggestions');
+    if (goalDatalist) {
+      goalDatalist.innerHTML = goalTagOptions
+        .map((t) => `<option value="${escapeHtml(t)}"></option>`)
+        .join('');
+    }
+    const presetsEl = document.getElementById('goal-tag-presets');
+    if (presetsEl) {
+      presetsEl.innerHTML = goalTagOptions
+        .slice(0, 8)
+        .map(
+          (t) =>
+            `<button type="button" class="goal-tag-preset-btn" data-goal-tag-preset="${escapeHtml(t)}">${escapeHtml(t)}</button>`
+        )
+        .join('');
+    }
   }
 
   async function loadAndRenderPage(targetRoute, pushHistory = false) {
@@ -1115,6 +1149,37 @@ export function initApp() {
     const notesEl = document.getElementById('dash-quick-notes');
     if (notesEl && document.activeElement !== notesEl) {
       notesEl.value = quickNotes;
+    }
+
+    const goalsListEl = document.getElementById('dash-goals-list');
+    if (goalsListEl) {
+      const sortedGoals = sortGoalsForDisplay(checklist);
+      goalsListEl.innerHTML =
+        sortedGoals.length === 0
+          ? `<li class="empty-cell">No goals added yet.</li>`
+          : sortedGoals
+              .map(
+                (g) => `
+              <li class="goal-item${g.completed ? ' goal-completed' : ''}">
+                <input
+                  type="checkbox"
+                  class="goal-checkbox"
+                  data-toggle-goal="${escapeHtml(g.id)}"
+                  ${g.completed ? 'checked' : ''}
+                  aria-label="Mark ${escapeHtml(g.title)} as ${g.completed ? 'incomplete' : 'completed'}"
+                />
+                <button
+                  type="button"
+                  class="goal-item-btn"
+                  data-open-goal="${escapeHtml(g.id)}"
+                  title="Edit or delete goal"
+                >
+                  <span class="goal-title">${escapeHtml(g.title)}</span>
+                  <span class="goal-tag-badge">${escapeHtml(g.tag)}</span>
+                </button>
+              </li>`
+              )
+              .join('');
     }
   }
 
@@ -3162,6 +3227,36 @@ export function initApp() {
     dialog.showModal();
   }
 
+  function openGoalModal(goalToEdit = null) {
+    const dialog = document.getElementById('modal-goal');
+    if (!dialog) return;
+    updateCourseSuggestionsDatalist();
+
+    const heading = document.getElementById('modal-goal-title');
+    const deleteBtn = document.getElementById('btn-delete-goal');
+    const idInput = document.getElementById('goal-id');
+    const titleInput = document.getElementById('goal-title');
+    const tagInput = document.getElementById('goal-tag');
+    const completedInput = document.getElementById('goal-completed');
+
+    if (idInput) idInput.value = goalToEdit ? goalToEdit.id : '';
+    if (titleInput) titleInput.value = goalToEdit ? goalToEdit.title : '';
+    if (tagInput) {
+      tagInput.value = goalToEdit ? goalToEdit.tag : courses[0]?.title || 'Skill';
+    }
+    if (completedInput) {
+      completedInput.checked = goalToEdit ? Boolean(goalToEdit.completed) : false;
+    }
+    if (heading) {
+      heading.textContent = goalToEdit ? 'Edit Goal' : 'Add Goal';
+    }
+    if (deleteBtn) {
+      deleteBtn.hidden = !goalToEdit;
+    }
+
+    dialog.showModal();
+  }
+
   function validateAssignmentGradeField(inputEl, shouldValidate = true) {
     if (!inputEl) return true;
     if (!shouldValidate) {
@@ -3278,7 +3373,7 @@ export function initApp() {
       studyLogs,
       assignments,
       quickNotes,
-      checklist,
+      checklist: normalizeGoalsList(checklist),
       resourceLinks: sanitizeResourceLinksList(resourceLinks),
       exportedAt: new Date().toISOString(),
     };
@@ -3343,7 +3438,7 @@ export function initApp() {
       studyLogs: [],
       assignments: [],
       quickNotes: '',
-      checklist: '',
+      checklist: [],
       resourceLinks: [],
       createdAt: new Date().toISOString(),
       updatedAt: Date.now(),
@@ -3354,7 +3449,7 @@ export function initApp() {
       studyLogs = [];
       assignments = [];
       quickNotes = '';
-      checklist = '';
+      checklist = [];
       resourceLinks = [];
       completeCloudLogin(fallbackRecord, mail);
       return;
@@ -3388,7 +3483,7 @@ export function initApp() {
       studyLogs = [];
       assignments = [];
       quickNotes = '';
-      checklist = '';
+      checklist = [];
       resourceLinks = [];
       await setDoc(userRef, fallbackRecord, { merge: true });
       completeCloudLogin(fallbackRecord, mail);
@@ -3757,7 +3852,7 @@ export function initApp() {
           studyLogs = [];
           assignments = [];
           quickNotes = '';
-          checklist = '';
+          checklist = [];
           resourceLinks = [];
 
           const newRecord = {
@@ -3777,7 +3872,7 @@ export function initApp() {
             studyLogs: [],
             assignments: [],
             quickNotes: '',
-            checklist: '',
+            checklist: [],
             resourceLinks: [],
             createdAt: new Date().toISOString(),
             updatedAt: Date.now(),
@@ -3828,6 +3923,9 @@ export function initApp() {
       document
         .getElementById('btn-dash-add-course')
         ?.addEventListener('click', () => openCourseModal());
+      document
+        .getElementById('btn-dash-add-goal')
+        ?.addEventListener('click', () => openGoalModal());
       document
         .getElementById('btn-dash-add-log')
         ?.addEventListener('click', () => openLogModal());
@@ -4032,8 +4130,8 @@ export function initApp() {
             if (typeof parsed.quickNotes === 'string') {
               quickNotes = sanitizeTextInput(parsed.quickNotes, 5000, true);
             }
-            if (typeof parsed.checklist === 'string') {
-              checklist = sanitizeTextInput(parsed.checklist, 5000, true);
+            if (Array.isArray(parsed.checklist) || typeof parsed.checklist === 'string') {
+              checklist = normalizeGoalsList(parsed.checklist);
             }
             if (Array.isArray(parsed.resourceLinks)) {
               resourceLinks = sanitizeResourceLinksList(parsed.resourceLinks);
@@ -4056,7 +4154,7 @@ export function initApp() {
         studyLogs = [];
         assignments = [];
         quickNotes = '';
-        checklist = '';
+        checklist = [];
         resourceLinks = [];
         void pushWorkstationToCloud();
         void syncUserSquadTelemetry();
@@ -4072,7 +4170,7 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
+            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-goal-tag-preset], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
@@ -4257,6 +4355,35 @@ export function initApp() {
       void pushWorkstationToCloud();
       populateCurrentPageData();
       setStatus('Resource deleted');
+      return;
+    }
+
+    const toggleGoalId = target.getAttribute('data-toggle-goal');
+    if (toggleGoalId) {
+      checklist = toggleGoalCompletion(checklist, toggleGoalId);
+      void pushWorkstationToCloud();
+      populateCurrentPageData();
+      setStatus('Goal updated');
+      return;
+    }
+
+    const openGoalId = target.getAttribute('data-open-goal');
+    if (openGoalId) {
+      e.preventDefault();
+      const list = normalizeGoalsList(checklist);
+      const found = list.find((g) => g.id === openGoalId);
+      if (found) openGoalModal(found);
+      return;
+    }
+
+    const goalTagPreset = target.getAttribute('data-goal-tag-preset');
+    if (goalTagPreset) {
+      e.preventDefault();
+      const tagInput = document.getElementById('goal-tag');
+      if (tagInput) {
+        tagInput.value = goalTagPreset;
+        tagInput.focus();
+      }
       return;
     }
 
@@ -4986,6 +5113,42 @@ export function initApp() {
       });
     }
 
+    const goalForm = document.getElementById('form-goal');
+    if (goalForm && !boundElements.has(goalForm)) {
+      boundElements.add(goalForm);
+      goalForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const id = sanitizeTextInput(document.getElementById('goal-id')?.value, 80);
+        const title = sanitizeTextInput(document.getElementById('goal-title')?.value, 150);
+        const tag = sanitizeTextInput(document.getElementById('goal-tag')?.value, 60) || 'Skill';
+        const completed = Boolean(document.getElementById('goal-completed')?.checked);
+
+        if (!title) return;
+
+        checklist = upsertGoalItem(checklist, {
+          id: id || `goal-${Date.now()}`,
+          title,
+          tag,
+          completed,
+        });
+
+        document.getElementById('modal-goal')?.close();
+        void pushWorkstationToCloud();
+        populateCurrentPageData();
+        setStatus(id ? `Updated goal: ${title}` : `Added goal: ${title}`);
+      });
+
+      document.getElementById('btn-delete-goal')?.addEventListener('click', () => {
+        const id = sanitizeTextInput(document.getElementById('goal-id')?.value, 80);
+        if (!id) return;
+        checklist = deleteGoalItem(checklist, id);
+        document.getElementById('modal-goal')?.close();
+        void pushWorkstationToCloud();
+        populateCurrentPageData();
+        setStatus('Goal deleted');
+      });
+    }
+
     const assignmentForm = document.getElementById('form-assignment');
     if (assignmentForm && !boundElements.has(assignmentForm)) {
       boundElements.add(assignmentForm);
@@ -5206,6 +5369,8 @@ export function initApp() {
         profile = sanitizeUserProfile(JSON.parse(e.newValue), profile, sessionEmail);
       } else if (e.key === `${STORAGE_KEY}_quick_notes` && e.newValue !== null) {
         quickNotes = sanitizeTextInput(e.newValue, 5000, true);
+      } else if (e.key === `${STORAGE_KEY}_checklist` && e.newValue !== null) {
+        checklist = normalizeGoalsList(e.newValue);
       } else if (e.key === `${STORAGE_KEY}_resource_links` && e.newValue) {
         resourceLinks = sanitizeResourceLinksList(JSON.parse(e.newValue));
       }

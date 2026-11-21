@@ -64,34 +64,45 @@
         </div>
 
         <div class="grid-3">
-          <!-- 1. Courses Card -->
-          <section class="card">
-            <div class="card-header">
-              <h3>Courses</h3>
-              <div class="card-toolbar">
-                <select id="dash-course-status" class="inline-input" aria-label="Filter Courses by Status">
-                  <option value="active" selected>Active</option>
-                  <option value="completed">Passed</option>
-                  <option value="planned">Planned</option>
-                  <option value="all">All</option>
-                </select>
-                <button type="button" id="btn-dash-add-course">Add Course</button>
+          <div class="stack">
+            <!-- 1. Courses Card -->
+            <section class="card">
+              <div class="card-header">
+                <h3>Courses</h3>
+                <div class="card-toolbar">
+                  <select id="dash-course-status" class="inline-input" aria-label="Filter Courses by Status">
+                    <option value="active" selected>Active</option>
+                    <option value="completed">Passed</option>
+                    <option value="planned">Planned</option>
+                    <option value="all">All</option>
+                  </select>
+                  <button type="button" id="btn-dash-add-course">Add Course</button>
+                </div>
               </div>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>CFU</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="dash-courses-tbody"></tbody>
-              </table>
-            </div>
-          </section>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Status</th>
+                      <th>CFU</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="dash-courses-tbody"></tbody>
+                </table>
+              </div>
+            </section>
+
+            <!-- 1b. Goals Card -->
+            <section class="card" id="dash-goals-card">
+              <div class="card-header">
+                <h3>Goals</h3>
+                <button type="button" id="btn-dash-add-goal">+ Add Goal</button>
+              </div>
+              <ul class="goals-list" id="dash-goals-list"></ul>
+            </section>
+          </div>
 
           <!-- 2. Sessions Logs Card -->
           <section class="card">
@@ -391,6 +402,50 @@
             <div class="dialog-actions-right">
               <button type="button" data-close-modal="modal-assignment">Cancel</button>
               <button type="submit">Save</button>
+            </div>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- Native HTML Dialog: Add / Edit Goal -->
+      <dialog id="modal-goal">
+        <form id="form-goal" method="dialog">
+          <h3 id="modal-goal-title">Add Goal</h3>
+          <input type="hidden" id="goal-id" />
+          <div class="form-row">
+            <label for="goal-title">Goal *</label>
+            <input
+              type="text"
+              id="goal-title"
+              required
+              maxlength="150"
+              placeholder="e.g. Learn derivatives, Learn CAD"
+            />
+          </div>
+          <div class="form-row">
+            <label for="goal-tag">Course or Personal Skill / Tag *</label>
+            <input
+              type="text"
+              id="goal-tag"
+              list="goal-tag-suggestions"
+              required
+              maxlength="60"
+              placeholder="e.g. Analisi 1, Skill, Project"
+            />
+            <datalist id="goal-tag-suggestions"></datalist>
+            <div id="goal-tag-presets" class="goal-tag-presets" aria-label="Quick tag suggestions"></div>
+          </div>
+          <div class="form-row assignment-completed-row">
+            <label class="checkbox-inline" for="goal-completed">
+              <input type="checkbox" id="goal-completed" />
+              <span>Mark as completed</span>
+            </label>
+          </div>
+          <div class="dialog-actions">
+            <button type="button" id="btn-delete-goal" class="btn-danger" hidden>Delete Goal</button>
+            <div class="dialog-actions-right">
+              <button type="button" data-close-modal="modal-goal">Cancel</button>
+              <button type="submit">Save Goal</button>
             </div>
           </div>
         </form>

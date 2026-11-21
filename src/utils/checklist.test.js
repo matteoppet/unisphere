@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   parseChecklist,
   addChecklistItem,
@@ -147,5 +149,32 @@ describe('Dashboard Goals data model and sanitization', () => {
       tag: 'Skill',
     }));
     assert.equal(normalizeGoalsList(oversized).length, 500);
+  });
+
+  it('wires the Dashboard Goals card and Add/Edit/Delete Goal modal across HTML, CSS, and app.js', () => {
+    for (const htmlFile of ['index.html', 'pages/dashboard.html']) {
+      const content = fs.readFileSync(path.resolve(htmlFile), 'utf8');
+      assert.ok(content.includes('id="dash-goals-card"'), `${htmlFile} must include #dash-goals-card`);
+      assert.ok(content.includes('id="btn-dash-add-goal"'), `${htmlFile} must include #btn-dash-add-goal`);
+      assert.ok(content.includes('id="dash-goals-list"'), `${htmlFile} must include #dash-goals-list`);
+      assert.ok(content.includes('id="modal-goal"'), `${htmlFile} must include #modal-goal`);
+      assert.ok(content.includes('id="form-goal"'), `${htmlFile} must include #form-goal`);
+      assert.ok(content.includes('id="goal-title"'), `${htmlFile} must include #goal-title`);
+      assert.ok(content.includes('id="goal-tag"'), `${htmlFile} must include #goal-tag`);
+      assert.ok(content.includes('id="goal-completed"'), `${htmlFile} must include #goal-completed`);
+      assert.ok(content.includes('id="btn-delete-goal"'), `${htmlFile} must include #btn-delete-goal`);
+    }
+
+    const cssContent = fs.readFileSync(path.resolve('src/index.css'), 'utf8');
+    assert.match(cssContent, /\.goals-list\s*\{/);
+    assert.match(cssContent, /\.goal-item\s*\{/);
+    assert.match(cssContent, /\.goal-item\.goal-completed\s+\.goal-title\s*\{[^}]*text-decoration:\s*line-through/s);
+    assert.match(cssContent, /\.goal-tag-badge\s*\{/);
+
+    const appContent = fs.readFileSync(path.resolve('src/app.js'), 'utf8');
+    assert.ok(appContent.includes('dash-goals-list'), 'app.js must populate #dash-goals-list');
+    assert.ok(appContent.includes('openGoalModal'), 'app.js must define openGoalModal');
+    assert.ok(appContent.includes('data-open-goal'), 'app.js must handle data-open-goal');
+    assert.ok(appContent.includes('data-toggle-goal'), 'app.js must handle data-toggle-goal');
   });
 });
