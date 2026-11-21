@@ -177,4 +177,23 @@ describe('Dashboard Goals data model and sanitization', () => {
     assert.ok(appContent.includes('data-open-goal'), 'app.js must handle data-open-goal');
     assert.ok(appContent.includes('data-toggle-goal'), 'app.js must handle data-toggle-goal');
   });
+
+  it('guards #btn-dash-add-goal against duplicate listener binding, checks !dialog.open before showModal, and includes Skill, Project, and Personal tag presets', () => {
+    const appContent = fs.readFileSync(path.resolve('src/app.js'), 'utf8');
+    assert.match(
+      appContent,
+      /\['Skill',\s*'Project',\s*'Personal'/,
+      'goalTagOptions must include Skill, Project, and Personal presets'
+    );
+    assert.match(
+      appContent,
+      /function openGoalModal[\s\S]*?if\s*\(\s*!dialog\.open\s*\)\s*\{\s*dialog\.showModal\(\);\s*\}/,
+      'openGoalModal must guard dialog.showModal() with if (!dialog.open)'
+    );
+    assert.match(
+      appContent,
+      /const addGoalBtn = document\.getElementById\('btn-dash-add-goal'\);\s*if\s*\(\s*addGoalBtn\s*&&\s*!boundElements\.has\(addGoalBtn\)\s*\)/,
+      'bindDynamicViewEvents must guard #btn-dash-add-goal with boundElements'
+    );
+  });
 });

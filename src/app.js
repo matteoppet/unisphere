@@ -799,7 +799,7 @@ export function initApp() {
         .join('');
     }
     const goalTagOptions = Array.from(
-      new Set(['Skill', 'Project', ...courses.map((c) => c.title).filter(Boolean)])
+      new Set(['Skill', 'Project', 'Personal', ...courses.map((c) => c.title).filter(Boolean)])
     );
     const goalDatalist = document.getElementById('goal-tag-suggestions');
     if (goalDatalist) {
@@ -3254,7 +3254,9 @@ export function initApp() {
       deleteBtn.hidden = !goalToEdit;
     }
 
-    dialog.showModal();
+    if (!dialog.open) {
+      dialog.showModal();
+    }
   }
 
   function validateAssignmentGradeField(inputEl, shouldValidate = true) {
@@ -3923,9 +3925,11 @@ export function initApp() {
       document
         .getElementById('btn-dash-add-course')
         ?.addEventListener('click', () => openCourseModal());
-      document
-        .getElementById('btn-dash-add-goal')
-        ?.addEventListener('click', () => openGoalModal());
+      const addGoalBtn = document.getElementById('btn-dash-add-goal');
+      if (addGoalBtn && !boundElements.has(addGoalBtn)) {
+        boundElements.add(addGoalBtn);
+        addGoalBtn.addEventListener('click', () => openGoalModal());
+      }
       document
         .getElementById('btn-dash-add-log')
         ?.addEventListener('click', () => openLogModal());
