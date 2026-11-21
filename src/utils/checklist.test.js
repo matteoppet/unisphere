@@ -160,7 +160,8 @@ describe('Dashboard Goals data model and sanitization', () => {
       assert.ok(content.includes('id="modal-goal"'), `${htmlFile} must include #modal-goal`);
       assert.ok(content.includes('id="form-goal"'), `${htmlFile} must include #form-goal`);
       assert.ok(content.includes('id="goal-title"'), `${htmlFile} must include #goal-title`);
-      assert.ok(content.includes('id="goal-tag"'), `${htmlFile} must include #goal-tag`);
+      assert.match(content, /<select[^>]*id="goal-tag"/, `${htmlFile} must use a <select id="goal-tag"> dropdown menu`);
+      assert.ok(!content.includes('id="goal-tag-presets"'), `${htmlFile} must not include suggestion chips #goal-tag-presets`);
       assert.ok(content.includes('id="goal-completed"'), `${htmlFile} must include #goal-completed`);
       assert.ok(content.includes('id="btn-delete-goal"'), `${htmlFile} must include #btn-delete-goal`);
     }
@@ -178,12 +179,16 @@ describe('Dashboard Goals data model and sanitization', () => {
     assert.ok(appContent.includes('data-toggle-goal'), 'app.js must handle data-toggle-goal');
   });
 
-  it('guards #btn-dash-add-goal against duplicate listener binding, checks !dialog.open before showModal, and includes Skill, Project, and Personal tag presets', () => {
+  it('guards #btn-dash-add-goal against duplicate listener binding, checks !dialog.open before showModal, and populates #goal-tag select menu with only Skill and user courses', () => {
     const appContent = fs.readFileSync(path.resolve('src/app.js'), 'utf8');
+    assert.ok(
+      !appContent.includes('goal-tag-presets'),
+      'app.js must not render goal-tag-presets chips'
+    );
     assert.match(
       appContent,
-      /\['Skill',\s*'Project',\s*'Personal'/,
-      'goalTagOptions must include Skill, Project, and Personal presets'
+      /<option value="Skill">Skill<\/option>/,
+      'app.js must include Skill option in #goal-tag select menu'
     );
     assert.match(
       appContent,

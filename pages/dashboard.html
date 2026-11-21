@@ -420,17 +420,10 @@
             />
           </div>
           <div class="form-row">
-            <label for="goal-tag">Course or Personal Skill / Tag *</label>
-            <input
-              type="text"
-              id="goal-tag"
-              list="goal-tag-suggestions"
-              required
-              maxlength="60"
-              placeholder="e.g. Analisi 1, Skill, Project"
-            />
-            <datalist id="goal-tag-suggestions"></datalist>
-            <div id="goal-tag-presets" class="goal-tag-presets" aria-label="Quick tag suggestions"></div>
+            <label for="goal-tag">Course or Personal Skill *</label>
+            <select id="goal-tag" required>
+              <option value="Skill">Skill</option>
+            </select>
           </div>
           <div class="form-row assignment-completed-row">
             <label class="checkbox-inline" for="goal-completed">

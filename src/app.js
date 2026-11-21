@@ -791,6 +791,30 @@ export function initApp() {
     });
   }
 
+  function populateGoalTagSelect(selectedTag = 'Skill') {
+    const goalSelect = document.getElementById('goal-tag');
+    if (!goalSelect) return;
+    const courseTitles = Array.from(
+      new Set(courses.map((c) => c.title).filter((t) => t && t !== 'Skill'))
+    );
+    const hasCustomLegacyTag =
+      selectedTag && selectedTag !== 'Skill' && !courseTitles.includes(selectedTag);
+
+    const courseOptionsHtml = courseTitles
+      .map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`)
+      .join('');
+
+    goalSelect.innerHTML = [
+      `<option value="Skill">Skill</option>`,
+      hasCustomLegacyTag
+        ? `<option value="${escapeHtml(selectedTag)}">${escapeHtml(selectedTag)}</option>`
+        : '',
+      courseOptionsHtml,
+    ].join('');
+
+    goalSelect.value = selectedTag || 'Skill';
+  }
+
   function updateCourseSuggestionsDatalist() {
     const datalist = document.getElementById('course-suggestions');
     if (datalist) {
@@ -798,24 +822,9 @@ export function initApp() {
         .map((c) => `<option value="${escapeHtml(c.title)}"></option>`)
         .join('');
     }
-    const goalTagOptions = Array.from(
-      new Set(['Skill', 'Project', 'Personal', ...courses.map((c) => c.title).filter(Boolean)])
-    );
-    const goalDatalist = document.getElementById('goal-tag-suggestions');
-    if (goalDatalist) {
-      goalDatalist.innerHTML = goalTagOptions
-        .map((t) => `<option value="${escapeHtml(t)}"></option>`)
-        .join('');
-    }
-    const presetsEl = document.getElementById('goal-tag-presets');
-    if (presetsEl) {
-      presetsEl.innerHTML = goalTagOptions
-        .slice(0, 8)
-        .map(
-          (t) =>
-            `<button type="button" class="goal-tag-preset-btn" data-goal-tag-preset="${escapeHtml(t)}">${escapeHtml(t)}</button>`
-        )
-        .join('');
+    const goalSelect = document.getElementById('goal-tag');
+    if (goalSelect) {
+      populateGoalTagSelect(goalSelect.value || 'Skill');
     }
   }
 
@@ -3230,20 +3239,16 @@ export function initApp() {
   function openGoalModal(goalToEdit = null) {
     const dialog = document.getElementById('modal-goal');
     if (!dialog) return;
-    updateCourseSuggestionsDatalist();
 
     const heading = document.getElementById('modal-goal-title');
     const deleteBtn = document.getElementById('btn-delete-goal');
     const idInput = document.getElementById('goal-id');
     const titleInput = document.getElementById('goal-title');
-    const tagInput = document.getElementById('goal-tag');
     const completedInput = document.getElementById('goal-completed');
 
     if (idInput) idInput.value = goalToEdit ? goalToEdit.id : '';
     if (titleInput) titleInput.value = goalToEdit ? goalToEdit.title : '';
-    if (tagInput) {
-      tagInput.value = goalToEdit ? goalToEdit.tag : courses[0]?.title || 'Skill';
-    }
+    populateGoalTagSelect(goalToEdit ? goalToEdit.tag : 'Skill');
     if (completedInput) {
       completedInput.checked = goalToEdit ? Boolean(goalToEdit.completed) : false;
     }
@@ -4174,7 +4179,7 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-goal-tag-preset], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
+            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
@@ -4377,17 +4382,6 @@ export function initApp() {
       const list = normalizeGoalsList(checklist);
       const found = list.find((g) => g.id === openGoalId);
       if (found) openGoalModal(found);
-      return;
-    }
-
-    const goalTagPreset = target.getAttribute('data-goal-tag-preset');
-    if (goalTagPreset) {
-      e.preventDefault();
-      const tagInput = document.getElementById('goal-tag');
-      if (tagInput) {
-        tagInput.value = goalTagPreset;
-        tagInput.focus();
-      }
       return;
     }
 
