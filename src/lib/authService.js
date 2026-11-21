@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { clampExamGradeValue } from '../utils/grades.js';
+export { sanitizeGoalItem, normalizeGoalsList } from '../utils/checklist.js';
 
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEY_BITS = 256;
