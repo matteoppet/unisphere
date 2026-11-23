@@ -12,7 +12,7 @@
     <div id="root">
       <header class="site-header">
         <div class="header-top">
-          <h2>UniSphere</h2>
+          <a href="/pages/dashboard.html" data-nav="dashboard" class="site-brand">UniSphere</a>
           <div class="header-actions">
             <div id="sync-status" class="sync-status" role="status" aria-live="polite">Ready</div>
             <button type="button" id="btn-header-logout" hidden>Log-Out</button>
@@ -20,7 +20,7 @@
         </div>
         <nav aria-label="Main Navigation">
           <ul id="nav-list" class="nav-list">
-            <li><a href="/pages/dashboard.html" data-nav="dashboard" class="active-nav">Dashboard</a></li>
+            <li><a href="/pages/dashboard.html" data-nav="dashboard" class="active-nav" aria-current="page">Dashboard</a></li>
             <li><a href="/pages/courses.html" data-nav="courses">Courses</a></li>
             <li><a href="/pages/logs.html" data-nav="logs">Session Logs</a></li>
             <li><a href="/pages/assignments.html" data-nav="assignments">Exams &amp; Assignments</a></li>
@@ -68,7 +68,7 @@
             <!-- 1. Courses Card -->
             <section class="card">
               <div class="card-header">
-                <h3>Courses</h3>
+                <h2>Courses</h2>
                 <div class="card-toolbar">
                   <select id="dash-course-status" class="inline-input" aria-label="Filter Courses by Status">
                     <option value="active" selected>Active</option>
@@ -97,7 +97,7 @@
             <!-- 1b. Goals Card -->
             <section class="card" id="dash-goals-card">
               <div class="card-header">
-                <h3>Goals</h3>
+                <h2>Goals</h2>
                 <button type="button" id="btn-dash-add-goal">+ Add Goal</button>
               </div>
               <ul class="goals-list" id="dash-goals-list"></ul>
@@ -107,7 +107,7 @@
           <!-- 2. Sessions Logs Card -->
           <section class="card">
             <div class="card-header">
-              <h3>Sessions Logs</h3>
+              <h2>Sessions Logs</h2>
               <button type="button" id="btn-dash-add-log">Add Log</button>
             </div>
             <div class="week-5day-tracker" aria-label="Current 7-Day Week Study Time">
@@ -137,10 +137,11 @@
 
           <!-- 3. Resources Link & Quick Notes Card -->
           <section class="card">
+            <h2 class="sr-only">Resources and Quick Notes</h2>
             <div class="card-header">
               <div class="card-tabs" role="tablist" aria-label="Resources and Quick Notes">
-                <button type="button" id="tab-dash-resources" class="tab-btn active" role="tab" aria-selected="true" aria-controls="dash-resources-panel">Resources Link</button>
-                <button type="button" id="tab-dash-notes" class="tab-btn" role="tab" aria-selected="false" aria-controls="dash-notes-panel">Quick Notes</button>
+                <button type="button" id="tab-dash-resources" class="tab-btn active" role="tab" tabindex="0" aria-selected="true" aria-controls="dash-resources-panel">Resources Link</button>
+                <button type="button" id="tab-dash-notes" class="tab-btn" role="tab" tabindex="-1" aria-selected="false" aria-controls="dash-notes-panel">Quick Notes</button>
               </div>
               <div class="card-toolbar">
                 <button type="button" id="btn-dash-add-resource">Add Resource</button>
@@ -154,6 +155,7 @@
               <div class="form-row">
                 <label for="dash-quick-notes" class="sr-only">Quick Notes</label>
                 <textarea id="dash-quick-notes" rows="5" placeholder="Write quick study reminders or notes here..."></textarea>
+                <span id="dash-notes-status" class="notes-save-status" aria-live="polite"></span>
               </div>
             </div>
           </section>
@@ -240,9 +242,9 @@
           <fieldset class="form-row duration-fieldset">
             <legend class="form-legend">Duration *</legend>
             <div class="log-time-mode-toggle" role="tablist" aria-label="Duration input mode">
-              <button type="button" class="log-time-tab active" data-time-mode="minutes" role="tab" id="tab-log-minutes" aria-selected="true" aria-controls="log-mode-minutes">Minutes</button>
-              <button type="button" class="log-time-tab" data-time-mode="hours-minutes" role="tab" id="tab-log-hours-minutes" aria-selected="false" aria-controls="log-mode-hours-minutes">Hours &amp; Min</button>
-              <button type="button" class="log-time-tab" data-time-mode="range" role="tab" id="tab-log-range" aria-selected="false" aria-controls="log-mode-range">Time Range</button>
+              <button type="button" class="log-time-tab active" data-time-mode="minutes" role="tab" tabindex="0" id="tab-log-minutes" aria-selected="true" aria-controls="log-mode-minutes">Minutes</button>
+              <button type="button" class="log-time-tab" data-time-mode="hours-minutes" role="tab" tabindex="-1" id="tab-log-hours-minutes" aria-selected="false" aria-controls="log-mode-hours-minutes">Hours &amp; Min</button>
+              <button type="button" class="log-time-tab" data-time-mode="range" role="tab" tabindex="-1" id="tab-log-range" aria-selected="false" aria-controls="log-mode-range">Time Range</button>
             </div>
             <input type="hidden" id="log-minutes" name="log-minutes" value="90" />
             <div id="log-mode-minutes" class="log-time-panel" role="tabpanel" aria-labelledby="tab-log-minutes">

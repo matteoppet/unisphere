@@ -348,6 +348,8 @@ export function initApp() {
   let verificationSentTo = null;
   let pendingUndo = null;
   let undoTimer = null;
+  let quickNotesDirty = false;
+  let quickNotesAutosaveTimer = null;
 
   // HTML page template cache for instant switching between /pages/*.html
   const pageHtmlCache = new Map();
@@ -528,7 +530,7 @@ export function initApp() {
     if (Array.isArray(data.assignments)) {
       assignments = sanitizeAssignmentList(data.assignments);
     }
-    if (typeof data.quickNotes === 'string') {
+    if (typeof data.quickNotes === 'string' && !quickNotesDirty) {
       quickNotes = sanitizeTextInput(data.quickNotes, 5000, true);
     }
     if (Array.isArray(data.checklist) || typeof data.checklist === 'string') {
@@ -867,6 +869,11 @@ export function initApp() {
     selectedFriendTelemetry = null;
     friendActionNotice = null;
     clearUndoBanner();
+    if (quickNotesAutosaveTimer) {
+      window.clearTimeout(quickNotesAutosaveTimer);
+      quickNotesAutosaveTimer = null;
+    }
+    quickNotesDirty = false;
     authNotice = { type: 'success', text: 'You have been logged out.' };
     await loadAndRenderPage('login', true);
     setStatus('Logged out');
@@ -897,10 +904,12 @@ export function initApp() {
     }
     const links = document.querySelectorAll('#nav-list a[data-nav]');
     links.forEach((a) => {
-      if (a.dataset.nav === route) {
-        a.classList.add('active-nav');
+      const isCurrent = a.dataset.nav === route;
+      a.classList.toggle('active-nav', isCurrent);
+      if (isCurrent) {
+        a.setAttribute('aria-current', 'page');
       } else {
-        a.classList.remove('active-nav');
+        a.removeAttribute('aria-current');
       }
     });
   }
@@ -968,6 +977,9 @@ export function initApp() {
     }
 
     const currentLoadedPage = mainEl.getAttribute('data-page');
+    if (currentLoadedPage === 'dashboard' && effectiveRoute !== 'dashboard' && quickNotesDirty) {
+      saveQuickNotesFromEditor({ showStatus: false });
+    }
     if (currentLoadedPage && !pageHtmlCache.has(currentLoadedPage)) {
       pageHtmlCache.set(currentLoadedPage, mainEl.innerHTML);
     }
@@ -1357,10 +1369,12 @@ export function initApp() {
     if (tabResBtn) {
       tabResBtn.classList.toggle('active', !isNotesTab);
       tabResBtn.setAttribute('aria-selected', String(!isNotesTab));
+      tabResBtn.setAttribute('tabindex', !isNotesTab ? '0' : '-1');
     }
     if (tabNotesBtn) {
       tabNotesBtn.classList.toggle('active', isNotesTab);
       tabNotesBtn.setAttribute('aria-selected', String(isNotesTab));
+      tabNotesBtn.setAttribute('tabindex', isNotesTab ? '0' : '-1');
     }
     if (resPanel) resPanel.hidden = isNotesTab;
     if (notesPanel) notesPanel.hidden = !isNotesTab;
@@ -1389,8 +1403,12 @@ export function initApp() {
     }
 
     const notesEl = document.getElementById('dash-quick-notes');
-    if (notesEl && document.activeElement !== notesEl) {
+    if (notesEl && document.activeElement !== notesEl && !quickNotesDirty) {
       notesEl.value = quickNotes;
+    }
+    const notesStatusEl = document.getElementById('dash-notes-status');
+    if (notesStatusEl && quickNotesDirty) {
+      notesStatusEl.textContent = 'Unsaved changes…';
     }
 
     const goalsListEl = document.getElementById('dash-goals-list');
@@ -3416,6 +3434,7 @@ export function initApp() {
       const isActive = tab.getAttribute('data-time-mode') === mode;
       tab.classList.toggle('active', isActive);
       tab.setAttribute('aria-selected', String(isActive));
+      tab.setAttribute('tabindex', isActive ? '0' : '-1');
     });
 
     const panelMinutes = document.getElementById('log-mode-minutes');
@@ -4219,6 +4238,28 @@ export function initApp() {
     }
   }
 
+  function saveQuickNotesFromEditor({ showStatus = true } = {}) {
+    if (quickNotesAutosaveTimer) {
+      window.clearTimeout(quickNotesAutosaveTimer);
+      quickNotesAutosaveTimer = null;
+    }
+    const notesEl = document.getElementById('dash-quick-notes');
+    if (!notesEl) return;
+    quickNotes = sanitizeTextInput(notesEl.value, 5000, true);
+    if (document.activeElement !== notesEl) {
+      notesEl.value = quickNotes;
+    }
+    quickNotesDirty = false;
+    const notesStatusEl = document.getElementById('dash-notes-status');
+    if (notesStatusEl) {
+      notesStatusEl.textContent = 'Saved';
+    }
+    void pushWorkstationToCloud();
+    if (showStatus) {
+      setStatus('Notes saved');
+    }
+  }
+
   // --- Bind Events for Active Route ---
   function bindDynamicViewEvents(route) {
     if (route === 'login') {
@@ -4248,14 +4289,30 @@ export function initApp() {
       bindOnce(document.getElementById('btn-dash-add-log'), 'click', () => openLogModal());
       bindOnce(document.getElementById('btn-dash-add-resource'), 'click', () => openResourceModal());
       bindOnce(document.getElementById('btn-dash-save-notes'), 'click', () => {
-        const notesEl = document.getElementById('dash-quick-notes');
-        if (notesEl) {
-          quickNotes = sanitizeTextInput(notesEl.value, 5000, true);
-          notesEl.value = quickNotes;
-          void pushWorkstationToCloud();
-          setStatus('Notes saved');
-        }
+        saveQuickNotesFromEditor({ showStatus: true });
       });
+      const quickNotesEl = document.getElementById('dash-quick-notes');
+      if (quickNotesEl && !boundElements.has(quickNotesEl)) {
+        boundElements.add(quickNotesEl);
+        quickNotesEl.addEventListener('input', () => {
+          quickNotesDirty = true;
+          const notesStatusEl = document.getElementById('dash-notes-status');
+          if (notesStatusEl) {
+            notesStatusEl.textContent = 'Unsaved changes…';
+          }
+          if (quickNotesAutosaveTimer) {
+            window.clearTimeout(quickNotesAutosaveTimer);
+          }
+          quickNotesAutosaveTimer = window.setTimeout(() => {
+            saveQuickNotesFromEditor({ showStatus: false });
+          }, 800);
+        });
+        quickNotesEl.addEventListener('blur', () => {
+          if (quickNotesDirty) {
+            saveQuickNotesFromEditor({ showStatus: false });
+          }
+        });
+      }
     }
 
     if (route === 'courses') {
@@ -5646,9 +5703,36 @@ export function initApp() {
   }
 
   document.addEventListener('keydown', (e) => {
+    const rawTarget = e.target;
+    if (
+      (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') &&
+      rawTarget &&
+      typeof rawTarget.closest === 'function'
+    ) {
+      const tab = rawTarget.closest('[role="tablist"] [role="tab"]');
+      const tablist = tab?.closest('[role="tablist"]');
+      if (tab && tablist) {
+        const tabs = Array.from(tablist.querySelectorAll('[role="tab"]:not([disabled])'));
+        const idx = tabs.indexOf(tab);
+        if (idx !== -1 && tabs.length > 1) {
+          e.preventDefault();
+          let nextIdx = idx;
+          if (e.key === 'ArrowRight') nextIdx = (idx + 1) % tabs.length;
+          else if (e.key === 'ArrowLeft') nextIdx = (idx - 1 + tabs.length) % tabs.length;
+          else if (e.key === 'Home') nextIdx = 0;
+          else if (e.key === 'End') nextIdx = tabs.length - 1;
+          const nextTab = tabs[nextIdx];
+          if (nextTab) {
+            nextTab.focus();
+            nextTab.click();
+          }
+          return;
+        }
+      }
+    }
+
     if (e.key !== 'Enter' && e.key !== ' ') return;
     if (window.innerWidth > 720) return;
-    const rawTarget = e.target;
     if (!rawTarget || typeof rawTarget.closest !== 'function') return;
     if (rawTarget.closest('a, button, input, select, textarea')) return;
     const row = rawTarget.closest('tr[data-toggle-assignment-row]');
