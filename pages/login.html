@@ -13,7 +13,7 @@
         <div class="header-top">
           <h2>UniSphere</h2>
           <div class="header-actions">
-            <div id="sync-status" class="sync-status">Not Signed In</div>
+            <div id="sync-status" class="sync-status" role="status" aria-live="polite">Not Signed In</div>
             <button type="button" id="btn-header-logout" hidden>Log-Out</button>
           </div>
         </div>
@@ -33,7 +33,7 @@
 
       <main id="app-main" data-page="login">
         <h1>Login</h1>
-        <div id="auth-notice-container"></div>
+        <div id="auth-notice-container" role="alert" aria-live="assertive"></div>
 
         <div class="grid-2" style="margin-top: 0;">
           <!-- 1. Sign In Card -->

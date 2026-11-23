@@ -16,7 +16,7 @@
         <div class="header-top">
           <h2>UniSphere</h2>
           <div class="header-actions">
-            <div id="sync-status" class="sync-status">Ready</div>
+            <div id="sync-status" class="sync-status" role="status" aria-live="polite">Ready</div>
             <button type="button" id="btn-header-logout" hidden>Log-Out</button>
           </div>
         </div>
@@ -154,6 +154,7 @@
             </div>
             <div id="dash-notes-panel" role="tabpanel" aria-labelledby="tab-dash-notes" hidden>
               <div class="form-row">
+                <label for="dash-quick-notes" class="sr-only">Quick Notes</label>
                 <textarea id="dash-quick-notes" rows="5" placeholder="Write quick study reminders or notes here..."></textarea>
               </div>
             </div>
@@ -238,8 +239,8 @@
             <label for="log-date">Date *</label>
             <input type="date" id="log-date" required />
           </div>
-          <div class="form-row">
-            <label>Duration *</label>
+          <fieldset class="form-row duration-fieldset">
+            <legend class="form-legend">Duration *</legend>
             <div class="log-time-mode-toggle" role="tablist" aria-label="Duration input mode">
               <button type="button" class="log-time-tab active" data-time-mode="minutes" role="tab" id="tab-log-minutes" aria-selected="true" aria-controls="log-mode-minutes">Minutes</button>
               <button type="button" class="log-time-tab" data-time-mode="hours-minutes" role="tab" id="tab-log-hours-minutes" aria-selected="false" aria-controls="log-mode-hours-minutes">Hours &amp; Min</button>
@@ -247,6 +248,7 @@
             </div>
             <input type="hidden" id="log-minutes" name="log-minutes" value="90" />
             <div id="log-mode-minutes" class="log-time-panel" role="tabpanel" aria-labelledby="tab-log-minutes">
+              <label for="log-minutes-input" class="sr-only">Duration in minutes</label>
               <input type="number" id="log-minutes-input" min="5" max="720" step="5" value="90" placeholder="e.g. 90" />
             </div>
             <div id="log-mode-hours-minutes" class="log-time-panel hidden" role="tabpanel" aria-labelledby="tab-log-hours-minutes">
@@ -273,8 +275,8 @@
                 </div>
               </div>
             </div>
-            <div id="log-duration-preview" class="log-duration-preview">Calculated: 1h 30m (90 min)</div>
-          </div>
+            <div id="log-duration-preview" class="log-duration-preview" aria-live="polite">Calculated: 1h 30m (90 min)</div>
+          </fieldset>
           <div class="form-row">
             <label for="log-tag">Session Tag</label>
             <select id="log-tag">
