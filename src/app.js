@@ -4,6 +4,7 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
@@ -1133,10 +1134,29 @@ export function initApp() {
 
   function populateLoginPage() {
     const noticeContainer = document.getElementById('auth-notice-container');
-    if (noticeContainer) {
-      noticeContainer.innerHTML = authNotice
-        ? `<div class="notice-box ${authNotice.type === 'error' ? 'notice-error' : 'notice-success'}">${escapeHtml(authNotice.text)}</div>`
-        : '';
+    const loginErrEl = document.getElementById('auth-login-error');
+    const regErrEl = document.getElementById('auth-reg-error');
+
+    if (noticeContainer) noticeContainer.innerHTML = '';
+    if (loginErrEl) {
+      loginErrEl.hidden = true;
+      loginErrEl.textContent = '';
+    }
+    if (regErrEl) {
+      regErrEl.hidden = true;
+      regErrEl.textContent = '';
+    }
+
+    if (authNotice && authNotice.text) {
+      if (authNotice.type === 'error' && authNotice.scope === 'login' && loginErrEl) {
+        loginErrEl.hidden = false;
+        loginErrEl.textContent = authNotice.text;
+      } else if (authNotice.type === 'error' && authNotice.scope === 'register' && regErrEl) {
+        regErrEl.hidden = false;
+        regErrEl.textContent = authNotice.text;
+      } else if (noticeContainer) {
+        noticeContainer.innerHTML = `<div class="notice-box ${authNotice.type === 'error' ? 'notice-error' : 'notice-success'}">${escapeHtml(authNotice.text)}</div>`;
+      }
     }
     const loginEmail = document.getElementById('auth-login-email');
     if (loginEmail && !loginEmail.value && profile.email) {
@@ -3772,6 +3792,7 @@ export function initApp() {
         if (!normalizedEmail || !password) {
           authNotice = {
             type: 'error',
+            scope: 'login',
             text: 'Please enter a valid email address and password.',
           };
           populateLoginPage();
@@ -3782,6 +3803,7 @@ export function initApp() {
         if (!rateStatus.allowed) {
           authNotice = {
             type: 'error',
+            scope: 'login',
             text: `Too many failed sign-in attempts. Please wait ${rateStatus.retryAfterSeconds}s before trying again.`,
           };
           populateLoginPage();
@@ -3817,6 +3839,7 @@ export function initApp() {
                 loginRateLimiter.consume(normalizedEmail);
                 authNotice = {
                   type: 'error',
+                  scope: 'login',
                   text: 'Account temporarily locked due to too many failed attempts. Please try again later.',
                 };
                 populateLoginPage();
@@ -3846,7 +3869,8 @@ export function initApp() {
             loginRateLimiter.consume(normalizedEmail);
             authNotice = {
               type: 'error',
-              text: 'No account found with this email. Please register on the right.',
+              scope: 'login',
+              text: 'No account found with this email. Use "Register New Account" to create one.',
             };
             populateLoginPage();
             return;
@@ -3859,6 +3883,7 @@ export function initApp() {
               loginRateLimiter.consume(normalizedEmail);
               authNotice = {
                 type: 'error',
+                scope: 'login',
                 text:
                   data.authProvider === 'google'
                     ? 'This account uses Google Sign-In. Please click "Sign In with Google".'
@@ -3873,6 +3898,7 @@ export function initApp() {
               const consumed = loginRateLimiter.consume(normalizedEmail);
               authNotice = {
                 type: 'error',
+                scope: 'login',
                 text: consumed.allowed
                   ? `Incorrect password. Please try again (${consumed.remaining} attempts remaining).`
                   : `Too many failed sign-in attempts. Please wait ${consumed.retryAfterSeconds}s.`,
@@ -3904,6 +3930,7 @@ export function initApp() {
           loginRateLimiter.consume(normalizedEmail);
           authNotice = {
             type: 'error',
+            scope: 'login',
             text: err instanceof Error ? err.message : 'Sign-in failed.',
           };
           populateLoginPage();
@@ -3926,6 +3953,52 @@ export function initApp() {
       });
     }
 
+    const forgotBtn = document.getElementById('btn-forgot-password');
+    bindOnce(forgotBtn, 'click', async () => {
+      const email = sanitizeEmailInput(document.getElementById('auth-login-email')?.value);
+      if (!email) {
+        authNotice = {
+          type: 'error',
+          scope: 'login',
+          text: 'Enter your email address above, then click "Forgot password?".',
+        };
+        populateLoginPage();
+        return;
+      }
+      if (!auth) {
+        authNotice = {
+          type: 'error',
+          scope: 'login',
+          text: 'Password reset is unavailable because authentication is not configured.',
+        };
+        populateLoginPage();
+        return;
+      }
+      const origText = forgotBtn.textContent;
+      forgotBtn.disabled = true;
+      forgotBtn.textContent = 'Sending reset link...';
+      try {
+        await sendPasswordResetEmail(auth, email);
+        authNotice = {
+          type: 'success',
+          text: `If an account exists for ${email}, a password reset link has been sent.`,
+        };
+      } catch (err) {
+        authNotice = {
+          type: 'error',
+          scope: 'login',
+          text:
+            err instanceof Error
+              ? err.message
+              : 'Could not send password reset email. Please try again.',
+        };
+      } finally {
+        forgotBtn.disabled = false;
+        forgotBtn.textContent = origText;
+        populateLoginPage();
+      }
+    });
+
     const otpBtn = document.getElementById('btn-send-otp');
     if (otpBtn && !boundElements.has(otpBtn)) {
       boundElements.add(otpBtn);
@@ -3934,7 +4007,11 @@ export function initApp() {
           document.getElementById('auth-reg-email')?.value
         );
         if (!regEmail) {
-          authNotice = { type: 'error', text: 'Enter a valid email first to receive a code.' };
+          authNotice = {
+            type: 'error',
+            scope: 'register',
+            text: 'Enter a valid email first to receive a code.',
+          };
           populateLoginPage();
           return;
         }
@@ -3950,12 +4027,15 @@ export function initApp() {
               text: `Verification code sent to ${regEmail}. Check your inbox (and spam folder).`,
             };
           } else {
+            const rawNotice = String(res.providerNotice || res.error || '');
+            const isMissingProviderConfig = /RESEND_API_KEY|not configured/i.test(rawNotice);
             authNotice = {
               type: 'error',
+              scope: 'register',
               text:
-                res.providerNotice ||
-                res.error ||
-                'Could not send verification email. Ensure RESEND_API_KEY is configured in your .env file.',
+                isMissingProviderConfig || !rawNotice
+                  ? 'Email verification is temporarily unavailable. You can leave the code blank and click Register to continue.'
+                  : rawNotice,
             };
           }
           populateLoginPage();
@@ -3988,6 +4068,7 @@ export function initApp() {
         if (!regName || !regEmail || regPass.length < 6) {
           authNotice = {
             type: 'error',
+            scope: 'register',
             text: 'Please provide your name, a valid email, and a password of at least 6 characters.',
           };
           populateLoginPage();
@@ -4008,6 +4089,7 @@ export function initApp() {
             if (!ver.success) {
               authNotice = {
                 type: 'error',
+                scope: 'register',
                 text: ver.error || 'Invalid verification code.',
               };
               populateLoginPage();
@@ -4025,7 +4107,8 @@ export function initApp() {
               if (fbErr?.code === 'auth/email-already-in-use') {
                 authNotice = {
                   type: 'error',
-                  text: 'An account with this email already exists. Please sign in on the left.',
+                  scope: 'register',
+                  text: 'An account with this email already exists. Use "Sign In" instead.',
                 };
                 populateLoginPage();
                 return;
@@ -4076,6 +4159,7 @@ export function initApp() {
         } catch (err) {
           authNotice = {
             type: 'error',
+            scope: 'register',
             text: err instanceof Error ? err.message : 'Registration error.',
           };
           populateLoginPage();

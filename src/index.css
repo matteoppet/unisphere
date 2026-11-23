@@ -509,13 +509,28 @@ input[type="search"],
 select,
 textarea {
   font-family: inherit;
-  font-size: 15px;
+  font-size: 16px;
   padding: 6px 8px;
   border: 1px solid #888888;
   border-radius: 6px;
   background-color: #ffffff;
   color: #000000;
   width: 100%;
+}
+
+.field-hint {
+  font-size: 13px;
+  color: #555555;
+}
+
+.field-error {
+  color: #990000;
+  background-color: #fff5f5;
+  border: 1px solid #aa0000;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 14px;
+  margin-bottom: 12px;
 }
 
 .inline-input {
