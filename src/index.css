@@ -20,6 +20,11 @@
   border: 0;
 }
 
+.auth-booting #nav-list,
+.auth-booting #app-main {
+  visibility: hidden;
+}
+
 html,
 body {
   margin: 0;

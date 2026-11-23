@@ -350,6 +350,16 @@ export function initApp() {
 
   // HTML page template cache for instant switching between /pages/*.html
   const pageHtmlCache = new Map();
+  const pageTitleCache = new Map();
+  const PAGE_TITLES = {
+    login: 'UniSphere - Login',
+    dashboard: 'UniSphere - Dashboard',
+    courses: 'UniSphere - Courses',
+    logs: 'UniSphere - Session Logs',
+    assignments: 'UniSphere - Exams & Assignments',
+    squads: 'UniSphere - Squads',
+    settings: 'UniSphere - Settings',
+  };
 
   // Firestore real-time listener management
   let userSnapshotUnsub = null;
@@ -922,15 +932,21 @@ export function initApp() {
     }
   }
 
-  async function loadAndRenderPage(targetRoute, pushHistory = false) {
+  async function loadAndRenderPage(targetRoute, pushHistory = false, { replaceHistory = false } = {}) {
     const effectiveRoute = !isAuthenticated ? 'login' : targetRoute === 'login' ? 'dashboard' : targetRoute;
     updateNavHighlight(effectiveRoute);
     const mainEl = document.getElementById('app-main');
-    if (!mainEl) return;
+    if (!mainEl) {
+      document.documentElement.classList.remove('auth-booting');
+      return;
+    }
 
     const currentLoadedPage = mainEl.getAttribute('data-page');
     if (currentLoadedPage && !pageHtmlCache.has(currentLoadedPage)) {
       pageHtmlCache.set(currentLoadedPage, mainEl.innerHTML);
+    }
+    if (currentLoadedPage && !pageTitleCache.has(currentLoadedPage) && document.title) {
+      pageTitleCache.set(currentLoadedPage, document.title);
     }
 
     if (currentLoadedPage !== effectiveRoute) {
@@ -942,6 +958,9 @@ export function initApp() {
             const text = await res.text();
             const parser = new DOMParser();
             const docDom = parser.parseFromString(text, 'text/html');
+            if (docDom.title) {
+              pageTitleCache.set(effectiveRoute, docDom.title);
+            }
             const fetchedMain = docDom.getElementById('app-main');
             if (fetchedMain) {
               mainHtml = fetchedMain.innerHTML;
@@ -969,10 +988,16 @@ export function initApp() {
       }
     }
 
-    if (pushHistory && PAGE_PATHS[effectiveRoute]) {
+    document.title = pageTitleCache.get(effectiveRoute) || PAGE_TITLES[effectiveRoute] || 'UniSphere';
+
+    if (PAGE_PATHS[effectiveRoute]) {
       const targetPath = PAGE_PATHS[effectiveRoute];
       if (window.location.pathname !== targetPath) {
-        window.history.pushState({ route: effectiveRoute }, '', targetPath);
+        if (replaceHistory) {
+          window.history.replaceState({ route: effectiveRoute }, '', targetPath);
+        } else if (pushHistory) {
+          window.history.pushState({ route: effectiveRoute }, '', targetPath);
+        }
       }
     }
 
@@ -986,6 +1011,7 @@ export function initApp() {
     updateCourseSuggestionsDatalist();
     populateCurrentPageData();
     bindDynamicViewEvents(effectiveRoute);
+    document.documentElement.classList.remove('auth-booting');
   }
 
   function updateScrollableTablesMaxHeight() {
@@ -5591,5 +5617,5 @@ export function initApp() {
   bindDialogFormEvents();
   setupRealtimeFirestoreSync();
   setStatus('Ready');
-  void loadAndRenderPage(getRouteFromLocation(), !isAuthenticated);
+  void loadAndRenderPage(getRouteFromLocation(), false, { replaceHistory: !isAuthenticated });
 }
