@@ -181,6 +181,16 @@ function formatStatusLabel(status) {
   return 'Planned';
 }
 
+function renderWeekDayHoursCell(d) {
+  if (d.minutes > 0) {
+    return `<td><strong class="study-hours-positive">${escapeHtml(d.hours)}</strong></td>`;
+  }
+  if (d.isFuture) {
+    return `<td><span class="study-hours-future" aria-label="Upcoming day">–</span></td>`;
+  }
+  return `<td><strong class="study-hours-zero">${escapeHtml(d.hours)}</strong></td>`;
+}
+
 function formatReadableDate(dateStr) {
   if (!dateStr) return '-';
   const parts = String(dateStr).split('-');
@@ -1163,12 +1173,7 @@ export function initApp() {
 
     const dash5DayTbody = document.getElementById('dash-5day-tbody');
     if (dash5DayTbody) {
-      dash5DayTbody.innerHTML = widgetDays
-        .map(
-          (d) =>
-            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
-        )
-        .join('');
+      dash5DayTbody.innerHTML = widgetDays.map((d) => renderWeekDayHoursCell(d)).join('');
     }
 
     const logsTbody = document.getElementById('dash-logs-tbody');
@@ -1371,12 +1376,7 @@ export function initApp() {
 
     const tbodyEl = document.getElementById('logs-5day-tbody');
     if (tbodyEl) {
-      tbodyEl.innerHTML = widgetDays
-        .map(
-          (d) =>
-            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
-        )
-        .join('');
+      tbodyEl.innerHTML = widgetDays.map((d) => renderWeekDayHoursCell(d)).join('');
     }
 
     const uniqueSubjects = Array.from(
@@ -1965,12 +1965,7 @@ export function initApp() {
 
     const squad7DayTbody = document.getElementById('squad-7day-tbody');
     if (squad7DayTbody) {
-      squad7DayTbody.innerHTML = squadWeekDays
-        .map(
-          (d) =>
-            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
-        )
-        .join('');
+      squad7DayTbody.innerHTML = squadWeekDays.map((d) => renderWeekDayHoursCell(d)).join('');
     }
 
     if (isAuthenticated && myUid && myUid !== 'local_student' && activeFriendshipsUid !== myUid) {
@@ -2381,12 +2376,7 @@ export function initApp() {
     }
     const tbody7Day = document.getElementById('friend-view-7day-tbody');
     if (tbody7Day) {
-      tbody7Day.innerHTML = stats.weekDays
-        .map(
-          (d) =>
-            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
-        )
-        .join('');
+      tbody7Day.innerHTML = stats.weekDays.map((d) => renderWeekDayHoursCell(d)).join('');
     }
 
     const subjTbody = document.getElementById('friend-view-subjects-tbody');
@@ -2938,12 +2928,7 @@ export function initApp() {
 
     const tbodyEl = document.getElementById('friend-calendar-7day-tbody');
     if (tbodyEl) {
-      tbodyEl.innerHTML = summary.weekDays
-        .map(
-          (d) =>
-            `<td><strong class="${d.minutes > 0 ? 'study-hours-positive' : 'study-hours-zero'}">${escapeHtml(d.hours)}</strong></td>`
-        )
-        .join('');
+      tbodyEl.innerHTML = summary.weekDays.map((d) => renderWeekDayHoursCell(d)).join('');
     }
 
     const subjTbody = document.getElementById('friend-calendar-subjects-tbody');

@@ -74,6 +74,7 @@ export function getWeekDaysSummary(studyLogs = [], referenceDate = new Date()) {
     'Dec',
   ];
 
+  const todayStr = getLocalDateString(referenceDate);
   const todayYear = referenceDate.getFullYear();
   const todayMonth = referenceDate.getMonth();
   const todayDate = referenceDate.getDate();
@@ -99,6 +100,7 @@ export function getWeekDaysSummary(studyLogs = [], referenceDate = new Date()) {
       minutes: dayMins,
       sessionCount,
       hasSessions: sessionCount > 0,
+      isFuture: dateStr > todayStr,
     };
   });
 
@@ -641,6 +643,7 @@ export function getMemberWeekDaysSummary(member = {}, referenceDate = new Date()
       minutes: mins,
       hours: formatStudyDuration(mins),
       hasSessions: mins > 0,
+      isFuture: d.isFuture,
     };
   });
 
@@ -692,6 +695,7 @@ export function aggregateSquadWeeklyDays(members = [], referenceDate = new Date(
       minutes: mins,
       hours: formatStudyDuration(mins),
       hasSessions: mins > 0,
+      isFuture: d.isFuture,
     };
   });
 }

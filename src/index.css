@@ -364,6 +364,11 @@ button.btn-danger {
   color: #cc0000;
 }
 
+.study-hours-future {
+  color: #595959;
+  font-weight: normal;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

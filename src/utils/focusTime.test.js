@@ -116,6 +116,15 @@ describe('Weekly log per day widget includes Saturday and Sunday (#32)', () => {
     assert.equal(sundayEntry.minutes, 120);
     assert.equal(sundayEntry.hours, '2h');
   });
+
+  it('marks future days in the current week with isFuture: true and past/today with isFuture: false', () => {
+    const wednesday = new Date(2026, 10, 25); // Wed 25 Nov 2026
+    const summary = getWeekDaysSummary([], wednesday);
+    assert.deepEqual(
+      summary.widgetDays.map((d) => d.isFuture),
+      [false, false, false, true, true, true, true]
+    );
+  });
 });
 
 describe('groupStudyLogsByWeek (#34)', () => {
