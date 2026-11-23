@@ -3438,7 +3438,7 @@ export function initApp() {
     if (preview) {
       if (mins >= 5) {
         preview.textContent = `Calculated: ${formatStudyDuration(mins)} (${mins} min)`;
-        preview.style.color = '#2b5d95';
+        preview.style.color = '';
       } else {
         preview.textContent = 'Please enter a valid duration (minimum 5 min)';
         preview.style.color = '#aa0000';
