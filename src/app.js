@@ -367,6 +367,14 @@ export function initApp() {
   let activeSyncDocId = null;
   let hasInitialServerSnapshot = false;
   let lastCloudPullMs = 0;
+  let isInitialCloudLoading = Boolean(
+    isAuthenticated &&
+      db &&
+      courses.length === 0 &&
+      studyLogs.length === 0 &&
+      checklist.length === 0 &&
+      resourceLinks.length === 0
+  );
   let cloudSyncState = db ? 'syncing' : 'local';
   let currentActionNotice = '';
   let statusResetTimer = null;
@@ -579,14 +587,19 @@ export function initApp() {
       const snap = await fetchFreshUserDoc(userRef);
       const wasInitial = !hasInitialServerSnapshot;
       hasInitialServerSnapshot = true;
+      isInitialCloudLoading = false;
       if (snap && snap.exists()) {
         applyRemoteWorkspaceData(snap.data(), targetEmail, { isInitialHydration: wasInitial });
+      } else {
+        populateCurrentPageData();
       }
       cloudSyncState = hasPendingLocalSync() ? 'pending' : 'synced';
       renderSyncStatus();
     } catch (err) {
       console.warn('Cloud sync pull notice:', err);
+      isInitialCloudLoading = false;
       cloudSyncState = 'error';
+      populateCurrentPageData();
       renderSyncStatus();
     }
   }
@@ -704,6 +717,7 @@ export function initApp() {
         userSnapshotUnsub = null;
       }
       activeSyncDocId = null;
+      isInitialCloudLoading = false;
       cloudSyncState = db ? 'synced' : 'local';
       setStatus('Ready', 0);
       return;
@@ -722,6 +736,11 @@ export function initApp() {
     activeSyncDocId = docId;
     const userRef = doc(db, 'users', docId);
     hasInitialServerSnapshot = false;
+    isInitialCloudLoading =
+      courses.length === 0 &&
+      studyLogs.length === 0 &&
+      checklist.length === 0 &&
+      resourceLinks.length === 0;
     cloudSyncState = 'syncing';
 
     userSnapshotUnsub = onSnapshot(
@@ -732,17 +751,22 @@ export function initApp() {
         if (snapshot.metadata.fromCache && !hasInitialServerSnapshot) return;
         const wasInitial = !hasInitialServerSnapshot;
         hasInitialServerSnapshot = true;
+        isInitialCloudLoading = false;
 
         if (snapshot.exists()) {
           const data = snapshot.data();
           applyRemoteWorkspaceData(data, targetEmail, { isInitialHydration: wasInitial });
+        } else {
+          populateCurrentPageData();
         }
         cloudSyncState = hasPendingLocalSync() ? 'pending' : 'synced';
         renderSyncStatus();
       },
       (err) => {
         console.warn('Firestore real-time listener notice:', err);
+        isInitialCloudLoading = false;
         cloudSyncState = 'error';
+        populateCurrentPageData();
         renderSyncStatus();
       }
     );
@@ -815,6 +839,7 @@ export function initApp() {
     }
     activeSyncDocId = null;
     hasInitialServerSnapshot = false;
+    isInitialCloudLoading = false;
     cleanupSquadListeners();
     try {
       if (auth) await signOut(auth);
@@ -1218,10 +1243,16 @@ export function initApp() {
     const { widgetDays, weekTotalMinutes } = getWeekDaysSummary(studyLogs);
 
     const elDegree = document.getElementById('summary-degree');
-    if (elDegree) elDegree.textContent = profile.degreeName || 'Not set';
+    if (elDegree) {
+      elDegree.textContent =
+        profile.degreeName || (isInitialCloudLoading ? 'Loading…' : 'Not set');
+    }
 
     const elInst = document.getElementById('summary-institution');
-    if (elInst) elInst.textContent = profile.institution || 'Not set';
+    if (elInst) {
+      elInst.textContent =
+        profile.institution || (isInitialCloudLoading ? 'Loading…' : 'Not set');
+    }
 
     const elCfu = document.getElementById('summary-cfu');
     if (elCfu) elCfu.textContent = `${completedCFU} / ${targetCFU} CFU`;
@@ -1247,7 +1278,11 @@ export function initApp() {
     const coursesTbody = document.getElementById('dash-courses-tbody');
     if (coursesTbody) {
       coursesTbody.innerHTML =
-        filteredDashCourses.length === 0
+        isInitialCloudLoading && courses.length === 0
+          ? `<tr><td colspan="4" class="empty-cell">Loading courses…</td></tr>`
+          : courses.length === 0
+          ? `<tr><td colspan="4" class="empty-cell">No courses added yet. Click &quot;Add Course&quot; to add your first course.</td></tr>`
+          : filteredDashCourses.length === 0
           ? `<tr><td colspan="4" class="empty-cell">No matching courses found.</td></tr>`
           : filteredDashCourses
               .map(
@@ -1286,7 +1321,9 @@ export function initApp() {
           ? `<tr class="logs-view-all-row"><td colspan="4"><a href="/pages/logs.html" data-nav="logs">View all ${totalCount} logs in Session Logs</a></td></tr>`
           : '';
       logsTbody.innerHTML =
-        weekGroups.length === 0
+        isInitialCloudLoading && studyLogs.length === 0
+          ? `<tr><td colspan="4" class="empty-cell">Loading session logs…</td></tr>`
+          : weekGroups.length === 0
           ? `<tr><td colspan="4" class="empty-cell">No session logs recorded yet.</td></tr>`
           : `${weekGroups
               .map(
@@ -1332,8 +1369,12 @@ export function initApp() {
 
     const resList = document.getElementById('dash-resources-list');
     if (resList) {
+      const showResEmpty = resourceLinks.length === 0;
+      resList.classList.toggle('resource-list-empty', showResEmpty);
       resList.innerHTML =
-        resourceLinks.length === 0
+        isInitialCloudLoading && showResEmpty
+          ? `<li class="empty-cell">Loading resources…</li>`
+          : showResEmpty
           ? `<li class="empty-cell">No resource links added yet.</li>`
           : resourceLinks
               .map((r) => {
@@ -1356,7 +1397,9 @@ export function initApp() {
     if (goalsListEl) {
       const sortedGoals = sortGoalsForDisplay(checklist);
       goalsListEl.innerHTML =
-        sortedGoals.length === 0
+        isInitialCloudLoading && sortedGoals.length === 0
+          ? `<li class="empty-cell">Loading goals…</li>`
+          : sortedGoals.length === 0
           ? `<li class="empty-cell">No goals added yet.</li>`
           : sortedGoals
               .map(
@@ -3601,8 +3644,10 @@ export function initApp() {
 
     if (userData) {
       hasInitialServerSnapshot = true;
+      isInitialCloudLoading = false;
       applyRemoteWorkspaceData(userData, normalizedEmail, { isInitialHydration: true });
     } else {
+      isInitialCloudLoading = false;
       profile = sanitizeUserProfile(profile, INITIAL_PROFILE, normalizedEmail);
       saveToLocalStorage();
     }

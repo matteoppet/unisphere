@@ -486,6 +486,11 @@ th {
   padding-left: 28px;
 }
 
+.resource-list.resource-list-empty {
+  list-style: none;
+  padding-left: 0;
+}
+
 .resource-list li {
   margin: 8px 0;
   font-size: 15px;
