@@ -289,6 +289,52 @@ button.btn-danger {
   border-color: #990000;
 }
 
+button.btn-inline-action,
+button.btn-inline-danger {
+  background: none;
+  border: 1px solid transparent;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.25;
+  border-radius: 4px;
+  text-decoration: underline;
+}
+
+button.btn-inline-action {
+  color: #1d4ed8;
+}
+
+button.btn-inline-action:hover {
+  background-color: #eef4fb;
+  border-color: #c7d9ee;
+}
+
+button.btn-inline-danger {
+  color: #990000;
+}
+
+button.btn-inline-danger:hover {
+  background-color: #fff5f5;
+  border-color: #e5b4b4;
+}
+
+.resource-delete-btn {
+  margin-left: 6px;
+  font-size: 13px;
+}
+
+.undo-banner {
+  border-radius: 6px;
+}
+
+.undo-banner-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 /* Native Tables */
 .table-wrap {
   width: 100%;

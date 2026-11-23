@@ -345,6 +345,8 @@ export function initApp() {
   // Auth UI state
   let authNotice = null;
   let verificationSentTo = null;
+  let pendingUndo = null;
+  let undoTimer = null;
 
   // HTML page template cache for instant switching between /pages/*.html
   const pageHtmlCache = new Map();
@@ -828,6 +830,7 @@ export function initApp() {
     selectedFriendUid = null;
     selectedFriendTelemetry = null;
     friendActionNotice = null;
+    clearUndoBanner();
     authNotice = { type: 'success', text: 'You have been logged out.' };
     await loadAndRenderPage('login', true);
     setStatus('Logged out');
@@ -1108,7 +1111,48 @@ export function initApp() {
     }
   }
 
+  function renderUndoBanner() {
+    const el = document.getElementById('dash-undo-banner');
+    if (!el) return;
+    if (!pendingUndo) {
+      el.hidden = true;
+      el.innerHTML = '';
+      return;
+    }
+    el.hidden = false;
+    el.innerHTML = `
+      <span>${escapeHtml(pendingUndo.message)}</span>
+      <span class="undo-banner-actions">
+        <button type="button" id="btn-undo-action">Undo</button>
+        <button type="button" id="btn-dismiss-undo" class="notice-dismiss-btn" aria-label="Dismiss">&times;</button>
+      </span>
+    `;
+  }
+
+  function clearUndoBanner() {
+    if (undoTimer) {
+      window.clearTimeout(undoTimer);
+      undoTimer = null;
+    }
+    pendingUndo = null;
+    renderUndoBanner();
+  }
+
+  function showUndoBanner(message, restoreFn) {
+    if (undoTimer) {
+      window.clearTimeout(undoTimer);
+    }
+    pendingUndo = { message, restore: restoreFn };
+    renderUndoBanner();
+    undoTimer = window.setTimeout(() => {
+      pendingUndo = null;
+      undoTimer = null;
+      renderUndoBanner();
+    }, 10000);
+  }
+
   function populateDashboardPage() {
+    renderUndoBanner();
     const completedCFU = courses
       .filter((c) => c.status === 'completed')
       .reduce((sum, c) => sum + c.cfu, 0);
@@ -1155,7 +1199,7 @@ export function initApp() {
                 <td>${escapeHtml(c.title)}</td>
                 <td>${escapeHtml(formatStatusLabel(c.status))}</td>
                 <td>${escapeHtml(c.cfu)}</td>
-                <td><a href="#" data-open-course="${escapeHtml(c.id)}">Open</a></td>
+                <td><button type="button" class="btn-inline-action" data-open-course="${escapeHtml(c.id)}">Open</button></td>
               </tr>`
               )
               .join('');
@@ -1195,7 +1239,7 @@ export function initApp() {
                 <td>${escapeHtml(formatReadableDate(l.date))}</td>
                 <td>${escapeHtml(l.courseName)}</td>
                 <td>${escapeHtml(formatStudyDuration(l.durationMinutes))}</td>
-                <td><a href="#" data-delete-log="${escapeHtml(l.id)}">Delete</a></td>
+                <td><button type="button" class="btn-inline-danger" data-delete-log="${escapeHtml(l.id)}" aria-label="Delete ${escapeHtml(l.courseName)} session">Delete</button></td>
               </tr>`
                 )
                 .join('')}`
@@ -1235,7 +1279,7 @@ export function initApp() {
                 return `
               <li>
                 <a href="${escapeHtml(safeHref)}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>
-                <span class="item-meta">(<a href="#" data-delete-resource="${escapeHtml(r.id)}">Delete</a>)</span>
+                <button type="button" class="btn-inline-danger resource-delete-btn" data-delete-resource="${escapeHtml(r.id)}" aria-label="Delete resource ${escapeHtml(r.title)}">Delete</button>
               </li>`;
               })
               .join('');
@@ -4262,10 +4306,26 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-sync-retry, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
+            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-sync-retry, #btn-undo-action, #btn-dismiss-undo, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
+
+    if (target.id === 'btn-undo-action') {
+      e.preventDefault();
+      const restore = pendingUndo?.restore;
+      clearUndoBanner();
+      if (typeof restore === 'function') {
+        restore();
+      }
+      return;
+    }
+
+    if (target.id === 'btn-dismiss-undo') {
+      e.preventDefault();
+      clearUndoBanner();
+      return;
+    }
 
     if (target.id === 'btn-sync-retry') {
       e.preventDefault();
@@ -4434,6 +4494,9 @@ export function initApp() {
     const deleteLogId = target.getAttribute('data-delete-log');
     if (deleteLogId) {
       e.preventDefault();
+      const removedIdx = studyLogs.findIndex((l) => l.id === deleteLogId);
+      const removedItem = removedIdx >= 0 ? studyLogs[removedIdx] : null;
+      if (!removedItem) return;
       studyLogs = studyLogs.filter((l) => l.id !== deleteLogId);
       const currentStreak = calculateCurrentStreak(studyLogs, profile);
       const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
@@ -4442,6 +4505,20 @@ export function initApp() {
         currentStreak,
         minutesStudiedThisWeek: weekMinutes,
       };
+      showUndoBanner(`Deleted "${removedItem.courseName}" session log.`, () => {
+        const next = [...studyLogs];
+        next.splice(Math.min(removedIdx, next.length), 0, removedItem);
+        studyLogs = next;
+        profile = {
+          ...profile,
+          currentStreak: calculateCurrentStreak(studyLogs, profile),
+          minutesStudiedThisWeek: getWeekDaysSummary(studyLogs).weekTotalMinutes,
+        };
+        void pushWorkstationToCloud();
+        void syncUserSquadTelemetry();
+        populateCurrentPageData();
+        setStatus('Restored session log');
+      });
       void pushWorkstationToCloud();
       void syncUserSquadTelemetry();
       populateCurrentPageData();
@@ -4452,7 +4529,18 @@ export function initApp() {
     const deleteResourceId = target.getAttribute('data-delete-resource');
     if (deleteResourceId) {
       e.preventDefault();
+      const removedIdx = resourceLinks.findIndex((r) => r.id === deleteResourceId);
+      const removedItem = removedIdx >= 0 ? resourceLinks[removedIdx] : null;
+      if (!removedItem) return;
       resourceLinks = resourceLinks.filter((r) => r.id !== deleteResourceId);
+      showUndoBanner(`Deleted resource "${removedItem.title}".`, () => {
+        const next = [...resourceLinks];
+        next.splice(Math.min(removedIdx, next.length), 0, removedItem);
+        resourceLinks = next;
+        void pushWorkstationToCloud();
+        populateCurrentPageData();
+        setStatus('Restored resource');
+      });
       void pushWorkstationToCloud();
       populateCurrentPageData();
       setStatus('Resource deleted');
