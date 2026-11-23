@@ -1055,11 +1055,55 @@ export function initApp() {
   function updateScrollableTablesMaxHeight() {
     const viewportHeight = window.innerHeight;
     const viewportWidth = window.innerWidth;
-    const scrollContainers = document.querySelectorAll('.table-scroll');
-    scrollContainers.forEach((el) => {
+    const scrollY = window.scrollY;
+
+    // Phase 1: Batch all layout reads before any style writes to avoid forced reflows
+    const scrollContainerMeasurements = [];
+    document.querySelectorAll('.table-scroll').forEach((el) => {
       if (el.id === 'assignments-table-scroll') return;
-      const elementTop = el.getBoundingClientRect().top + window.scrollY;
-      if (el.classList.contains('table-scroll-sm')) {
+      scrollContainerMeasurements.push({
+        el,
+        elementTop: el.getBoundingClientRect().top + scrollY,
+        isSmall: el.classList.contains('table-scroll-sm')
+      });
+    });
+
+    const squadFeedEl = document.getElementById('squad-feed-list');
+    const squadFeedTop =
+      squadFeedEl && !squadFeedEl.closest('[hidden]')
+        ? squadFeedEl.getBoundingClientRect().top + scrollY
+        : null;
+
+    const friendsSidebarEl = document.getElementById('friends-sidebar');
+    const friendsSidebarVisible = Boolean(friendsSidebarEl && !friendsSidebarEl.closest('[hidden]'));
+    const friendsSidebarTop =
+      friendsSidebarVisible && viewportWidth > 960
+        ? friendsSidebarEl.getBoundingClientRect().top + scrollY
+        : null;
+
+    const squadUnifiedEl = document.getElementById('squads-active-widgets');
+    const squadUnifiedVisible = Boolean(squadUnifiedEl && !squadUnifiedEl.closest('[hidden]'));
+    const squadUnifiedTop =
+      squadUnifiedVisible && viewportWidth > 960
+        ? squadUnifiedEl.getBoundingClientRect().top + scrollY
+        : null;
+
+    const friendUnifiedEl = document.getElementById('friend-info-stats-view');
+    const friendUnifiedVisible = Boolean(friendUnifiedEl && !friendUnifiedEl.closest('[hidden]'));
+    const friendUnifiedTop =
+      friendUnifiedVisible && viewportWidth > 960
+        ? friendUnifiedEl.getBoundingClientRect().top + scrollY
+        : null;
+
+    const assignmentsTableScrollEl = document.getElementById('assignments-table-scroll');
+    const assignmentsTableTop =
+      assignmentsTableScrollEl && !assignmentsTableScrollEl.closest('[hidden]')
+        ? assignmentsTableScrollEl.getBoundingClientRect().top + scrollY
+        : null;
+
+    // Phase 2: Apply all computed height writes
+    scrollContainerMeasurements.forEach(({ el, elementTop, isSmall }) => {
+      if (isSmall) {
         const maxH =
           viewportWidth <= 720
             ? 280
@@ -1074,67 +1118,59 @@ export function initApp() {
       el.style.maxHeight = `${maxH}px`;
     });
 
-    const squadFeedEl = document.getElementById('squad-feed-list');
-    if (squadFeedEl && !squadFeedEl.closest('[hidden]')) {
-      const elementTop = squadFeedEl.getBoundingClientRect().top + window.scrollY;
+    if (squadFeedTop !== null) {
+      const elementTop = squadFeedTop;
       const feedH = calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth, 200);
       squadFeedEl.style.minHeight = `${feedH}px`;
       squadFeedEl.style.maxHeight = `${feedH}px`;
     }
 
-    const friendsSidebarEl = document.getElementById('friends-sidebar');
-    if (friendsSidebarEl && !friendsSidebarEl.closest('[hidden]')) {
+    if (friendsSidebarVisible) {
       if (viewportWidth <= 960) {
         friendsSidebarEl.style.minHeight = '';
         friendsSidebarEl.style.maxHeight = '';
       } else {
-        const elementTop = friendsSidebarEl.getBoundingClientRect().top + window.scrollY;
         const sidebarH = calculateTableScrollMaxHeight(
           viewportHeight,
-          elementTop,
+          friendsSidebarTop,
           viewportWidth,
           200
         );
         const workspaceMaxH = Math.max(
           sidebarH,
-          Math.min(viewportHeight - 100, Math.floor(viewportHeight - elementTop - 20))
+          Math.min(viewportHeight - 100, Math.floor(viewportHeight - friendsSidebarTop - 20))
         );
         friendsSidebarEl.style.minHeight = `${sidebarH}px`;
         friendsSidebarEl.style.maxHeight = `${workspaceMaxH}px`;
       }
     }
 
-    const squadUnifiedEl = document.getElementById('squads-active-widgets');
-    if (squadUnifiedEl && !squadUnifiedEl.closest('[hidden]')) {
+    if (squadUnifiedVisible) {
       if (viewportWidth <= 960) {
         squadUnifiedEl.style.maxHeight = '';
       } else {
-        const elementTop = squadUnifiedEl.getBoundingClientRect().top + window.scrollY;
         const maxH = Math.max(
           360,
-          Math.min(viewportHeight - 100, Math.floor(viewportHeight - elementTop - 20))
+          Math.min(viewportHeight - 100, Math.floor(viewportHeight - squadUnifiedTop - 20))
         );
         squadUnifiedEl.style.maxHeight = `${maxH}px`;
       }
     }
 
-    const friendUnifiedEl = document.getElementById('friend-info-stats-view');
-    if (friendUnifiedEl && !friendUnifiedEl.closest('[hidden]')) {
+    if (friendUnifiedVisible) {
       if (viewportWidth <= 960) {
         friendUnifiedEl.style.maxHeight = '';
       } else {
-        const elementTop = friendUnifiedEl.getBoundingClientRect().top + window.scrollY;
         const maxH = Math.max(
           360,
-          Math.min(viewportHeight - 100, Math.floor(viewportHeight - elementTop - 20))
+          Math.min(viewportHeight - 100, Math.floor(viewportHeight - friendUnifiedTop - 20))
         );
         friendUnifiedEl.style.maxHeight = `${maxH}px`;
       }
     }
 
-    const assignmentsTableScrollEl = document.getElementById('assignments-table-scroll');
-    if (assignmentsTableScrollEl && !assignmentsTableScrollEl.closest('[hidden]')) {
-      const elementTop = assignmentsTableScrollEl.getBoundingClientRect().top + window.scrollY;
+    if (assignmentsTableTop !== null) {
+      const elementTop = assignmentsTableTop;
       const tableH = calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth, 200);
       assignmentsTableScrollEl.style.minHeight = `${tableH}px`;
       assignmentsTableScrollEl.style.maxHeight = `${tableH}px`;
@@ -5747,14 +5783,19 @@ export function initApp() {
     void loadAndRenderPage(getRouteFromLocation(), false);
   });
 
+  let resizeRafId = null;
   window.addEventListener('resize', () => {
-    if (window.innerWidth > 720 && expandedAssignmentIds.size > 0) {
-      expandedAssignmentIds.clear();
-      if (document.getElementById('app-main')?.getAttribute('data-page') === 'assignments') {
-        populateAssignmentsPage();
+    if (resizeRafId !== null) return;
+    resizeRafId = window.requestAnimationFrame(() => {
+      resizeRafId = null;
+      if (window.innerWidth > 720 && expandedAssignmentIds.size > 0) {
+        expandedAssignmentIds.clear();
+        if (document.getElementById('app-main')?.getAttribute('data-page') === 'assignments') {
+          populateAssignmentsPage();
+        }
       }
-    }
-    updateScrollableTablesMaxHeight();
+      updateScrollableTablesMaxHeight();
+    });
   });
 
   const handleInstantWakeSync = () => {

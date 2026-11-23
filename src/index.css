@@ -4,6 +4,11 @@
   box-sizing: border-box;
 }
 
+:focus-visible {
+  outline: 2px solid #0000ee;
+  outline-offset: 2px;
+}
+
 [hidden] {
   display: none !important;
 }
@@ -700,7 +705,7 @@ dialog h3 {
   cursor: pointer;
   border-radius: 6px;
   font-family: inherit;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
 .log-time-tab:hover {
@@ -1700,5 +1705,14 @@ dialog h3 {
   .goal-checkbox {
     width: 22px;
     height: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }
