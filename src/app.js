@@ -3438,10 +3438,10 @@ export function initApp() {
     if (preview) {
       if (mins >= 5) {
         preview.textContent = `Calculated: ${formatStudyDuration(mins)} (${mins} min)`;
-        preview.style.color = '';
+        preview.classList.remove('log-duration-preview-error');
       } else {
         preview.textContent = 'Please enter a valid duration (minimum 5 min)';
-        preview.style.color = '#aa0000';
+        preview.classList.add('log-duration-preview-error');
       }
     }
   }
@@ -5458,7 +5458,7 @@ export function initApp() {
           const preview = document.getElementById('log-duration-preview');
           if (preview) {
             preview.textContent = 'Minimum duration is 5 minutes';
-            preview.style.color = '#aa0000';
+            preview.classList.add('log-duration-preview-error');
           }
           return;
         }

@@ -1,5 +1,9 @@
 /* Plain CSS for UniSphere — Native HTML Elements & Grid Layout */
 
+:root {
+  color-scheme: light dark;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -764,6 +768,10 @@ dialog h3 {
   color: #333333;
   font-weight: 600;
   margin-top: 6px;
+}
+
+.log-duration-preview-error {
+  color: #990000;
 }
 
 .log-sublabel {
@@ -1756,5 +1764,241 @@ dialog h3 {
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  html,
+  body {
+    background-color: #121316;
+    color: #e6e8ec;
+  }
+
+  :focus-visible {
+    outline-color: #7cb3ff;
+  }
+
+  .skip-link {
+    background-color: #1a1c20;
+    color: #7cb3ff;
+    border-color: #7cb3ff;
+  }
+
+  .site-header h2,
+  .site-brand,
+  a.site-brand:hover,
+  .summary-value,
+  button.tab-btn.active,
+  .goal-item-btn {
+    color: #e6e8ec;
+  }
+
+  button.tab-btn.active {
+    border-bottom-color: #e6e8ec;
+  }
+
+  button.tab-btn {
+    color: #a3aab5;
+  }
+
+  button.tab-btn:hover {
+    color: #e6e8ec;
+  }
+
+  a {
+    color: #7cb3ff;
+  }
+
+  a:hover {
+    color: #a8ccff;
+  }
+
+  .section-divider {
+    border-top-color: #343942;
+  }
+
+  .dashboard-summary,
+  .card,
+  dialog {
+    background-color: #1a1c20;
+    border-color: #2e323a;
+    color: #e6e8ec;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  dialog::backdrop {
+    background: rgba(0, 0, 0, 0.65);
+  }
+
+  .table-scroll thead th {
+    background-color: #1a1c20;
+    box-shadow: inset 0 -1px 0 #2e323a;
+  }
+
+  th {
+    color: #d1d5db;
+  }
+
+  th,
+  td,
+  .dialog-actions {
+    border-color: #2c3038;
+  }
+
+  .goal-item {
+    border-bottom-color: #2c3038;
+  }
+
+  .goal-item-btn:hover {
+    background-color: #242830;
+  }
+
+  .week-5day-tracker,
+  .week-separator-row td,
+  .notice-box {
+    background-color: #22252b;
+    border-color: #353a44;
+    color: #e6e8ec;
+  }
+
+  .week-separator-row td {
+    color: #b8bfca;
+  }
+
+  .summary-label,
+  .sync-status,
+  .notes-save-status,
+  .day-sub,
+  .study-hours-future,
+  .empty-cell,
+  .item-meta,
+  .field-hint,
+  .log-sublabel,
+  .goal-item.goal-completed .goal-title {
+    color: #a3aab5;
+  }
+
+  .log-duration-preview {
+    color: #d1d5db;
+  }
+
+  .log-duration-preview-error {
+    color: #ff7b7b;
+  }
+
+  .sync-status-warn {
+    color: #f0b44c;
+  }
+
+  .sync-status-error,
+  .study-hours-zero,
+  button.btn-danger,
+  button.btn-inline-danger,
+  .squad-leave-link {
+    color: #ff7b7b;
+  }
+
+  button.btn-danger {
+    border-color: #ff7b7b;
+  }
+
+  button.btn-inline-action {
+    color: #7cb3ff;
+  }
+
+  button.btn-inline-action:hover {
+    background-color: #1e2a3d;
+    border-color: #35507a;
+  }
+
+  button.btn-inline-danger:hover {
+    background-color: #331c1e;
+    border-color: #6b3035;
+  }
+
+  .study-hours-positive {
+    color: #5cd67d;
+  }
+
+  .notice-error,
+  .field-error {
+    background-color: #2a1618;
+    border-color: #a83b42;
+    color: #ffb3b8;
+  }
+
+  .notice-success {
+    background-color: #14261a;
+    border-color: #2e7d47;
+    color: #98e6ae;
+  }
+
+  button,
+  .btn-label {
+    background-color: #262a31;
+    border-color: #4c5463;
+    color: #e6e8ec;
+  }
+
+  button:hover,
+  .btn-label:hover {
+    background-color: #30353f;
+  }
+
+  button:active,
+  .btn-label:active {
+    background-color: #3a404d;
+  }
+
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="url"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="search"],
+  select,
+  textarea {
+    background-color: #141619;
+    border-color: #474e5c;
+    color: #e6e8ec;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #8c95a3;
+  }
+
+  .goal-tag-badge {
+    background-color: #262a31;
+    border-color: #3e4451;
+    color: #d5dbe4;
+  }
+
+  .goal-item.goal-completed .goal-tag-badge {
+    background-color: #1f2228;
+    color: #9aa2af;
+  }
+
+  .goal-checkbox {
+    accent-color: #7cb3ff;
+  }
+
+  .log-time-tab {
+    background-color: #22252b;
+    border-color: #3e4451;
+    color: #b5bcc7;
+  }
+
+  .log-time-tab:hover {
+    background-color: #2c303a;
+    color: #e6e8ec;
+  }
+
+  .log-time-tab.active {
+    background-color: #3B77BC;
+    border-color: #5592d6;
+    color: #ffffff;
   }
 }

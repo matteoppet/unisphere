@@ -234,3 +234,11 @@ describe('Dashboard URL query parameter sync (#dashboard-url-state)', () => {
     );
   });
 });
+
+describe('Theme color-scheme & dark mode palette (#theme-dark-mode)', () => {
+  it('declares color-scheme light dark and a prefers-color-scheme: dark block in src/index.css', () => {
+    const css = fs.readFileSync(path.resolve('src/index.css'), 'utf8');
+    assert.match(css, /color-scheme:\s*light dark/);
+    assert.match(css, /@media\s*\(\s*prefers-color-scheme:\s*dark\s*\)/);
+  });
+});
