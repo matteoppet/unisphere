@@ -9,6 +9,24 @@
   outline-offset: 2px;
 }
 
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 1000;
+  background-color: #ffffff;
+  color: #0000ee;
+  border: 2px solid #000000;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.skip-link:focus {
+  left: 8px;
+}
+
 [hidden] {
   display: none !important;
 }
