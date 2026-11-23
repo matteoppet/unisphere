@@ -2886,7 +2886,9 @@ export function initApp() {
   function openSquadCreateJoinModal() {
     populateSquadsPage();
     const dialog = document.getElementById('modal-squad-create-join');
-    dialog?.showModal();
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
   }
 
   function openSquadAdminModal() {
@@ -2961,7 +2963,9 @@ export function initApp() {
     }
 
     const dialog = document.getElementById('modal-friend-calendar');
-    dialog?.showModal();
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
   }
 
   function openGoLiveModal(prefillSubject = '') {
@@ -2975,7 +2979,9 @@ export function initApp() {
       subjInput.value = prefillSubject || courses[0]?.title || 'Analisi 1';
     }
     const dialog = document.getElementById('modal-go-live');
-    dialog?.showModal();
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
   }
 
   async function startLiveStudySession(subjectStr) {
@@ -3063,7 +3069,9 @@ export function initApp() {
     if (courseInput) courseInput.value = courses[0]?.title || '';
     if (urlInput) urlInput.value = '';
     const dialog = document.getElementById('modal-squad-note');
-    dialog?.showModal();
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
   }
 
   function openGroupSessionModal() {
@@ -3077,7 +3085,9 @@ export function initApp() {
     if (locInput) locInput.value = activeSquad.nextSession?.title || '';
     if (dtInput) dtInput.value = activeSquad.nextSession?.when || '';
     const dialog = document.getElementById('modal-group-session');
-    dialog?.showModal();
+    if (dialog && !dialog.open) {
+      dialog.showModal();
+    }
   }
 
   async function copyActiveSquadInviteCode() {
@@ -3143,7 +3153,9 @@ export function initApp() {
       deleteBtn.hidden = !courseToEdit;
     }
 
-    dialog.showModal();
+    if (!dialog.open) {
+      dialog.showModal();
+    }
   }
 
   function openCourseInfoModal(courseName) {
@@ -3218,7 +3230,9 @@ export function initApp() {
       }
     }
 
-    dialog.showModal();
+    if (!dialog.open) {
+      dialog.showModal();
+    }
   }
 
   let activeLogTimeMode = 'minutes';
@@ -3305,7 +3319,9 @@ export function initApp() {
     if (endTimeInput) endTimeInput.value = '15:30';
     updateLogDurationPreview(defaultMinutes);
 
-    dialog.showModal();
+    if (!dialog.open) {
+      dialog.showModal();
+    }
   }
 
   function openResourceModal() {
@@ -3314,7 +3330,9 @@ export function initApp() {
     document.getElementById('resource-title').value = '';
     document.getElementById('resource-url').value = '';
     document.getElementById('resource-category').value = 'Portal';
-    dialog.showModal();
+    if (!dialog.open) {
+      dialog.showModal();
+    }
   }
 
   function openGoalModal(goalToEdit = null) {
@@ -3436,7 +3454,9 @@ export function initApp() {
       deleteBtn.hidden = !itemToEdit;
     }
 
-    dialog.showModal();
+    if (!dialog.open) {
+      dialog.showModal();
+    }
   }
 
   // --- Export Helpers ---
@@ -3587,6 +3607,12 @@ export function initApp() {
   }
 
   const boundElements = new WeakSet();
+  function bindOnce(el, eventName, handler) {
+    if (!el || boundElements.has(el)) return false;
+    boundElements.add(el);
+    el.addEventListener(eventName, handler);
+    return true;
+  }
   let isEmailAuthPending = false;
   let isGoogleSignInPending = false;
 
@@ -4001,33 +4027,27 @@ export function initApp() {
     }
 
     if (route === 'dashboard') {
-      document.getElementById('dash-course-status')?.addEventListener('change', (e) => {
+      bindOnce(document.getElementById('dash-course-status'), 'change', (e) => {
         dashCourseStatusFilter = e.target.value;
         populateDashboardPage();
       });
-      document.getElementById('tab-dash-resources')?.addEventListener('click', () => {
+      bindOnce(document.getElementById('tab-dash-resources'), 'click', () => {
         dashResourceNotesTab = 'resources';
         populateDashboardPage();
       });
-      document.getElementById('tab-dash-notes')?.addEventListener('click', () => {
+      bindOnce(document.getElementById('tab-dash-notes'), 'click', () => {
         dashResourceNotesTab = 'notes';
         populateDashboardPage();
       });
-      document
-        .getElementById('btn-dash-add-course')
-        ?.addEventListener('click', () => openCourseModal());
+      bindOnce(document.getElementById('btn-dash-add-course'), 'click', () => openCourseModal());
       const addGoalBtn = document.getElementById('btn-dash-add-goal');
       if (addGoalBtn && !boundElements.has(addGoalBtn)) {
         boundElements.add(addGoalBtn);
         addGoalBtn.addEventListener('click', () => openGoalModal());
       }
-      document
-        .getElementById('btn-dash-add-log')
-        ?.addEventListener('click', () => openLogModal());
-      document
-        .getElementById('btn-dash-add-resource')
-        ?.addEventListener('click', () => openResourceModal());
-      document.getElementById('btn-dash-save-notes')?.addEventListener('click', () => {
+      bindOnce(document.getElementById('btn-dash-add-log'), 'click', () => openLogModal());
+      bindOnce(document.getElementById('btn-dash-add-resource'), 'click', () => openResourceModal());
+      bindOnce(document.getElementById('btn-dash-save-notes'), 'click', () => {
         const notesEl = document.getElementById('dash-quick-notes');
         if (notesEl) {
           quickNotes = sanitizeTextInput(notesEl.value, 5000, true);
@@ -4039,29 +4059,25 @@ export function initApp() {
     }
 
     if (route === 'courses') {
-      document
-        .getElementById('btn-courses-add')
-        ?.addEventListener('click', () => openCourseModal());
-      document.getElementById('filter-course-year')?.addEventListener('change', (e) => {
+      bindOnce(document.getElementById('btn-courses-add'), 'click', () => openCourseModal());
+      bindOnce(document.getElementById('filter-course-year'), 'change', (e) => {
         courseYearFilter = e.target.value;
         populateCoursesPage();
       });
-      document.getElementById('filter-course-status')?.addEventListener('change', (e) => {
+      bindOnce(document.getElementById('filter-course-status'), 'change', (e) => {
         courseStatusFilter = e.target.value;
         populateCoursesPage();
       });
-      document.getElementById('filter-course-search')?.addEventListener('input', (e) => {
+      bindOnce(document.getElementById('filter-course-search'), 'input', (e) => {
         courseSearchQuery = e.target.value;
         populateCoursesPage();
       });
     }
 
     if (route === 'logs') {
-      document.getElementById('btn-logs-add')?.addEventListener('click', () => openLogModal());
-      document
-        .getElementById('btn-export-logs-csv')
-        ?.addEventListener('click', () => exportLogsCsv());
-      document.getElementById('filter-log-subject')?.addEventListener('change', (e) => {
+      bindOnce(document.getElementById('btn-logs-add'), 'click', () => openLogModal());
+      bindOnce(document.getElementById('btn-export-logs-csv'), 'click', () => exportLogsCsv());
+      bindOnce(document.getElementById('filter-log-subject'), 'change', (e) => {
         logSubjectFilter = e.target.value;
         populateLogsPage();
       });
@@ -4131,7 +4147,7 @@ export function initApp() {
     }
 
     if (route === 'settings') {
-      document.getElementById('form-settings-profile')?.addEventListener('submit', (e) => {
+      bindOnce(document.getElementById('form-settings-profile'), 'submit', (e) => {
         e.preventDefault();
         const name = sanitizeTextInput(document.getElementById('set-name').value, 100);
         const inputEmail = sanitizeEmailInput(document.getElementById('set-email').value);
@@ -4180,21 +4196,17 @@ export function initApp() {
         setStatus('Settings saved');
       });
 
-      document.getElementById('btn-sync-now')?.addEventListener('click', async () => {
+      bindOnce(document.getElementById('btn-sync-now'), 'click', async () => {
         await pullWorkstationFromCloud({ force: true });
         await pushWorkstationToCloud();
         setStatus('Synchronized with Firebase');
       });
 
-      document
-        .getElementById('btn-sign-out')
-        ?.addEventListener('click', () => void handleLogout());
+      bindOnce(document.getElementById('btn-sign-out'), 'click', () => void handleLogout());
 
-      document
-        .getElementById('btn-export-json')
-        ?.addEventListener('click', () => exportWorkspaceJson());
+      bindOnce(document.getElementById('btn-export-json'), 'click', () => exportWorkspaceJson());
 
-      document.getElementById('input-import-json')?.addEventListener('change', (e) => {
+      bindOnce(document.getElementById('input-import-json'), 'change', (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
@@ -4242,7 +4254,7 @@ export function initApp() {
         reader.readAsText(file);
       });
 
-      document.getElementById('btn-reset-data')?.addEventListener('click', () => {
+      bindOnce(document.getElementById('btn-reset-data'), 'click', () => {
         if (!window.confirm('Are you sure you want to clear all local workspace data?')) return;
         profile = { ...INITIAL_PROFILE };
         courses = [];

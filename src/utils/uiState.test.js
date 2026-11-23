@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { formatSyncStatus } from './uiState.js';
 
 describe('formatSyncStatus (#truthful-sync-status)', () => {
@@ -120,5 +122,37 @@ describe('formatSyncStatus (#truthful-sync-status)', () => {
         showRetry: false,
       }
     );
+  });
+});
+
+describe('Duplicate listener & modal guards (#dashboard-guards)', () => {
+  it('guards all dialog.showModal() calls with !dialog.open and binds dashboard controls once', () => {
+    const appSrc = fs.readFileSync(path.resolve('src/app.js'), 'utf8');
+    const lines = appSrc.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes('.showModal()')) {
+        const context = lines.slice(Math.max(0, i - 3), i + 1).join('\n');
+        assert.match(
+          context,
+          /!dialog\.open/,
+          `showModal() at src/app.js:${i + 1} must be guarded by !dialog.open`
+        );
+      }
+    }
+
+    for (const id of [
+      'dash-course-status',
+      'tab-dash-resources',
+      'tab-dash-notes',
+      'btn-dash-add-course',
+      'btn-dash-add-log',
+      'btn-dash-add-resource',
+      'btn-dash-save-notes',
+    ]) {
+      assert.ok(
+        appSrc.includes(`bindOnce(document.getElementById('${id}')`),
+        `Dashboard control #${id} must use bindOnce`
+      );
+    }
   });
 });
