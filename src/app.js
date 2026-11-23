@@ -118,6 +118,7 @@ import {
   toggleGoalCompletion,
   deleteGoalItem,
 } from './utils/checklist.js';
+import { formatSyncStatus } from './utils/uiState.js';
 
 const STORAGE_KEY = 'unisphere_workspace';
 
@@ -343,6 +344,9 @@ export function initApp() {
   let activeSyncDocId = null;
   let hasInitialServerSnapshot = false;
   let lastCloudPullMs = 0;
+  let cloudSyncState = db ? 'syncing' : 'local';
+  let currentActionNotice = '';
+  let statusResetTimer = null;
   const syncClientId = `client-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   // --- Helpers ---
@@ -384,18 +388,50 @@ export function initApp() {
     } catch {}
   }
 
-  function setStatus(msg, autoResetMs = 3000) {
+  function renderSyncStatus() {
     const el = document.getElementById('sync-status');
     if (!el) return;
-    const baseStatus =
-      isAuthenticated && (sessionEmail || profile.email)
-        ? `Synced (${sessionEmail || profile.email})`
-        : 'Not Signed In';
-    el.textContent = msg === 'Ready' ? baseStatus : `${msg} — ${baseStatus}`;
-    if (autoResetMs > 0 && msg !== 'Ready') {
-      window.setTimeout(() => {
-        if (el.textContent?.startsWith(msg)) {
-          el.textContent = baseStatus;
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine !== false : true;
+    const status = formatSyncStatus({
+      isAuthenticated,
+      email: sessionEmail || profile.email,
+      syncState: cloudSyncState,
+      isOnline,
+      hasPendingLocalSync: hasPendingLocalSync(),
+      hasDb: Boolean(db),
+      actionMessage: currentActionNotice,
+    });
+
+    el.classList.remove('sync-status-ok', 'sync-status-warn', 'sync-status-error');
+    if (status.tone === 'ok') el.classList.add('sync-status-ok');
+    else if (status.tone === 'warn') el.classList.add('sync-status-warn');
+    else if (status.tone === 'error') el.classList.add('sync-status-error');
+
+    el.textContent = status.text;
+    if (status.showRetry) {
+      const retryBtn = document.createElement('button');
+      retryBtn.type = 'button';
+      retryBtn.id = 'btn-sync-retry';
+      retryBtn.className = 'sync-retry-btn';
+      retryBtn.textContent = 'Retry';
+      el.appendChild(document.createTextNode(' '));
+      el.appendChild(retryBtn);
+    }
+  }
+
+  function setStatus(msg, autoResetMs = 3000) {
+    if (statusResetTimer) {
+      window.clearTimeout(statusResetTimer);
+      statusResetTimer = null;
+    }
+    currentActionNotice = msg && msg !== 'Ready' ? msg : '';
+    renderSyncStatus();
+    if (autoResetMs > 0 && currentActionNotice) {
+      const expectedNotice = currentActionNotice;
+      statusResetTimer = window.setTimeout(() => {
+        if (currentActionNotice === expectedNotice) {
+          currentActionNotice = '';
+          renderSyncStatus();
         }
       }, autoResetMs);
     }
@@ -500,7 +536,12 @@ export function initApp() {
 
   async function pullWorkstationFromCloud({ force = false } = {}) {
     const targetEmail = sessionEmail || profile.email;
-    if (!isAuthenticated || !targetEmail || !db) return;
+    if (!isAuthenticated || !targetEmail) return;
+    if (!db) {
+      cloudSyncState = 'local';
+      renderSyncStatus();
+      return;
+    }
 
     const now = Date.now();
     if (!force && now - lastCloudPullMs < 1000) return;
@@ -508,6 +549,8 @@ export function initApp() {
 
     const docId = getEmailDocId(targetEmail);
     const userRef = doc(db, 'users', docId);
+    cloudSyncState = 'syncing';
+    renderSyncStatus();
 
     try {
       const snap = await fetchFreshUserDoc(userRef);
@@ -516,8 +559,12 @@ export function initApp() {
       if (snap && snap.exists()) {
         applyRemoteWorkspaceData(snap.data(), targetEmail, { isInitialHydration: wasInitial });
       }
+      cloudSyncState = hasPendingLocalSync() ? 'pending' : 'synced';
+      renderSyncStatus();
     } catch (err) {
       console.warn('Cloud sync pull notice:', err);
+      cloudSyncState = 'error';
+      renderSyncStatus();
     }
   }
 
@@ -525,9 +572,16 @@ export function initApp() {
     setPendingLocalSync(true);
     saveToLocalStorage();
     const targetEmail = sessionEmail || profile.email;
-    if (!isAuthenticated || !targetEmail || !db) return;
+    if (!isAuthenticated || !targetEmail) return;
+    if (!db) {
+      cloudSyncState = 'local';
+      renderSyncStatus();
+      return;
+    }
 
     const docId = getEmailDocId(targetEmail);
+    cloudSyncState = 'syncing';
+    renderSyncStatus();
     try {
       const userRef = doc(db, 'users', docId);
       // Prevent accidental overwrite of existing cloud workspace with starter local defaults
@@ -610,8 +664,12 @@ export function initApp() {
       await setDoc(userRef, payload, { merge: true });
       setPendingLocalSync(false);
       saveSyncedLogIds(studyLogs);
+      cloudSyncState = 'synced';
+      renderSyncStatus();
     } catch (err) {
       console.warn('Cloud sync push notice:', err);
+      cloudSyncState = 'error';
+      renderSyncStatus();
     }
   }
 
@@ -623,6 +681,7 @@ export function initApp() {
         userSnapshotUnsub = null;
       }
       activeSyncDocId = null;
+      cloudSyncState = db ? 'synced' : 'local';
       setStatus('Ready', 0);
       return;
     }
@@ -640,6 +699,7 @@ export function initApp() {
     activeSyncDocId = docId;
     const userRef = doc(db, 'users', docId);
     hasInitialServerSnapshot = false;
+    cloudSyncState = 'syncing';
 
     userSnapshotUnsub = onSnapshot(
       userRef,
@@ -650,12 +710,17 @@ export function initApp() {
         const wasInitial = !hasInitialServerSnapshot;
         hasInitialServerSnapshot = true;
 
-        if (!snapshot.exists()) return;
-        const data = snapshot.data();
-        applyRemoteWorkspaceData(data, targetEmail, { isInitialHydration: wasInitial });
+        if (snapshot.exists()) {
+          const data = snapshot.data();
+          applyRemoteWorkspaceData(data, targetEmail, { isInitialHydration: wasInitial });
+        }
+        cloudSyncState = hasPendingLocalSync() ? 'pending' : 'synced';
+        renderSyncStatus();
       },
       (err) => {
         console.warn('Firestore real-time listener notice:', err);
+        cloudSyncState = 'error';
+        renderSyncStatus();
       }
     );
 
@@ -4200,10 +4265,19 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
+            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-sync-retry, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
+
+    if (target.id === 'btn-sync-retry') {
+      e.preventDefault();
+      void (async () => {
+        await pullWorkstationFromCloud({ force: true });
+        await pushWorkstationToCloud();
+      })();
+      return;
+    }
 
     if (target.id === 'btn-header-logout') {
       e.preventDefault();
@@ -5371,7 +5445,12 @@ export function initApp() {
     }, 60000);
   }
 
+  window.addEventListener('offline', () => {
+    renderSyncStatus();
+  });
+
   window.addEventListener('online', () => {
+    renderSyncStatus();
     setupRealtimeFirestoreSync(true);
     if (hasPendingLocalSync()) {
       void pushWorkstationToCloud();

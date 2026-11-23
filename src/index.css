@@ -52,6 +52,22 @@ body {
   color: #444444;
 }
 
+.sync-status-warn {
+  color: #854d0e;
+  font-weight: bold;
+}
+
+.sync-status-error {
+  color: #990000;
+  font-weight: bold;
+}
+
+.sync-retry-btn {
+  margin-left: 8px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
 .nav-list {
   margin: 0 0 14px 0;
   padding: 0;
