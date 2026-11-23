@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { formatSyncStatus } from './uiState.js';
+import { formatSyncStatus, sliceRecentLogsForDashboard } from './uiState.js';
 
 describe('formatSyncStatus (#truthful-sync-status)', () => {
   it('returns Not Signed In when unauthenticated', () => {
@@ -168,5 +168,30 @@ describe('Dashboard semantic row action buttons & undo (#dashboard-row-actions)'
     assert.match(appSrc, /<button[^>]*data-delete-log=/);
     assert.match(appSrc, /<button[^>]*data-delete-resource=/);
     assert.ok(appSrc.includes('showUndoBanner'), 'app.js must provide undo restore for deleted dashboard logs/resources');
+  });
+});
+
+describe('sliceRecentLogsForDashboard (#dashboard-logs-cap)', () => {
+  it('sorts newest-first and caps rendered rows while reporting total and hidden counts', () => {
+    const sample = Array.from({ length: 20 }, (_, i) => ({
+      id: `log-${i + 1}`,
+      courseName: 'Analisi 1',
+      durationMinutes: 60,
+      date: `2026-11-${String((i % 20) + 1).padStart(2, '0')}`,
+      timestamp: i + 1,
+    }));
+
+    const res = sliceRecentLogsForDashboard(sample, 15);
+    assert.equal(res.totalCount, 20);
+    assert.equal(res.hiddenCount, 5);
+    assert.equal(res.logs.length, 15);
+    assert.equal(res.logs[0].date, '2026-11-20');
+    assert.equal(res.logs[14].date, '2026-11-06');
+
+    assert.deepEqual(sliceRecentLogsForDashboard([], 15), {
+      logs: [],
+      totalCount: 0,
+      hiddenCount: 0,
+    });
   });
 });

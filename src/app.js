@@ -118,7 +118,7 @@ import {
   toggleGoalCompletion,
   deleteGoalItem,
 } from './utils/checklist.js';
-import { formatSyncStatus } from './utils/uiState.js';
+import { formatSyncStatus, sliceRecentLogsForDashboard } from './utils/uiState.js';
 
 const STORAGE_KEY = 'unisphere_workspace';
 
@@ -995,6 +995,17 @@ export function initApp() {
     scrollContainers.forEach((el) => {
       if (el.id === 'assignments-table-scroll') return;
       const elementTop = el.getBoundingClientRect().top + window.scrollY;
+      if (el.classList.contains('table-scroll-sm')) {
+        const maxH =
+          viewportWidth <= 720
+            ? 280
+            : Math.max(
+                260,
+                calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth, 32)
+              );
+        el.style.maxHeight = `${maxH}px`;
+        return;
+      }
       const maxH = calculateTableScrollMaxHeight(viewportHeight, elementTop, viewportWidth);
       el.style.maxHeight = `${maxH}px`;
     });
@@ -1222,11 +1233,16 @@ export function initApp() {
 
     const logsTbody = document.getElementById('dash-logs-tbody');
     if (logsTbody) {
-      const weekGroups = groupStudyLogsByWeek(studyLogs);
+      const { logs: recentLogs, totalCount, hiddenCount } = sliceRecentLogsForDashboard(studyLogs);
+      const weekGroups = groupStudyLogsByWeek(recentLogs);
+      const viewAllRow =
+        hiddenCount > 0
+          ? `<tr class="logs-view-all-row"><td colspan="4"><a href="/pages/logs.html" data-nav="logs">View all ${totalCount} logs in Session Logs</a></td></tr>`
+          : '';
       logsTbody.innerHTML =
         weekGroups.length === 0
           ? `<tr><td colspan="4" class="empty-cell">No session logs recorded yet.</td></tr>`
-          : weekGroups
+          : `${weekGroups
               .map(
                 (group) => `
               <tr class="week-separator-row">
@@ -1236,7 +1252,7 @@ export function initApp() {
                 .map(
                   (l) => `
               <tr>
-                <td>${escapeHtml(formatReadableDate(l.date))}</td>
+                <td>${escapeHtml(formatExamDateShort(l.date))}</td>
                 <td>${escapeHtml(l.courseName)}</td>
                 <td>${escapeHtml(formatStudyDuration(l.durationMinutes))}</td>
                 <td><button type="button" class="btn-inline-danger" data-delete-log="${escapeHtml(l.id)}" aria-label="Delete ${escapeHtml(l.courseName)} session">Delete</button></td>
@@ -1244,7 +1260,7 @@ export function initApp() {
                 )
                 .join('')}`
               )
-              .join('');
+              .join('')}${viewAllRow}`;
     }
 
     const isNotesTab = dashResourceNotesTab === 'notes';

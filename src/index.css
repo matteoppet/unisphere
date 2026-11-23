@@ -357,6 +357,29 @@ button.btn-inline-danger:hover {
   }
 }
 
+@media (max-width: 720px) {
+  .table-scroll-sm {
+    max-height: 280px !important;
+  }
+}
+
+.table-scroll-sm th,
+.table-scroll-sm td {
+  padding: 7px 6px;
+  font-size: 14px;
+}
+
+.table-scroll-sm td:first-child,
+.table-scroll-sm td:nth-child(3) {
+  white-space: nowrap;
+}
+
+.logs-view-all-row td {
+  text-align: center;
+  font-size: 13.5px;
+  padding: 8px;
+}
+
 .table-scroll thead th {
   position: sticky;
   top: 0;
