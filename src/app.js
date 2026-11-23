@@ -1479,7 +1479,7 @@ export function initApp() {
                   title="Edit or delete goal"
                 >
                   <span class="goal-title">${escapeHtml(g.title)}</span>
-                  <span class="goal-tag-badge">${escapeHtml(g.tag)}</span>
+                  <span class="goal-tag-badge" title="${escapeHtml(g.tag)}">${escapeHtml(g.tag)}</span>
                 </button>
               </li>`
               )

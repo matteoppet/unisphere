@@ -231,6 +231,10 @@ h3 {
   margin-top: 24px;
 }
 
+.login-grid {
+  max-width: 960px;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -1674,7 +1678,7 @@ dialog h3 {
 .goal-tag-badge {
   display: inline-block;
   flex-shrink: 0;
-  max-width: 150px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1686,6 +1690,18 @@ dialog h3 {
   font-family: Arial, Helvetica, sans-serif;
   font-size: 12.5px;
   line-height: 1.35;
+}
+
+@media (max-width: 560px) {
+  .goal-item-btn {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .goal-tag-badge {
+    max-width: 100%;
+  }
 }
 
 .goal-item.goal-completed .goal-tag-badge {
