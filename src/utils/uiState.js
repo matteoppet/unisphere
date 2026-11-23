@@ -85,3 +85,38 @@ export function sliceRecentLogsForDashboard(studyLogs = [], limit = 15) {
     hiddenCount: Math.max(0, sorted.length - logs.length),
   };
 }
+
+const VALID_DASH_COURSE_STATUSES = ['active', 'completed', 'planned', 'all'];
+const VALID_DASH_PANELS = ['resources', 'notes'];
+
+/**
+ * Parses Dashboard filter & tab query parameters (?status=...&panel=...) with safe defaults.
+ */
+export function parseDashboardQueryParams(search = '') {
+  const params = new URLSearchParams(typeof search === 'string' ? search : '');
+  const rawStatus = params.get('status') || '';
+  const rawPanel = params.get('panel') || '';
+  return {
+    courseStatus: VALID_DASH_COURSE_STATUSES.includes(rawStatus) ? rawStatus : 'active',
+    panel: VALID_DASH_PANELS.includes(rawPanel) ? rawPanel : 'resources',
+  };
+}
+
+/**
+ * Builds a clean Dashboard URL preserving unrelated query params while omitting default values.
+ */
+export function buildDashboardUrl(pathname = '/', search = '', { courseStatus, panel } = {}) {
+  const params = new URLSearchParams(typeof search === 'string' ? search : '');
+  if (VALID_DASH_COURSE_STATUSES.includes(courseStatus) && courseStatus !== 'active') {
+    params.set('status', courseStatus);
+  } else {
+    params.delete('status');
+  }
+  if (VALID_DASH_PANELS.includes(panel) && panel !== 'resources') {
+    params.set('panel', panel);
+  } else {
+    params.delete('panel');
+  }
+  const qs = params.toString();
+  return `${pathname || '/'}${qs ? `?${qs}` : ''}`;
+}

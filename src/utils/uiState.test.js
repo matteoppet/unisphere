@@ -2,7 +2,12 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { formatSyncStatus, sliceRecentLogsForDashboard } from './uiState.js';
+import {
+  formatSyncStatus,
+  sliceRecentLogsForDashboard,
+  parseDashboardQueryParams,
+  buildDashboardUrl,
+} from './uiState.js';
 
 describe('formatSyncStatus (#truthful-sync-status)', () => {
   it('returns Not Signed In when unauthenticated', () => {
@@ -193,5 +198,39 @@ describe('sliceRecentLogsForDashboard (#dashboard-logs-cap)', () => {
       totalCount: 0,
       hiddenCount: 0,
     });
+  });
+});
+
+describe('Dashboard URL query parameter sync (#dashboard-url-state)', () => {
+  it('parses valid status & panel params and falls back safely for invalid values', () => {
+    assert.deepEqual(parseDashboardQueryParams(''), {
+      courseStatus: 'active',
+      panel: 'resources',
+    });
+    assert.deepEqual(parseDashboardQueryParams('?status=completed&panel=notes'), {
+      courseStatus: 'completed',
+      panel: 'notes',
+    });
+    assert.deepEqual(parseDashboardQueryParams('?status=hacked&panel=unknown'), {
+      courseStatus: 'active',
+      panel: 'resources',
+    });
+  });
+
+  it('builds clean URLs omitting default active/resources params while preserving unrelated params', () => {
+    assert.equal(
+      buildDashboardUrl('/pages/dashboard.html', '?foo=1&status=all&panel=notes', {
+        courseStatus: 'active',
+        panel: 'resources',
+      }),
+      '/pages/dashboard.html?foo=1'
+    );
+    assert.equal(
+      buildDashboardUrl('/', '', {
+        courseStatus: 'planned',
+        panel: 'notes',
+      }),
+      '/?status=planned&panel=notes'
+    );
   });
 });

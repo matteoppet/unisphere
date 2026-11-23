@@ -119,7 +119,12 @@ import {
   toggleGoalCompletion,
   deleteGoalItem,
 } from './utils/checklist.js';
-import { formatSyncStatus, sliceRecentLogsForDashboard } from './utils/uiState.js';
+import {
+  formatSyncStatus,
+  sliceRecentLogsForDashboard,
+  parseDashboardQueryParams,
+  buildDashboardUrl,
+} from './utils/uiState.js';
 
 const STORAGE_KEY = 'unisphere_workspace';
 
@@ -309,8 +314,9 @@ export function initApp() {
   let isAuthenticated = Boolean(sessionEmail);
 
   // Filter states for views
-  let dashCourseStatusFilter = 'active';
-  let dashResourceNotesTab = 'resources';
+  const initialDashQuery = parseDashboardQueryParams(window.location.search);
+  let dashCourseStatusFilter = initialDashQuery.courseStatus;
+  let dashResourceNotesTab = initialDashQuery.panel;
   let courseYearFilter = 'all';
   let courseStatusFilter = 'active';
   let courseSearchQuery = '';
@@ -4306,14 +4312,41 @@ export function initApp() {
     if (route === 'dashboard') {
       bindOnce(document.getElementById('dash-course-status'), 'change', (e) => {
         dashCourseStatusFilter = e.target.value;
+        if (window.history?.replaceState) {
+          const nextUrl = buildDashboardUrl(window.location.pathname, window.location.search, {
+            courseStatus: dashCourseStatusFilter,
+            panel: dashResourceNotesTab,
+          });
+          if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
+            window.history.replaceState(null, '', nextUrl);
+          }
+        }
         populateDashboardPage();
       });
       bindOnce(document.getElementById('tab-dash-resources'), 'click', () => {
         dashResourceNotesTab = 'resources';
+        if (window.history?.replaceState) {
+          const nextUrl = buildDashboardUrl(window.location.pathname, window.location.search, {
+            courseStatus: dashCourseStatusFilter,
+            panel: dashResourceNotesTab,
+          });
+          if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
+            window.history.replaceState(null, '', nextUrl);
+          }
+        }
         populateDashboardPage();
       });
       bindOnce(document.getElementById('tab-dash-notes'), 'click', () => {
         dashResourceNotesTab = 'notes';
+        if (window.history?.replaceState) {
+          const nextUrl = buildDashboardUrl(window.location.pathname, window.location.search, {
+            courseStatus: dashCourseStatusFilter,
+            panel: dashResourceNotesTab,
+          });
+          if (nextUrl !== `${window.location.pathname}${window.location.search}`) {
+            window.history.replaceState(null, '', nextUrl);
+          }
+        }
         populateDashboardPage();
       });
       bindOnce(document.getElementById('btn-dash-add-course'), 'click', () => openCourseModal());
@@ -5780,6 +5813,9 @@ export function initApp() {
   });
 
   window.addEventListener('popstate', () => {
+    const nextDashQuery = parseDashboardQueryParams(window.location.search);
+    dashCourseStatusFilter = nextDashQuery.courseStatus;
+    dashResourceNotesTab = nextDashQuery.panel;
     void loadAndRenderPage(getRouteFromLocation(), false);
   });
 
