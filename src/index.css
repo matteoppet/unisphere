@@ -256,7 +256,7 @@ button.tab-btn {
   font-family: inherit;
   font-size: 1.15rem;
   font-weight: bold;
-  color: #777777;
+  color: #555555;
   cursor: pointer;
 }
 
@@ -276,6 +276,7 @@ button,
   background-color: #efefef;
   border: 1px solid #333333;
   color: #000000;
+  min-height: 30px;
   padding: 5px 14px;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 13px;
@@ -1623,7 +1624,7 @@ dialog h3 {
 
 .goal-item.goal-completed .goal-title {
   text-decoration: line-through;
-  color: #8c8c8c;
+  color: #595959;
 }
 
 .goal-tag-badge {
@@ -1644,6 +1645,43 @@ dialog h3 {
 }
 
 .goal-item.goal-completed .goal-tag-badge {
-  color: #666666;
+  color: #525252;
   background-color: #f3f3f3;
+}
+
+@media (max-width: 720px) {
+  button,
+  .btn-label {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  button.tab-btn {
+    min-height: 44px;
+    padding: 8px 2px;
+  }
+
+  button.btn-inline-action,
+  button.btn-inline-danger {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 8px 10px;
+  }
+
+  .nav-list a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 6px 4px;
+  }
+
+  .goal-item {
+    min-height: 44px;
+  }
+
+  .goal-checkbox {
+    width: 22px;
+    height: 22px;
+  }
 }
