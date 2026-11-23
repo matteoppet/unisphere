@@ -223,6 +223,10 @@ h3 {
   .grid-3 {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .grid-3 > .card:last-child {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 720px) {
