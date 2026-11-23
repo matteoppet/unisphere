@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UniSphere - Exams &amp; Assignments</title>
     <meta name="description" content="Manage exams, midterms, grades, and assignments." />
+    <script>try{var t=localStorage.getItem('unisphere_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
     <link rel="stylesheet" href="/src/index.css" />
   </head>
   <body>
@@ -14,6 +15,7 @@
           <h2>UniSphere</h2>
           <div class="header-actions">
             <div id="sync-status" class="sync-status">Ready</div>
+            <button type="button" id="btn-theme-toggle" class="theme-toggle-btn" aria-label="Switch to dark theme">Dark Theme</button>
             <button type="button" id="btn-header-logout" hidden>Log-Out</button>
           </div>
         </div>

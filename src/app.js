@@ -124,6 +124,11 @@ import {
   sliceRecentLogsForDashboard,
   parseDashboardQueryParams,
   buildDashboardUrl,
+  THEME_STORAGE_KEY,
+  normalizeThemePreference,
+  resolveEffectiveTheme,
+  getNextTheme,
+  getThemeToggleDisplay,
 } from './utils/uiState.js';
 
 const STORAGE_KEY = 'unisphere_workspace';
@@ -312,6 +317,49 @@ export function initApp() {
   })();
 
   let isAuthenticated = Boolean(sessionEmail);
+
+  function getStoredThemePreference() {
+    try {
+      return normalizeThemePreference(localStorage.getItem(THEME_STORAGE_KEY));
+    } catch {
+      return null;
+    }
+  }
+
+  function getSystemPrefersDark() {
+    return Boolean(
+      typeof window !== 'undefined' &&
+        window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches
+    );
+  }
+
+  function applyTheme(theme) {
+    const effective = theme === 'dark' ? 'dark' : 'light';
+    if (typeof document !== 'undefined' && document.documentElement) {
+      document.documentElement.setAttribute('data-theme', effective);
+    }
+    const toggleBtn =
+      typeof document !== 'undefined' ? document.getElementById('btn-theme-toggle') : null;
+    if (toggleBtn) {
+      const display = getThemeToggleDisplay(effective);
+      toggleBtn.textContent = display.label;
+      toggleBtn.setAttribute('aria-label', display.ariaLabel);
+    }
+  }
+
+  function toggleTheme() {
+    const current =
+      typeof document !== 'undefined' && document.documentElement
+        ? document.documentElement.getAttribute('data-theme')
+        : null;
+    const effectiveCurrent = resolveEffectiveTheme(current, getSystemPrefersDark());
+    const next = getNextTheme(effectiveCurrent);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {}
+    applyTheme(next);
+  }
 
   // Filter states for views
   const initialDashQuery = parseDashboardQueryParams(window.location.search);
@@ -4603,7 +4651,7 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-sync-retry, #btn-undo-action, #btn-dismiss-undo, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
+            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-theme-toggle, #btn-sync-retry, #btn-undo-action, #btn-dismiss-undo, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
@@ -4636,6 +4684,12 @@ export function initApp() {
     if (target.id === 'btn-header-logout') {
       e.preventDefault();
       void handleLogout();
+      return;
+    }
+
+    if (target.id === 'btn-theme-toggle') {
+      e.preventDefault();
+      toggleTheme();
       return;
     }
 
@@ -5877,6 +5931,10 @@ export function initApp() {
   });
 
   window.addEventListener('storage', (e) => {
+    if (e.key === THEME_STORAGE_KEY) {
+      applyTheme(resolveEffectiveTheme(getStoredThemePreference(), getSystemPrefersDark()));
+      return;
+    }
     if (e.key === FRIENDSHIPS_STORAGE_KEY || e.key === 'unisphere_workspace_friendships_v1') {
       const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
       void subscribeToUserFriendships(myUid);
@@ -5903,7 +5961,20 @@ export function initApp() {
     } catch {}
   });
 
+  const colorSchemeMedia =
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia('(prefers-color-scheme: dark)')
+      : null;
+  if (colorSchemeMedia && typeof colorSchemeMedia.addEventListener === 'function') {
+    colorSchemeMedia.addEventListener('change', (e) => {
+      if (getStoredThemePreference() === null) {
+        applyTheme(resolveEffectiveTheme(null, Boolean(e.matches)));
+      }
+    });
+  }
+
   // Initial startup
+  applyTheme(resolveEffectiveTheme(getStoredThemePreference(), getSystemPrefersDark()));
   bindDialogFormEvents();
   setupRealtimeFirestoreSync();
   setStatus('Ready');

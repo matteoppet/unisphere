@@ -6,6 +6,7 @@
     <title>UniSphere - Dashboard</title>
     <meta name="description" content="Your university life into a single website." />
     <script>try{if(!localStorage.getItem('unisphere_workspace_session_email'))document.documentElement.classList.add('auth-booting');}catch(e){}</script>
+    <script>try{var t=localStorage.getItem('unisphere_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
     <link rel="stylesheet" href="/src/index.css" />
   </head>
   <body>
@@ -16,6 +17,7 @@
           <a href="/pages/dashboard.html" data-nav="dashboard" class="site-brand">UniSphere</a>
           <div class="header-actions">
             <div id="sync-status" class="sync-status" role="status" aria-live="polite">Ready</div>
+            <button type="button" id="btn-theme-toggle" class="theme-toggle-btn" aria-label="Switch to dark theme">Dark Theme</button>
             <button type="button" id="btn-header-logout" hidden>Log-Out</button>
           </div>
         </div>

@@ -7,6 +7,11 @@ import {
   sliceRecentLogsForDashboard,
   parseDashboardQueryParams,
   buildDashboardUrl,
+  THEME_STORAGE_KEY,
+  normalizeThemePreference,
+  resolveEffectiveTheme,
+  getNextTheme,
+  getThemeToggleDisplay,
 } from './uiState.js';
 
 describe('formatSyncStatus (#truthful-sync-status)', () => {
@@ -236,9 +241,51 @@ describe('Dashboard URL query parameter sync (#dashboard-url-state)', () => {
 });
 
 describe('Theme color-scheme & dark mode palette (#theme-dark-mode)', () => {
-  it('declares color-scheme light dark and a prefers-color-scheme: dark block in src/index.css', () => {
+  it('resolves, toggles, and labels light/dark themes accurately', () => {
+    assert.equal(THEME_STORAGE_KEY, 'unisphere_theme');
+    assert.equal(normalizeThemePreference('dark'), 'dark');
+    assert.equal(normalizeThemePreference('light'), 'light');
+    assert.equal(normalizeThemePreference('sepia'), null);
+
+    assert.equal(resolveEffectiveTheme(null, false), 'light');
+    assert.equal(resolveEffectiveTheme(null, true), 'dark');
+    assert.equal(resolveEffectiveTheme('light', true), 'light');
+    assert.equal(resolveEffectiveTheme('dark', false), 'dark');
+
+    assert.equal(getNextTheme('light'), 'dark');
+    assert.equal(getNextTheme('dark'), 'light');
+
+    assert.deepEqual(getThemeToggleDisplay('light'), {
+      label: 'Dark Theme',
+      ariaLabel: 'Switch to dark theme',
+    });
+    assert.deepEqual(getThemeToggleDisplay('dark'), {
+      label: 'Light Theme',
+      ariaLabel: 'Switch to light theme',
+    });
+  });
+
+  it('declares color-scheme light dark, data-theme selectors, and prefers-color-scheme fallback in src/index.css', () => {
     const css = fs.readFileSync(path.resolve('src/index.css'), 'utf8');
     assert.match(css, /color-scheme:\s*light dark/);
+    assert.match(css, /html\[data-theme="dark"\]/);
     assert.match(css, /@media\s*\(\s*prefers-color-scheme:\s*dark\s*\)/);
+  });
+
+  it('wires #btn-theme-toggle and boot theme script across all HTML pages', () => {
+    for (const htmlFile of [
+      'index.html',
+      'pages/dashboard.html',
+      'pages/login.html',
+      'pages/courses.html',
+      'pages/logs.html',
+      'pages/assignments.html',
+      'pages/squads.html',
+      'pages/settings.html',
+    ]) {
+      const html = fs.readFileSync(path.resolve(htmlFile), 'utf8');
+      assert.ok(html.includes('id="btn-theme-toggle"'), `${htmlFile} must include #btn-theme-toggle`);
+      assert.ok(html.includes('unisphere_theme'), `${htmlFile} must include pre-paint theme script`);
+    }
   });
 });

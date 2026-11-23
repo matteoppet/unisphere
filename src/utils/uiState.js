@@ -120,3 +120,43 @@ export function buildDashboardUrl(pathname = '/', search = '', { courseStatus, p
   const qs = params.toString();
   return `${pathname || '/'}${qs ? `?${qs}` : ''}`;
 }
+
+export const THEME_STORAGE_KEY = 'unisphere_theme';
+
+/**
+ * Normalizes a persisted theme value ('light' | 'dark'), returning null when unset/invalid.
+ */
+export function normalizeThemePreference(value) {
+  if (value === 'light' || value === 'dark') return value;
+  return null;
+}
+
+/**
+ * Resolves the active theme ('light' | 'dark') from an optional stored override and system preference.
+ */
+export function resolveEffectiveTheme(storedPreference, systemPrefersDark = false) {
+  return normalizeThemePreference(storedPreference) || (systemPrefersDark ? 'dark' : 'light');
+}
+
+/**
+ * Returns the opposite theme for an explicit toggle click.
+ */
+export function getNextTheme(currentTheme) {
+  return currentTheme === 'dark' ? 'light' : 'dark';
+}
+
+/**
+ * Returns the label and accessible description for the header theme toggle button.
+ */
+export function getThemeToggleDisplay(effectiveTheme) {
+  if (effectiveTheme === 'dark') {
+    return {
+      label: 'Light Theme',
+      ariaLabel: 'Switch to light theme',
+    };
+  }
+  return {
+    label: 'Dark Theme',
+    ariaLabel: 'Switch to dark theme',
+  };
+}

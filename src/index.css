@@ -4,6 +4,14 @@
   color-scheme: light dark;
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -119,6 +127,10 @@ a.site-brand:hover {
   margin-left: 8px;
   padding: 2px 8px;
   font-size: 12px;
+}
+
+.theme-toggle-btn {
+  white-space: nowrap;
 }
 
 .nav-list {
@@ -1809,243 +1821,359 @@ dialog h3 {
   }
 }
 
+html[data-theme="dark"],
+html[data-theme="dark"] body {
+  background-color: #121316;
+  color: #e6e8ec;
+}
+
+html[data-theme="dark"] :focus-visible {
+  outline-color: #7cb3ff;
+}
+
+html[data-theme="dark"] .skip-link {
+  background-color: #1a1c20;
+  color: #7cb3ff;
+  border-color: #7cb3ff;
+}
+
+html[data-theme="dark"] .site-header h2,
+html[data-theme="dark"] .site-brand,
+html[data-theme="dark"] a.site-brand:hover,
+html[data-theme="dark"] .summary-value,
+html[data-theme="dark"] button.tab-btn.active,
+html[data-theme="dark"] .goal-item-btn,
+html[data-theme="dark"] .next-session-fieldset legend,
+html[data-theme="dark"] .next-session-title,
+html[data-theme="dark"] .friend-sidebar-name {
+  color: #e6e8ec;
+}
+
+html[data-theme="dark"] button.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #a3aab5;
+}
+
+html[data-theme="dark"] button.tab-btn:hover {
+  background: none;
+  color: #e6e8ec;
+}
+
+html[data-theme="dark"] button.tab-btn.active {
+  color: #e6e8ec;
+  border-bottom-color: #e6e8ec;
+}
+
+html[data-theme="dark"] a {
+  color: #7cb3ff;
+}
+
+html[data-theme="dark"] a:hover {
+  color: #a8ccff;
+}
+
+html[data-theme="dark"] .section-divider {
+  border-top-color: #343942;
+}
+
+html[data-theme="dark"] .dashboard-summary,
+html[data-theme="dark"] .card,
+html[data-theme="dark"] dialog {
+  background-color: #1a1c20;
+  border-color: #2e323a;
+  color: #e6e8ec;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+html[data-theme="dark"] dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+html[data-theme="dark"] .table-scroll thead th,
+html[data-theme="dark"] .assignments-table thead th,
+html[data-theme="dark"] .friend-courses-scroll thead th {
+  background-color: #1a1c20;
+  color: #d1d5db;
+  border-bottom-color: #2e323a;
+  box-shadow: inset 0 -1px 0 #2e323a;
+}
+
+html[data-theme="dark"] th {
+  color: #d1d5db;
+}
+
+html[data-theme="dark"] th,
+html[data-theme="dark"] td,
+html[data-theme="dark"] .dialog-actions,
+html[data-theme="dark"] .assignments-table tbody td {
+  border-color: #2c3038;
+}
+
+html[data-theme="dark"] .goal-item {
+  border-bottom-color: #2c3038;
+}
+
+html[data-theme="dark"] .goal-item-btn {
+  background: none;
+  border-color: transparent;
+}
+
+html[data-theme="dark"] .goal-item-btn:hover {
+  background-color: #242830;
+}
+
+html[data-theme="dark"] .notice-dismiss-btn,
+html[data-theme="dark"] .notice-dismiss-btn:hover {
+  background: none;
+  border: none;
+}
+
+html[data-theme="dark"] .week-5day-tracker,
+html[data-theme="dark"] .week-separator-row td,
+html[data-theme="dark"] .notice-box,
+html[data-theme="dark"] .assignment-detail-row td,
+html[data-theme="dark"] .live-library-box,
+html[data-theme="dark"] .friend-request-item {
+  background-color: #22252b;
+  border-color: #353a44;
+  color: #e6e8ec;
+}
+
+html[data-theme="dark"] .live-library-item,
+html[data-theme="dark"] .next-session-fieldset {
+  background-color: #1a1c20;
+  border-color: #2e323a;
+}
+
+html[data-theme="dark"] .squad-next-session-wrap {
+  border-left-color: #2e323a;
+}
+
+html[data-theme="dark"] .friend-sidebar-item:hover {
+  background-color: #242830;
+  border-color: #353a44;
+}
+
+html[data-theme="dark"] .friend-sidebar-item.active {
+  background-color: #1e2a3d;
+  border-color: #5592d6;
+}
+
+html[data-theme="dark"] .week-separator-row td {
+  color: #b8bfca;
+}
+
+html[data-theme="dark"] .summary-label,
+html[data-theme="dark"] .sync-status,
+html[data-theme="dark"] .notes-save-status,
+html[data-theme="dark"] .day-sub,
+html[data-theme="dark"] .study-hours-future,
+html[data-theme="dark"] .empty-cell,
+html[data-theme="dark"] .item-meta,
+html[data-theme="dark"] .field-hint,
+html[data-theme="dark"] .log-sublabel,
+html[data-theme="dark"] .goal-item.goal-completed .goal-title,
+html[data-theme="dark"] .exam-date-hint,
+html[data-theme="dark"] .exam-grade-ungraded,
+html[data-theme="dark"] .exam-grade-pending,
+html[data-theme="dark"] .exam-grade-part.exam-grade-ungraded,
+html[data-theme="dark"] .exam-grade-sep,
+html[data-theme="dark"] .live-library-header-note,
+html[data-theme="dark"] .friend-sidebar-meta {
+  color: #a3aab5;
+}
+
+html[data-theme="dark"] .exam-row-normal td {
+  background-color: #1a1c20;
+}
+
+html[data-theme="dark"] .exam-row-urgent-yellow td {
+  background-color: #2e2917;
+}
+
+html[data-theme="dark"] .exam-row-urgent-yellow .exam-date-hint {
+  color: #f0b44c;
+}
+
+html[data-theme="dark"] .exam-row-urgent-red td {
+  background-color: #2e191b;
+}
+
+html[data-theme="dark"] .exam-row-urgent-red .exam-date-hint {
+  color: #ff7b7b;
+}
+
+html[data-theme="dark"] .exam-row-completed td {
+  background-color: #16291d;
+}
+
+html[data-theme="dark"] .exam-row-completed .exam-date-hint {
+  color: #5cd67d;
+}
+
+html[data-theme="dark"] .exam-grade-pass,
+html[data-theme="dark"] .exam-grade-part.exam-grade-pass {
+  color: #5cd67d;
+}
+
+html[data-theme="dark"] .exam-grade-fail,
+html[data-theme="dark"] .exam-grade-part.exam-grade-fail {
+  color: #ff7b7b;
+}
+
+html[data-theme="dark"] .assignments-completed-divider td {
+  border-top-color: #6b7280;
+}
+
+html[data-theme="dark"] .log-duration-preview {
+  color: #d1d5db;
+}
+
+html[data-theme="dark"] .log-duration-preview-error {
+  color: #ff7b7b;
+}
+
+html[data-theme="dark"] .sync-status-warn {
+  color: #f0b44c;
+}
+
+html[data-theme="dark"] .sync-status-error,
+html[data-theme="dark"] .study-hours-zero,
+html[data-theme="dark"] button.btn-danger,
+html[data-theme="dark"] button.btn-inline-danger,
+html[data-theme="dark"] .squad-leave-link {
+  color: #ff7b7b;
+}
+
+html[data-theme="dark"] button.btn-danger {
+  border-color: #ff7b7b;
+}
+
+html[data-theme="dark"] button.btn-inline-action,
+html[data-theme="dark"] button.btn-inline-danger {
+  background: none;
+  border-color: transparent;
+}
+
+html[data-theme="dark"] button.btn-inline-action {
+  color: #7cb3ff;
+}
+
+html[data-theme="dark"] button.btn-inline-action:hover {
+  background-color: #1e2a3d;
+  border-color: #35507a;
+}
+
+html[data-theme="dark"] button.btn-inline-danger:hover {
+  background-color: #331c1e;
+  border-color: #6b3035;
+}
+
+html[data-theme="dark"] .study-hours-positive {
+  color: #5cd67d;
+}
+
+html[data-theme="dark"] .notice-error,
+html[data-theme="dark"] .field-error {
+  background-color: #2a1618;
+  border-color: #a83b42;
+  color: #ffb3b8;
+}
+
+html[data-theme="dark"] .notice-success {
+  background-color: #14261a;
+  border-color: #2e7d47;
+  color: #98e6ae;
+}
+
+html[data-theme="dark"] button,
+html[data-theme="dark"] .btn-label {
+  background-color: #262a31;
+  border-color: #4c5463;
+  color: #e6e8ec;
+}
+
+html[data-theme="dark"] button:hover,
+html[data-theme="dark"] .btn-label:hover {
+  background-color: #30353f;
+}
+
+html[data-theme="dark"] button:active,
+html[data-theme="dark"] .btn-label:active {
+  background-color: #3a404d;
+}
+
+html[data-theme="dark"] input[type="text"],
+html[data-theme="dark"] input[type="email"],
+html[data-theme="dark"] input[type="password"],
+html[data-theme="dark"] input[type="url"],
+html[data-theme="dark"] input[type="number"],
+html[data-theme="dark"] input[type="date"],
+html[data-theme="dark"] input[type="time"],
+html[data-theme="dark"] input[type="search"],
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background-color: #141619;
+  border-color: #474e5c;
+  color: #e6e8ec;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #8c95a3;
+}
+
+html[data-theme="dark"] .goal-tag-badge {
+  background-color: #262a31;
+  border-color: #3e4451;
+  color: #d5dbe4;
+}
+
+html[data-theme="dark"] .goal-item.goal-completed .goal-tag-badge {
+  background-color: #1f2228;
+  color: #9aa2af;
+}
+
+html[data-theme="dark"] .goal-checkbox {
+  accent-color: #7cb3ff;
+}
+
+html[data-theme="dark"] .log-time-tab {
+  background-color: #22252b;
+  border-color: #3e4451;
+  color: #b5bcc7;
+}
+
+html[data-theme="dark"] .log-time-tab:hover {
+  background-color: #2c303a;
+  color: #e6e8ec;
+}
+
+html[data-theme="dark"] .log-time-tab.active {
+  background-color: #e6e8ec;
+  border-color: #e6e8ec;
+  color: #121316;
+  font-weight: bold;
+}
+
+html[data-theme="dark"] .dashboard-summary .summary-item:last-child {
+  border-top-color: #2e323a;
+}
+
 @media (prefers-color-scheme: dark) {
-  html,
-  body {
+  html:not([data-theme="light"]),
+  html:not([data-theme="light"]) body {
     background-color: #121316;
     color: #e6e8ec;
   }
 
-  :focus-visible {
-    outline-color: #7cb3ff;
-  }
-
-  .skip-link {
-    background-color: #1a1c20;
-    color: #7cb3ff;
-    border-color: #7cb3ff;
-  }
-
-  .site-header h2,
-  .site-brand,
-  a.site-brand:hover,
-  .summary-value,
-  button.tab-btn.active,
-  .goal-item-btn {
-    color: #e6e8ec;
-  }
-
-  button.tab-btn.active {
-    border-bottom-color: #e6e8ec;
-  }
-
-  button.tab-btn {
-    color: #a3aab5;
-  }
-
-  button.tab-btn:hover {
-    color: #e6e8ec;
-  }
-
-  a {
-    color: #7cb3ff;
-  }
-
-  a:hover {
-    color: #a8ccff;
-  }
-
-  .section-divider {
-    border-top-color: #343942;
-  }
-
-  .dashboard-summary,
-  .card,
-  dialog {
+  html:not([data-theme="light"]) .dashboard-summary,
+  html:not([data-theme="light"]) .card,
+  html:not([data-theme="light"]) dialog {
     background-color: #1a1c20;
     border-color: #2e323a;
     color: #e6e8ec;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
-  }
-
-  dialog::backdrop {
-    background: rgba(0, 0, 0, 0.65);
-  }
-
-  .table-scroll thead th {
-    background-color: #1a1c20;
-    box-shadow: inset 0 -1px 0 #2e323a;
-  }
-
-  th {
-    color: #d1d5db;
-  }
-
-  th,
-  td,
-  .dialog-actions {
-    border-color: #2c3038;
-  }
-
-  .goal-item {
-    border-bottom-color: #2c3038;
-  }
-
-  .goal-item-btn:hover {
-    background-color: #242830;
-  }
-
-  .week-5day-tracker,
-  .week-separator-row td,
-  .notice-box {
-    background-color: #22252b;
-    border-color: #353a44;
-    color: #e6e8ec;
-  }
-
-  .week-separator-row td {
-    color: #b8bfca;
-  }
-
-  .summary-label,
-  .sync-status,
-  .notes-save-status,
-  .day-sub,
-  .study-hours-future,
-  .empty-cell,
-  .item-meta,
-  .field-hint,
-  .log-sublabel,
-  .goal-item.goal-completed .goal-title {
-    color: #a3aab5;
-  }
-
-  .log-duration-preview {
-    color: #d1d5db;
-  }
-
-  .log-duration-preview-error {
-    color: #ff7b7b;
-  }
-
-  .sync-status-warn {
-    color: #f0b44c;
-  }
-
-  .sync-status-error,
-  .study-hours-zero,
-  button.btn-danger,
-  button.btn-inline-danger,
-  .squad-leave-link {
-    color: #ff7b7b;
-  }
-
-  button.btn-danger {
-    border-color: #ff7b7b;
-  }
-
-  button.btn-inline-action {
-    color: #7cb3ff;
-  }
-
-  button.btn-inline-action:hover {
-    background-color: #1e2a3d;
-    border-color: #35507a;
-  }
-
-  button.btn-inline-danger:hover {
-    background-color: #331c1e;
-    border-color: #6b3035;
-  }
-
-  .study-hours-positive {
-    color: #5cd67d;
-  }
-
-  .notice-error,
-  .field-error {
-    background-color: #2a1618;
-    border-color: #a83b42;
-    color: #ffb3b8;
-  }
-
-  .notice-success {
-    background-color: #14261a;
-    border-color: #2e7d47;
-    color: #98e6ae;
-  }
-
-  button,
-  .btn-label {
-    background-color: #262a31;
-    border-color: #4c5463;
-    color: #e6e8ec;
-  }
-
-  button:hover,
-  .btn-label:hover {
-    background-color: #30353f;
-  }
-
-  button:active,
-  .btn-label:active {
-    background-color: #3a404d;
-  }
-
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  input[type="url"],
-  input[type="number"],
-  input[type="date"],
-  input[type="time"],
-  input[type="search"],
-  select,
-  textarea {
-    background-color: #141619;
-    border-color: #474e5c;
-    color: #e6e8ec;
-  }
-
-  input::placeholder,
-  textarea::placeholder {
-    color: #8c95a3;
-  }
-
-  .goal-tag-badge {
-    background-color: #262a31;
-    border-color: #3e4451;
-    color: #d5dbe4;
-  }
-
-  .goal-item.goal-completed .goal-tag-badge {
-    background-color: #1f2228;
-    color: #9aa2af;
-  }
-
-  .goal-checkbox {
-    accent-color: #7cb3ff;
-  }
-
-  .log-time-tab {
-    background-color: #22252b;
-    border-color: #3e4451;
-    color: #b5bcc7;
-  }
-
-  .log-time-tab:hover {
-    background-color: #2c303a;
-    color: #e6e8ec;
-  }
-
-  .log-time-tab.active {
-    background-color: #e6e8ec;
-    border-color: #e6e8ec;
-    color: #121316;
-    font-weight: bold;
-  }
-
-  .dashboard-summary .summary-item:last-child {
-    border-top-color: #2e323a;
   }
 }
