@@ -481,6 +481,36 @@ button.btn-inline-danger:hover {
   letter-spacing: 0.01em;
 }
 
+.week-switcher {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.week-switcher-btn {
+  flex-shrink: 0;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 16px;
+  font-weight: bold;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.week-switcher-select {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: bold;
+  padding: 5px 8px;
+  min-height: 32px;
+  text-overflow: ellipsis;
+}
+
 .week-5day-tracker {
   margin-bottom: 14px;
   border: 1px solid #e2e2e2;
@@ -513,6 +543,11 @@ button.btn-inline-danger:hover {
 
 .study-hours-positive {
   color: #008000;
+}
+
+.course-status-passed {
+  color: #008000;
+  font-weight: bold;
 }
 
 .study-hours-zero {
@@ -782,7 +817,11 @@ dialog h3 {
   margin-top: 6px;
 }
 
-.log-duration-preview-error {
+.log-duration-preview.log-duration-preview-positive {
+  color: #008000;
+}
+
+.log-duration-preview.log-duration-preview-error {
   color: #990000;
 }
 
@@ -1741,6 +1780,17 @@ dialog h3 {
     font-size: 14px;
   }
 
+  .week-switcher-btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+
+  .week-switcher-select {
+    min-height: 44px;
+    font-size: 15px;
+  }
+
   button.tab-btn {
     min-height: 44px;
     padding: 8px 2px;
@@ -1841,6 +1891,10 @@ html[data-theme="dark"] .site-header h2,
 html[data-theme="dark"] .site-brand,
 html[data-theme="dark"] a.site-brand:hover,
 html[data-theme="dark"] .summary-value,
+html[data-theme="dark"] .squad-summary-value-bold,
+html[data-theme="dark"] .subsection-title,
+html[data-theme="dark"] .course-info-value,
+html[data-theme="dark"] .squads-empty-text:hover,
 html[data-theme="dark"] button.tab-btn.active,
 html[data-theme="dark"] .goal-item-btn,
 html[data-theme="dark"] .next-session-fieldset legend,
@@ -1872,6 +1926,14 @@ html[data-theme="dark"] a {
 
 html[data-theme="dark"] a:hover {
   color: #a8ccff;
+}
+
+html[data-theme="dark"] a.member-name-link {
+  color: #e6e8ec;
+}
+
+html[data-theme="dark"] a.member-name-link:hover {
+  color: #7cb3ff;
 }
 
 html[data-theme="dark"] .section-divider {
@@ -1947,8 +2009,13 @@ html[data-theme="dark"] .next-session-fieldset {
   border-color: #2e323a;
 }
 
+html[data-theme="dark"] .squad-unified-summary,
+html[data-theme="dark"] .squad-bottom-section,
+html[data-theme="dark"] .card-subdivider,
+html[data-theme="dark"] .friends-requests-box,
+html[data-theme="dark"] .friend-view-header,
 html[data-theme="dark"] .squad-next-session-wrap {
-  border-left-color: #2e323a;
+  border-color: #2e323a;
 }
 
 html[data-theme="dark"] .friend-sidebar-item:hover {
@@ -1966,6 +2033,8 @@ html[data-theme="dark"] .week-separator-row td {
 }
 
 html[data-theme="dark"] .summary-label,
+html[data-theme="dark"] .squad-summary-sub,
+html[data-theme="dark"] .squads-empty-text,
 html[data-theme="dark"] .sync-status,
 html[data-theme="dark"] .notes-save-status,
 html[data-theme="dark"] .day-sub,
@@ -1980,7 +2049,15 @@ html[data-theme="dark"] .exam-grade-ungraded,
 html[data-theme="dark"] .exam-grade-pending,
 html[data-theme="dark"] .exam-grade-part.exam-grade-ungraded,
 html[data-theme="dark"] .exam-grade-sep,
+html[data-theme="dark"] .exam-grade-parts-inline,
 html[data-theme="dark"] .live-library-header-note,
+html[data-theme="dark"] .live-library-submeta,
+html[data-theme="dark"] .status-offline,
+html[data-theme="dark"] .card-subtitle,
+html[data-theme="dark"] .next-session-attendees,
+html[data-theme="dark"] .friends-subsection-label,
+html[data-theme="dark"] .course-info-label,
+html[data-theme="dark"] .mobile-expand-indicator,
 html[data-theme="dark"] .friend-sidebar-meta {
   color: #a3aab5;
 }
@@ -2027,11 +2104,18 @@ html[data-theme="dark"] .assignments-completed-divider td {
   border-top-color: #6b7280;
 }
 
-html[data-theme="dark"] .log-duration-preview {
+html[data-theme="dark"] .log-duration-preview,
+html[data-theme="dark"] .squad-progress-meta,
+html[data-theme="dark"] .squad-sort-label,
+html[data-theme="dark"] .assignment-grade-preview {
   color: #d1d5db;
 }
 
-html[data-theme="dark"] .log-duration-preview-error {
+html[data-theme="dark"] .log-duration-preview.log-duration-preview-positive {
+  color: #5cd67d;
+}
+
+html[data-theme="dark"] .log-duration-preview.log-duration-preview-error {
   color: #ff7b7b;
 }
 
@@ -2045,6 +2129,10 @@ html[data-theme="dark"] button.btn-danger,
 html[data-theme="dark"] button.btn-inline-danger,
 html[data-theme="dark"] .squad-leave-link {
   color: #ff7b7b;
+}
+
+html[data-theme="dark"] .squad-leave-link:hover {
+  color: #ffa3a3;
 }
 
 html[data-theme="dark"] button.btn-danger {
@@ -2071,8 +2159,27 @@ html[data-theme="dark"] button.btn-inline-danger:hover {
   border-color: #6b3035;
 }
 
-html[data-theme="dark"] .study-hours-positive {
+html[data-theme="dark"] .study-hours-positive,
+html[data-theme="dark"] .live-library-meta,
+html[data-theme="dark"] .status-live,
+html[data-theme="dark"] .course-status-passed {
   color: #5cd67d;
+}
+
+html[data-theme="dark"] .status-online {
+  color: #7cb3ff;
+}
+
+html[data-theme="dark"] .squad-progress-track {
+  background-color: #2b303a;
+}
+
+html[data-theme="dark"] .squad-progress-fill {
+  background-color: #3ca85c;
+}
+
+html[data-theme="dark"] .live-badge-dot {
+  background-color: #5cd67d;
 }
 
 html[data-theme="dark"] .notice-error,

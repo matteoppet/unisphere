@@ -116,7 +116,30 @@
               <h2>Session Logs</h2>
               <button type="button" id="btn-dash-add-log">Add Log</button>
             </div>
-            <div class="week-5day-tracker" aria-label="Current 7-Day Week Study Time">
+            <div class="week-switcher" role="group" aria-label="Select study log week">
+              <button
+                type="button"
+                id="btn-dash-week-prev"
+                class="week-switcher-btn"
+                aria-label="Previous week"
+                title="Previous week"
+                disabled
+              >&lsaquo;</button>
+              <select
+                id="dash-week-select"
+                class="week-switcher-select"
+                aria-label="Study week"
+              ></select>
+              <button
+                type="button"
+                id="btn-dash-week-next"
+                class="week-switcher-btn"
+                aria-label="Next week"
+                title="Next week"
+                disabled
+              >&rsaquo;</button>
+            </div>
+            <div class="week-5day-tracker" aria-label="Selected Week 7-Day Study Time">
               <table>
                 <thead>
                   <tr id="dash-5day-thead"></tr>
@@ -281,7 +304,7 @@
                 </div>
               </div>
             </div>
-            <div id="log-duration-preview" class="log-duration-preview" aria-live="polite">Calculated: 1h 30m (90 min)</div>
+            <div id="log-duration-preview" class="log-duration-preview log-duration-preview-positive" aria-live="polite">Calculated: 1h 30m (90 min)</div>
           </fieldset>
           <div class="form-row">
             <label for="log-tag">Session Tag</label>

@@ -261,6 +261,223 @@ export function groupStudyLogsByWeek(studyLogs = []) {
   });
 }
 
+function parseValidLocalDate(dateStr) {
+  if (typeof dateStr !== 'string') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const monthIdx = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const d = new Date(year, monthIdx, day);
+  if (d.getFullYear() !== year || d.getMonth() !== monthIdx || d.getDate() !== day) {
+    return null;
+  }
+  return d;
+}
+
+export function getWeekKeyForDate(dateStr) {
+  const parsedDate = parseValidLocalDate(dateStr);
+  if (!parsedDate) return null;
+  const dayOfWeek = parsedDate.getDay();
+  const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const monday = new Date(
+    parsedDate.getFullYear(),
+    parsedDate.getMonth(),
+    parsedDate.getDate() + distanceToMonday
+  );
+  return getLocalDateString(monday);
+}
+
+function formatShortWeekRange(monday, referenceYear) {
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  const monYear = monday.getFullYear();
+  const sunYear = sunday.getFullYear();
+  const monMonth = monthNames[monday.getMonth()];
+  const sunMonth = monthNames[sunday.getMonth()];
+
+  if (monYear === sunYear && monday.getMonth() === sunday.getMonth()) {
+    return monYear === referenceYear
+      ? `${monday.getDate()}–${sunday.getDate()} ${monMonth}`
+      : `${monday.getDate()}–${sunday.getDate()} ${monMonth} ${monYear}`;
+  }
+  if (monYear === sunYear) {
+    return monYear === referenceYear
+      ? `${monday.getDate()} ${monMonth} – ${sunday.getDate()} ${sunMonth}`
+      : `${monday.getDate()} ${monMonth} – ${sunday.getDate()} ${sunMonth} ${sunYear}`;
+  }
+  return `${monday.getDate()} ${monMonth} ${monYear} – ${sunday.getDate()} ${sunMonth} ${sunYear}`;
+}
+
+export function getDashboardWeekView(
+  studyLogs = [],
+  selectedWeekKey = null,
+  referenceDate = new Date()
+) {
+  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  const todayStr = getLocalDateString(referenceDate);
+  const referenceYear = referenceDate.getFullYear();
+  const currentMonday = getStartOfWeek(referenceDate);
+  const currentWeekKey = getLocalDateString(currentMonday);
+  const lastMonday = new Date(
+    currentMonday.getFullYear(),
+    currentMonday.getMonth(),
+    currentMonday.getDate() - 7
+  );
+  const lastWeekKey = getLocalDateString(lastMonday);
+
+  const weeksMap = new Map();
+  weeksMap.set(currentWeekKey, {
+    weekKey: currentWeekKey,
+    monday: currentMonday,
+    totalMinutes: 0,
+    items: [],
+  });
+
+  const safeLogs = Array.isArray(studyLogs) ? studyLogs : [];
+  for (let index = 0; index < safeLogs.length; index++) {
+    const log = safeLogs[index];
+    const parsedDate = parseValidLocalDate(log?.date);
+    if (!parsedDate) continue;
+
+    const dayOfWeek = parsedDate.getDay();
+    const distanceToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(
+      parsedDate.getFullYear(),
+      parsedDate.getMonth(),
+      parsedDate.getDate() + distanceToMonday
+    );
+    const weekKey = getLocalDateString(monday);
+
+    let entry = weeksMap.get(weekKey);
+    if (!entry) {
+      entry = {
+        weekKey,
+        monday,
+        totalMinutes: 0,
+        items: [],
+      };
+      weeksMap.set(weekKey, entry);
+    }
+
+    entry.totalMinutes += Number(log?.durationMinutes) || 0;
+    entry.items.push({
+      log,
+      index,
+      dateKey: log.date.trim(),
+      timestamp: Number(log?.timestamp) || 0,
+    });
+  }
+
+  const sortedEntries = Array.from(weeksMap.values()).sort((a, b) =>
+    b.weekKey.localeCompare(a.weekKey)
+  );
+
+  const weeks = sortedEntries.map((entry) => {
+    entry.items.sort((a, b) => {
+      if (a.dateKey !== b.dateKey) {
+        return b.dateKey.localeCompare(a.dateKey);
+      }
+      if (b.timestamp !== a.timestamp) {
+        return b.timestamp - a.timestamp;
+      }
+      return a.index - b.index;
+    });
+
+    const totalDuration = formatStudyDuration(entry.totalMinutes);
+    const shortRange = formatShortWeekRange(entry.monday, referenceYear);
+    const isCurrentWeek = entry.weekKey === currentWeekKey;
+    const isLastWeek = entry.weekKey === lastWeekKey;
+    const prefix = isCurrentWeek ? 'This Week · ' : isLastWeek ? 'Last Week · ' : '';
+
+    return {
+      weekKey: entry.weekKey,
+      monday: entry.monday,
+      label: `${prefix}${shortRange} · ${totalDuration}`,
+      totalMinutes: entry.totalMinutes,
+      totalDuration,
+      logs: entry.items.map((x) => x.log),
+    };
+  });
+
+  let selectedIndex = selectedWeekKey
+    ? weeks.findIndex((w) => w.weekKey === selectedWeekKey)
+    : -1;
+  if (selectedIndex === -1) {
+    selectedIndex = weeks.findIndex((w) => w.weekKey === currentWeekKey);
+    if (selectedIndex === -1) selectedIndex = 0;
+  }
+
+  const selected = weeks[selectedIndex];
+  const prevWeekKey = selectedIndex < weeks.length - 1 ? weeks[selectedIndex + 1].weekKey : null;
+  const nextWeekKey = selectedIndex > 0 ? weeks[selectedIndex - 1].weekKey : null;
+
+  const widgetDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(
+      selected.monday.getFullYear(),
+      selected.monday.getMonth(),
+      selected.monday.getDate() + i
+    );
+    const dateStr = getLocalDateString(d);
+    const dayLogs = selected.logs.filter((l) => String(l?.date || '').trim() === dateStr);
+    const minutes = dayLogs.reduce((sum, l) => sum + (Number(l?.durationMinutes) || 0), 0);
+    const sessionCount = dayLogs.length;
+
+    return {
+      shortDay: dayNames[i],
+      dateStr,
+      formattedDate: `${d.getDate()} ${monthNames[d.getMonth()]}`,
+      hours: formatStudyDuration(minutes),
+      minutes,
+      sessionCount,
+      hasSessions: sessionCount > 0,
+      isFuture: dateStr > todayStr,
+    };
+  });
+
+  return {
+    weeks: weeks.map(({ monday: _m, ...rest }) => rest),
+    selectedWeekKey: selected.weekKey,
+    selectedIndex,
+    currentWeekKey,
+    prevWeekKey,
+    nextWeekKey,
+    widgetDays,
+    weekTotalMinutes: selected.totalMinutes,
+    totalDuration: selected.totalDuration,
+    logs: selected.logs,
+    totalLogCount: safeLogs.length,
+  };
+}
+
 export function calculateTableScrollMaxHeight(
   viewportHeight,
   elementTop,

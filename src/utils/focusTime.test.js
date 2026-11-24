@@ -7,6 +7,8 @@ import {
   getWeekDaysSummary,
   calculateWeeklyFocus,
   groupStudyLogsByWeek,
+  getWeekKeyForDate,
+  getDashboardWeekView,
   calculateTableScrollMaxHeight,
   calculateDurationFromHoursMinutes,
   calculateDurationFromRange,
@@ -277,6 +279,28 @@ describe('Session time input modes and duration calculation (#41)', () => {
     assert.match(appJs, /log-time-tab/);
     assert.match(appJs, /log-duration-preview/);
   });
+
+  it('styles #log-duration-preview in green via .log-duration-preview-positive for valid durations above 1 minute', () => {
+    const css = fs.readFileSync(new URL('../index.css', import.meta.url), 'utf8');
+    const darkSection = css.slice(css.indexOf('html[data-theme="dark"]'));
+    const appJs = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+
+    assert.match(css, /\.log-duration-preview\.log-duration-preview-positive\s*\{[\s\S]*?color:\s*#008000/);
+    assert.match(
+      darkSection,
+      /html\[data-theme="dark"\]\s+\.log-duration-preview\.log-duration-preview-positive\s*\{[\s\S]*?color:\s*#5cd67d/
+    );
+    assert.match(appJs, /log-duration-preview-positive/);
+
+    for (const fileUrl of [
+      new URL('../../index.html', import.meta.url),
+      new URL('../../pages/dashboard.html', import.meta.url),
+      new URL('../../pages/logs.html', import.meta.url),
+    ]) {
+      const html = fs.readFileSync(fileUrl, 'utf8');
+      assert.match(html, /id="log-duration-preview"[^>]*log-duration-preview-positive/);
+    }
+  });
 });
 
 describe('Study Time (Week) and Streak calculation and weekly reset for Squads (#40)', () => {
@@ -439,6 +463,106 @@ describe('Study Time (Week) and Streak calculation and weekly reset for Squads (
       assert.match(appJs, /syncUserSquadTelemetry/);
       assert.match(appJs, /saveSquadMemberToCloud/);
     });
+  });
+});
+
+describe('Dashboard Session Logs Week Switcher', () => {
+  const refTuesday = new Date(2026, 10, 24, 10, 55, 0); // Tue 24 Nov 2026 (Mon 23 – Sun 29 Nov)
+
+  it('computes Monday weekKey for valid dates and returns null for invalid dates', () => {
+    assert.equal(getWeekKeyForDate('2026-11-24'), '2026-11-23');
+    assert.equal(getWeekKeyForDate('2026-11-29'), '2026-11-23');
+    assert.equal(getWeekKeyForDate('invalid'), null);
+    assert.equal(getWeekKeyForDate('2026-02-31'), null);
+  });
+
+  it('always includes current week when studyLogs is empty with accurate isFuture flags', () => {
+    const view = getDashboardWeekView([], null, refTuesday);
+    assert.equal(view.currentWeekKey, '2026-11-23');
+    assert.equal(view.selectedWeekKey, '2026-11-23');
+    assert.equal(view.weeks.length, 1);
+    assert.equal(view.weeks[0].label, 'This Week · 23–29 Nov · 0h');
+    assert.equal(view.prevWeekKey, null);
+    assert.equal(view.nextWeekKey, null);
+    assert.equal(view.logs.length, 0);
+    assert.equal(view.widgetDays.length, 7);
+    assert.deepEqual(
+      view.widgetDays.map((d) => d.isFuture),
+      [false, false, true, true, true, true, true]
+    );
+  });
+
+  it('navigates across weeks, syncs 7-day tracker and logs, and falls back safely for unknown weekKey', () => {
+    const logs = [
+      { id: 'c1', date: '2026-11-23', durationMinutes: 60, timestamp: 400 },
+      { id: 'l1', date: '2026-11-18', durationMinutes: 90, timestamp: 200 },
+      { id: 'l2', date: '2026-11-20', durationMinutes: 60, timestamp: 300 },
+      { id: 'o1', date: '2026-10-28', durationMinutes: 45, timestamp: 100 },
+    ];
+
+    const currentView = getDashboardWeekView(logs, null, refTuesday);
+    assert.deepEqual(
+      currentView.weeks.map((w) => w.weekKey),
+      ['2026-11-23', '2026-11-16', '2026-10-26']
+    );
+    assert.deepEqual(
+      currentView.weeks.map((w) => w.label),
+      [
+        'This Week · 23–29 Nov · 1h',
+        'Last Week · 16–22 Nov · 2h 30m',
+        '26 Oct – 1 Nov · 45m',
+      ]
+    );
+    assert.equal(currentView.selectedWeekKey, '2026-11-23');
+    assert.equal(currentView.prevWeekKey, '2026-11-16');
+    assert.equal(currentView.nextWeekKey, null);
+    assert.deepEqual(currentView.logs.map((l) => l.id), ['c1']);
+
+    const lastWeekView = getDashboardWeekView(logs, '2026-11-16', refTuesday);
+    assert.equal(lastWeekView.selectedWeekKey, '2026-11-16');
+    assert.equal(lastWeekView.prevWeekKey, '2026-10-26');
+    assert.equal(lastWeekView.nextWeekKey, '2026-11-23');
+    assert.deepEqual(lastWeekView.logs.map((l) => l.id), ['l2', 'l1']);
+    assert.equal(lastWeekView.widgetDays[0].dateStr, '2026-11-16');
+    assert.equal(lastWeekView.widgetDays[2].minutes, 90);
+    assert.equal(lastWeekView.widgetDays[4].minutes, 60);
+    assert.equal(lastWeekView.widgetDays[6].dateStr, '2026-11-22');
+    assert.deepEqual(
+      lastWeekView.widgetDays.map((d) => d.isFuture),
+      [false, false, false, false, false, false, false]
+    );
+
+    const oldestView = getDashboardWeekView(logs, '2026-10-26', refTuesday);
+    assert.equal(oldestView.prevWeekKey, null);
+    assert.equal(oldestView.nextWeekKey, '2026-11-16');
+    assert.deepEqual(oldestView.logs.map((l) => l.id), ['o1']);
+
+    const fallbackView = getDashboardWeekView(logs, '2026-09-07', refTuesday);
+    assert.equal(fallbackView.selectedWeekKey, '2026-11-23');
+  });
+
+  it('wires week-switcher markup, styles, and bindings across HTML, CSS, and app.js', () => {
+    const indexHtml = fs.readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+    const dashHtml = fs.readFileSync(new URL('../../pages/dashboard.html', import.meta.url), 'utf8');
+    const css = fs.readFileSync(new URL('../index.css', import.meta.url), 'utf8');
+    const appJs = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+
+    for (const html of [indexHtml, dashHtml]) {
+      assert.match(html, /class="week-switcher"/);
+      assert.match(html, /id="btn-dash-week-prev"/);
+      assert.match(html, /id="dash-week-select"/);
+      assert.match(html, /id="btn-dash-week-next"/);
+    }
+
+    assert.match(css, /\.week-switcher\s*\{/);
+    assert.match(css, /\.week-switcher-btn\s*\{/);
+    assert.match(css, /\.week-switcher-select\s*\{/);
+
+    assert.match(appJs, /getDashboardWeekView/);
+    assert.match(appJs, /getWeekKeyForDate/);
+    assert.match(appJs, /bindOnce\(document\.getElementById\('btn-dash-week-prev'\)/);
+    assert.match(appJs, /bindOnce\(document\.getElementById\('dash-week-select'\)/);
+    assert.match(appJs, /bindOnce\(document\.getElementById\('btn-dash-week-next'\)/);
   });
 });
 

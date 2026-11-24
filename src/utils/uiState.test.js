@@ -288,4 +288,45 @@ describe('Theme color-scheme & dark mode palette (#theme-dark-mode)', () => {
       assert.ok(html.includes('unisphere_theme'), `${htmlFile} must include pre-paint theme script`);
     }
   });
+
+  it('provides dark-theme overrides for Squads summary, progress, status, and modal text/borders', () => {
+    const css = fs.readFileSync(path.resolve('src/index.css'), 'utf8');
+    const darkSection = css.slice(css.indexOf('html[data-theme="dark"]'));
+    for (const selector of [
+      '.squad-summary-value-bold',
+      '.squad-summary-sub',
+      '.squad-progress-track',
+      '.squad-progress-fill',
+      '.squad-progress-meta',
+      '.squad-sort-label',
+      '.squad-unified-summary',
+      '.squad-bottom-section',
+      '.subsection-title',
+      '.card-subtitle',
+      '.next-session-attendees',
+      '.status-live',
+      '.status-online',
+      '.status-offline',
+      '.live-library-meta',
+      '.live-library-submeta',
+      '.course-info-label',
+      '.course-info-value',
+    ]) {
+      assert.ok(
+        darkSection.includes(selector),
+        `Dark theme CSS must override ${selector}`
+      );
+    }
+  });
+
+  it('styles passed course status in green across light and dark themes and wires it in app.js', () => {
+    const css = fs.readFileSync(path.resolve('src/index.css'), 'utf8');
+    const darkSection = css.slice(css.indexOf('html[data-theme="dark"]'));
+    const appJs = fs.readFileSync(path.resolve('src/app.js'), 'utf8');
+
+    assert.match(css, /\.course-status-passed\s*\{[\s\S]*?color:\s*#008000[\s\S]*?font-weight:\s*bold/);
+    assert.ok(darkSection.includes('.course-status-passed'), 'Dark theme CSS must override .course-status-passed');
+    assert.match(appJs, /function renderCourseStatusHtml/);
+    assert.match(appJs, /course-status-passed/);
+  });
 });

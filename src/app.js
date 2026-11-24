@@ -71,6 +71,8 @@ import {
   getLocalDateString,
   getWeekDaysSummary,
   groupStudyLogsByWeek,
+  getWeekKeyForDate,
+  getDashboardWeekView,
   calculateTableScrollMaxHeight,
   calculateDurationFromHoursMinutes,
   calculateDurationFromRange,
@@ -121,7 +123,6 @@ import {
 } from './utils/checklist.js';
 import {
   formatSyncStatus,
-  sliceRecentLogsForDashboard,
   parseDashboardQueryParams,
   buildDashboardUrl,
   THEME_STORAGE_KEY,
@@ -190,6 +191,14 @@ function formatStatusLabel(status) {
   if (status === 'active') return 'Active';
   if (status === 'completed') return 'Passed';
   return 'Planned';
+}
+
+function renderCourseStatusHtml(status) {
+  const label = escapeHtml(formatStatusLabel(status));
+  if (status === 'completed') {
+    return `<span class="course-status-passed">${label}</span>`;
+  }
+  return label;
 }
 
 function renderWeekDayHoursCell(d) {
@@ -365,6 +374,7 @@ export function initApp() {
   const initialDashQuery = parseDashboardQueryParams(window.location.search);
   let dashCourseStatusFilter = initialDashQuery.courseStatus;
   let dashResourceNotesTab = initialDashQuery.panel;
+  let dashSelectedWeekKey = null;
   let courseYearFilter = 'all';
   let courseStatusFilter = 'active';
   let courseSearchQuery = '';
@@ -1342,7 +1352,11 @@ export function initApp() {
       .reduce((sum, c) => sum + c.cfu, 0);
     const targetCFU = profile.totalTargetCFU || 180;
     const media = calculateMediaGrades(assignments, courses);
-    const { widgetDays, weekTotalMinutes } = getWeekDaysSummary(studyLogs);
+    const { weekTotalMinutes } = getWeekDaysSummary(studyLogs);
+    const dashWeekView = getDashboardWeekView(studyLogs, dashSelectedWeekKey);
+    if (dashSelectedWeekKey && dashSelectedWeekKey !== dashWeekView.selectedWeekKey) {
+      dashSelectedWeekKey = dashWeekView.selectedWeekKey;
+    }
 
     const elDegree = document.getElementById('summary-degree');
     if (elDegree) {
@@ -1391,7 +1405,7 @@ export function initApp() {
                 (c) => `
               <tr>
                 <td>${escapeHtml(c.title)}</td>
-                <td>${escapeHtml(formatStatusLabel(c.status))}</td>
+                <td>${renderCourseStatusHtml(c.status)}</td>
                 <td>${escapeHtml(c.cfu)}</td>
                 <td><button type="button" class="btn-inline-action" data-open-course="${escapeHtml(c.id)}">Open</button></td>
               </tr>`
@@ -1399,9 +1413,28 @@ export function initApp() {
               .join('');
     }
 
+    const weekPrevBtn = document.getElementById('btn-dash-week-prev');
+    if (weekPrevBtn) {
+      weekPrevBtn.disabled = !dashWeekView.prevWeekKey;
+    }
+    const weekNextBtn = document.getElementById('btn-dash-week-next');
+    if (weekNextBtn) {
+      weekNextBtn.disabled = !dashWeekView.nextWeekKey;
+    }
+    const weekSelectEl = document.getElementById('dash-week-select');
+    if (weekSelectEl) {
+      weekSelectEl.innerHTML = dashWeekView.weeks
+        .map(
+          (w) =>
+            `<option value="${escapeHtml(w.weekKey)}" ${w.weekKey === dashWeekView.selectedWeekKey ? 'selected' : ''}>${escapeHtml(w.label)}</option>`
+        )
+        .join('');
+      weekSelectEl.value = dashWeekView.selectedWeekKey;
+    }
+
     const dash5DayThead = document.getElementById('dash-5day-thead');
     if (dash5DayThead) {
-      dash5DayThead.innerHTML = widgetDays
+      dash5DayThead.innerHTML = dashWeekView.widgetDays
         .map(
           (d) =>
             `<th>${escapeHtml(d.shortDay)}<span class="day-sub">${escapeHtml(d.formattedDate)}</span></th>`
@@ -1411,39 +1444,31 @@ export function initApp() {
 
     const dash5DayTbody = document.getElementById('dash-5day-tbody');
     if (dash5DayTbody) {
-      dash5DayTbody.innerHTML = widgetDays.map((d) => renderWeekDayHoursCell(d)).join('');
+      dash5DayTbody.innerHTML = dashWeekView.widgetDays.map((d) => renderWeekDayHoursCell(d)).join('');
     }
 
     const logsTbody = document.getElementById('dash-logs-tbody');
     if (logsTbody) {
-      const { logs: recentLogs, totalCount, hiddenCount } = sliceRecentLogsForDashboard(studyLogs);
-      const weekGroups = groupStudyLogsByWeek(recentLogs);
-      const viewAllRow =
-        hiddenCount > 0
-          ? `<tr class="logs-view-all-row"><td colspan="4"><a href="/pages/logs.html" data-nav="logs">View all ${totalCount} logs in Session Logs</a></td></tr>`
-          : '';
+      const hasOtherLogs = dashWeekView.totalLogCount > dashWeekView.logs.length;
+      const viewAllRow = hasOtherLogs
+        ? `<tr class="logs-view-all-row"><td colspan="4"><a href="/pages/logs.html" data-nav="logs">View all ${dashWeekView.totalLogCount} logs in Session Logs</a></td></tr>`
+        : '';
       logsTbody.innerHTML =
         isInitialCloudLoading && studyLogs.length === 0
           ? `<tr><td colspan="4" class="empty-cell">Loading session logs…</td></tr>`
-          : weekGroups.length === 0
+          : studyLogs.length === 0
           ? `<tr><td colspan="4" class="empty-cell">No session logs recorded yet.</td></tr>`
-          : `${weekGroups
+          : dashWeekView.logs.length === 0
+          ? `<tr><td colspan="4" class="empty-cell">No session logs recorded this week.</td></tr>${viewAllRow}`
+          : `${dashWeekView.logs
               .map(
-                (group) => `
-              <tr class="week-separator-row">
-                <td colspan="4">${escapeHtml(group.label)}</td>
-              </tr>
-              ${group.logs
-                .map(
-                  (l) => `
+                (l) => `
               <tr>
                 <td>${escapeHtml(formatExamDateShort(l.date))}</td>
                 <td>${escapeHtml(l.courseName)}</td>
                 <td>${escapeHtml(formatStudyDuration(l.durationMinutes))}</td>
                 <td><button type="button" class="btn-inline-danger" data-delete-log="${escapeHtml(l.id)}" aria-label="Delete ${escapeHtml(l.courseName)} session">Delete</button></td>
               </tr>`
-                )
-                .join('')}`
               )
               .join('')}${viewAllRow}`;
     }
@@ -1601,7 +1626,7 @@ export function initApp() {
               <tr>
                 <td>${escapeHtml(c.title)}</td>
                 <td>Year ${escapeHtml(c.year)} / Sem ${escapeHtml(c.semester)}</td>
-                <td>${escapeHtml(formatStatusLabel(c.status))}</td>
+                <td>${renderCourseStatusHtml(c.status)}</td>
                 <td>${escapeHtml(c.cfu)}</td>
                 <td>${validProfEmail ? `<a href="mailto:${escapeHtml(validProfEmail)}">${escapeHtml(validProfEmail)}</a>` : '-'}</td>
                 <td>${escapeHtml(c.officeHours || '-')}</td>
@@ -3426,7 +3451,7 @@ export function initApp() {
         detailsEl.innerHTML = `
           <div class="course-info-item">
             <span class="course-info-label">Status</span>
-            <span class="course-info-value">${escapeHtml(formatStatusLabel(course.status))}</span>
+            <span class="course-info-value">${renderCourseStatusHtml(course.status)}</span>
           </div>
           <div class="course-info-item">
             <span class="course-info-label">CFU</span>
@@ -3487,8 +3512,10 @@ export function initApp() {
       if (mins >= 5) {
         preview.textContent = `Calculated: ${formatStudyDuration(mins)} (${mins} min)`;
         preview.classList.remove('log-duration-preview-error');
+        preview.classList.toggle('log-duration-preview-positive', mins > 1);
       } else {
         preview.textContent = 'Please enter a valid duration (minimum 5 min)';
+        preview.classList.remove('log-duration-preview-positive');
         preview.classList.add('log-duration-preview-error');
       }
     }
@@ -4404,6 +4431,22 @@ export function initApp() {
         addGoalBtn.addEventListener('click', () => openGoalModal());
       }
       bindOnce(document.getElementById('btn-dash-add-log'), 'click', () => openLogModal());
+      bindOnce(document.getElementById('dash-week-select'), 'change', (e) => {
+        dashSelectedWeekKey = e.target.value;
+        populateDashboardPage();
+      });
+      bindOnce(document.getElementById('btn-dash-week-prev'), 'click', () => {
+        const { prevWeekKey } = getDashboardWeekView(studyLogs, dashSelectedWeekKey);
+        if (!prevWeekKey) return;
+        dashSelectedWeekKey = prevWeekKey;
+        populateDashboardPage();
+      });
+      bindOnce(document.getElementById('btn-dash-week-next'), 'click', () => {
+        const { nextWeekKey } = getDashboardWeekView(studyLogs, dashSelectedWeekKey);
+        if (!nextWeekKey) return;
+        dashSelectedWeekKey = nextWeekKey;
+        populateDashboardPage();
+      });
       bindOnce(document.getElementById('btn-dash-add-resource'), 'click', () => openResourceModal());
       bindOnce(document.getElementById('btn-dash-save-notes'), 'click', () => {
         saveQuickNotesFromEditor({ showStatus: true });
@@ -4860,6 +4903,10 @@ export function initApp() {
         const next = [...studyLogs];
         next.splice(Math.min(removedIdx, next.length), 0, removedItem);
         studyLogs = next;
+        const restoredWeekKey = getWeekKeyForDate(removedItem.date);
+        if (restoredWeekKey) {
+          dashSelectedWeekKey = restoredWeekKey;
+        }
         profile = {
           ...profile,
           currentStreak: calculateCurrentStreak(studyLogs, profile),
@@ -5512,6 +5559,7 @@ export function initApp() {
           const preview = document.getElementById('log-duration-preview');
           if (preview) {
             preview.textContent = 'Minimum duration is 5 minutes';
+            preview.classList.remove('log-duration-preview-positive');
             preview.classList.add('log-duration-preview-error');
           }
           return;
@@ -5535,6 +5583,10 @@ export function initApp() {
         if (!newLog) return;
 
         studyLogs = [newLog, ...studyLogs];
+        const addedWeekKey = getWeekKeyForDate(newLog.date);
+        if (addedWeekKey) {
+          dashSelectedWeekKey = addedWeekKey;
+        }
 
         const xpGained = Math.max(20, Math.round(newLog.durationMinutes * 2));
         const currentStreak = calculateCurrentStreak(studyLogs, profile);
