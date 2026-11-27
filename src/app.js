@@ -6,16 +6,11 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   updateProfile,
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
 } from 'firebase/auth';
 import {
   doc,
   getDoc,
   getDocFromServer,
-  getDocs,
   setDoc,
   collection,
   query,
@@ -24,8 +19,6 @@ import {
 } from 'firebase/firestore';
 import {
   getEmailDocId,
-  hashPassword,
-  verifyPassword,
   dispatchVerificationCode,
   verifyEmailCode,
   loginRateLimiter,
@@ -33,7 +26,6 @@ import {
   sanitizeCsvCell,
   sanitizeUserProfile,
   sanitizeResourceLinksList,
-  formatGoogleAuthError,
   escapeHtml,
   sanitizeTextInput,
   sanitizeEmailInput,
@@ -46,12 +38,15 @@ import {
 import {
   fetchUserSquads,
   syncSquadToUserDoc,
-  removeSquadFromUserDoc,
   leaveSquadCleanly,
   saveSquadMemberToCloud,
   updateSquadAdminDetails,
   removeMemberFromSquad,
   deleteSquadCompletely,
+  createSquadInvite,
+  resolveSquadByInviteCode,
+  joinSquadInCloud,
+  syncFriendProfileAndLookup,
   setMemberLiveStatus,
   clearMemberLiveStatus,
   addSquadFeedNote,
@@ -62,11 +57,17 @@ import {
   declineOrRemoveFriendship,
   fetchUserFriendships,
   fetchFriendProfileTelemetry,
-  FRIENDS_HUB_SQUAD_ID,
   FRIENDSHIPS_STORAGE_KEY,
-  hubActivityDocToFriendship,
 } from './lib/squadService.js';
 import {
+  runOneTimeLegacyMigration,
+} from './lib/migrationService.js';
+import {
+  deleteCurrentUserAccount,
+} from './lib/accountDeletionService.js';
+import {
+  normalizeUserId,
+  buildFriendProfilePayload,
   formatStudyDuration,
   getLocalDateString,
   getWeekDaysSummary,
@@ -330,7 +331,19 @@ export function initApp() {
     }
   })();
 
+  let sessionUid = auth?.currentUser?.uid ? normalizeUserId(auth.currentUser.uid) : '';
+  const migratedUidsThisSession = new Set();
+
   let isAuthenticated = Boolean(sessionEmail);
+
+  function getActiveAuthUid() {
+    const authUid = normalizeUserId(auth?.currentUser?.uid || sessionUid || '');
+    if (authUid) return authUid;
+    if (!db) {
+      return getEmailDocId(sessionEmail || profile.email || 'local_student') || 'local_student';
+    }
+    return '';
+  }
 
   function getStoredThemePreference() {
     try {
@@ -638,9 +651,10 @@ export function initApp() {
 
   async function pullWorkstationFromCloud({ force = false } = {}) {
     const targetEmail = sessionEmail || profile.email;
+    const docId = getActiveAuthUid();
     if (!isAuthenticated || !targetEmail) return;
-    if (!db) {
-      cloudSyncState = 'local';
+    if (!db || !docId) {
+      cloudSyncState = !db ? 'local' : 'syncing';
       renderSyncStatus();
       return;
     }
@@ -649,7 +663,6 @@ export function initApp() {
     if (!force && now - lastCloudPullMs < 1000) return;
     lastCloudPullMs = now;
 
-    const docId = getEmailDocId(targetEmail);
     const userRef = doc(db, 'users', docId);
     cloudSyncState = 'syncing';
     renderSyncStatus();
@@ -679,14 +692,14 @@ export function initApp() {
     setPendingLocalSync(true);
     saveToLocalStorage();
     const targetEmail = sessionEmail || profile.email;
+    const docId = getActiveAuthUid();
     if (!isAuthenticated || !targetEmail) return;
-    if (!db) {
-      cloudSyncState = 'local';
+    if (!db || !docId) {
+      cloudSyncState = !db ? 'local' : 'pending';
       renderSyncStatus();
       return;
     }
 
-    const docId = getEmailDocId(targetEmail);
     cloudSyncState = 'syncing';
     renderSyncStatus();
     try {
@@ -769,6 +782,14 @@ export function initApp() {
       });
 
       await setDoc(userRef, payload, { merge: true });
+      const friendProfile = buildFriendProfilePayload({
+        uid: docId,
+        profile,
+        courses,
+        studyLogs,
+        assignments,
+      });
+      void syncFriendProfileAndLookup({ uid: docId, email: targetEmail, friendProfile });
       setPendingLocalSync(false);
       saveSyncedLogIds(studyLogs);
       cloudSyncState = 'synced';
@@ -782,7 +803,8 @@ export function initApp() {
 
   function setupRealtimeFirestoreSync(forceResubscribe = false) {
     const targetEmail = sessionEmail || profile.email;
-    if (!isAuthenticated || !targetEmail || !db) {
+    const docId = getActiveAuthUid();
+    if (!isAuthenticated || !targetEmail || !db || !docId) {
       if (userSnapshotUnsub) {
         userSnapshotUnsub();
         userSnapshotUnsub = null;
@@ -794,7 +816,6 @@ export function initApp() {
       return;
     }
 
-    const docId = getEmailDocId(targetEmail);
     if (!forceResubscribe && userSnapshotUnsub && activeSyncDocId === docId) {
       return;
     }
@@ -903,20 +924,53 @@ export function initApp() {
     }
   }
 
-  async function handleLogout() {
+  function clearAllUniSphereBrowserStorage() {
+    clearLocalWorkspaceStorage();
+    for (const extraKey of [
+      FRIENDSHIPS_STORAGE_KEY,
+      'unisphere_workspace_left_squad_ids',
+    ]) {
+      try {
+        localStorage.removeItem(extraKey);
+      } catch {}
+    }
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('unisphere_') && k !== THEME_STORAGE_KEY) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch {}
+    try {
+      for (let i = sessionStorage.length - 1; i >= 0; i--) {
+        const k = sessionStorage.key(i);
+        if (k && k.startsWith('unisphere_')) {
+          sessionStorage.removeItem(k);
+        }
+      }
+    } catch {}
+  }
+
+  function cleanupAllRealtimeListeners() {
     if (userSnapshotUnsub) {
       userSnapshotUnsub();
       userSnapshotUnsub = null;
     }
     activeSyncDocId = null;
+    cleanupSquadListeners();
+  }
+
+  async function handleLogout() {
+    cleanupAllRealtimeListeners();
     hasInitialServerSnapshot = false;
     isInitialCloudLoading = false;
-    cleanupSquadListeners();
     try {
       if (auth) await signOut(auth);
     } catch {}
     clearLocalWorkspaceStorage();
     sessionEmail = null;
+    sessionUid = '';
     isAuthenticated = false;
     verificationSentTo = null;
     profile = { ...INITIAL_PROFILE };
@@ -1947,7 +2001,7 @@ export function initApp() {
 
   function getMySquadIdentity() {
     const email = sessionEmail || profile.email || auth?.currentUser?.email || '';
-    const myUid = getEmailDocId(email || 'local_student');
+    const myUid = getActiveAuthUid();
     return {
       myUid,
       myDisplayName: sanitizeTextInput(profile.name || 'Student', 100),
@@ -2342,7 +2396,7 @@ export function initApp() {
           : sortedMembers
               .map((m) => {
                 const isMe = m.uid === myUid;
-                const normMemberUid = getEmailDocId(m.uid || '');
+                const normMemberUid = normalizeUserId(m.uid || '');
                 const liveEntry = liveMap.get(m.uid);
                 let statusHtml = '<span class="status-offline">Offline</span>';
                 if (liveEntry) {
@@ -2626,7 +2680,7 @@ export function initApp() {
           .map((friend) => {
             const isSelected = friend.uid === selectedFriendUid;
             const squadMatch = allMembers.find(
-              (m) => getEmailDocId(m.uid || '') === friend.uid
+              (m) => normalizeUserId(m.uid || '') === friend.uid
             );
             const isLive = liveMap.has(friend.uid) || squadMatch?.status === 'live';
             const isOnline =
@@ -2675,7 +2729,7 @@ export function initApp() {
       email: selectedFriendUid,
     };
     const squadMemberFallback =
-      allMembers.find((m) => getEmailDocId(m.uid || '') === selectedFriendUid) || {};
+      allMembers.find((m) => normalizeUserId(m.uid || '') === selectedFriendUid) || {};
     const stats =
       selectedFriendTelemetry && selectedFriendTelemetry.uid === selectedFriendUid
         ? selectedFriendTelemetry
@@ -2837,8 +2891,8 @@ export function initApp() {
   async function syncUserSquadTelemetry(targetSquadId = null) {
     if (!db) return;
     const email = sessionEmail || profile.email;
-    if (!email && !auth?.currentUser) return;
-    const uid = getEmailDocId(email || auth?.currentUser?.email || 'local_student');
+    const uid = getActiveAuthUid();
+    if (!uid && !email && !auth?.currentUser) return;
 
     const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
     const streak = calculateCurrentStreak(studyLogs, profile);
@@ -2896,7 +2950,7 @@ export function initApp() {
 
   async function loadUserSquads() {
     const email = sessionEmail || profile.email;
-    const uid = email ? getEmailDocId(email) : 'local_student';
+    const uid = getActiveAuthUid();
     void subscribeToUserFriendships(uid);
     try {
       const result = await fetchUserSquads(uid, email);
@@ -2926,7 +2980,7 @@ export function initApp() {
   }
 
   async function subscribeToUserFriendships(myUid) {
-    const normUid = getEmailDocId(myUid || sessionEmail || profile.email || 'local_student');
+    const normUid = normalizeUserId(myUid || getActiveAuthUid());
     activeFriendshipsUid = normUid;
     if (friendshipsUnsub) {
       friendshipsUnsub();
@@ -2944,33 +2998,29 @@ export function initApp() {
     if (!db || !normUid) return;
 
     try {
-      const hubRef = collection(db, 'squads', FRIENDS_HUB_SQUAD_ID, 'activities');
+      const friendshipsQ = query(
+        collection(db, 'friendships'),
+        where('users', 'array-contains', normUid)
+      );
       friendshipsUnsub = onSnapshot(
-        hubRef,
+        friendshipsQ,
         (snap) => {
           const prevIncomingIds = new Set(
             partitionFriendships(friendships, normUid, profile.name).incomingRequests.map(
               (r) => r.friendshipId
             )
           );
-          const merged = new Map();
-          for (const item of friendships) {
-            if (item?.id && item.status !== 'removed' && item.status !== 'declined') {
-              merged.set(item.id, item);
-            }
-          }
+          const nextList = [];
           snap.docs.forEach((d) => {
-            const record = hubActivityDocToFriendship(d.id, d.data());
-            if (!record || !record.id) return;
-            if (record.status === 'removed' || record.status === 'declined') {
-              merged.delete(record.id);
+            const record = { id: d.id, ...d.data() };
+            if (!record.id || record.status === 'removed' || record.status === 'declined') {
               return;
             }
             if (doesFriendshipMatchUser(record, normUid, profile.name)) {
-              merged.set(record.id, record);
+              nextList.push(record);
             }
           });
-          friendships = Array.from(merged.values());
+          friendships = nextList;
           const nextIncoming = partitionFriendships(
             friendships,
             normUid,
@@ -2992,7 +3042,7 @@ export function initApp() {
   }
 
   async function selectFriendForStatsView(friendUid) {
-    const normUid = friendUid ? getEmailDocId(friendUid) : null;
+    const normUid = friendUid ? normalizeUserId(friendUid) : null;
     if (!normUid || selectedFriendUid === normUid) {
       selectedFriendUid = null;
       selectedFriendTelemetry = null;
@@ -3010,15 +3060,15 @@ export function initApp() {
       selectedFriendDocUnsub = null;
     }
 
-    const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+    const myUid = getActiveAuthUid();
     const { acceptedFriends } = partitionFriendships(friendships, myUid, profile.name);
     const friendMeta = acceptedFriends.find((f) => f.uid === normUid) || {
       uid: normUid,
-      email: normUid,
+      email: normUid.includes('@') ? normUid : '',
     };
     const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
     const { allMembers } = getProcessedSquadMembers(activeSquad);
-    const squadMatch = allMembers.find((m) => getEmailDocId(m.uid || '') === normUid);
+    const squadMatch = allMembers.find((m) => normalizeUserId(m.uid || '') === normUid);
 
     selectedFriendTelemetry = buildFriendTelemetrySummary(squadMatch || {}, friendMeta);
     populateSquadsPage();
@@ -3037,7 +3087,7 @@ export function initApp() {
     if (db) {
       try {
         selectedFriendDocUnsub = onSnapshot(
-          doc(db, 'users', normUid),
+          doc(db, 'friendProfiles', normUid),
           (snap) => {
             if (selectedFriendUid !== normUid) return;
             if (snap.exists()) {
@@ -3055,8 +3105,8 @@ export function initApp() {
   }
 
   async function handleSendFriendRequest(targetInput, targetDisplayName = '') {
-    const myEmail = sessionEmail || profile.email || auth?.currentUser?.email || 'local_student';
-    const myUid = getEmailDocId(myEmail);
+    const myEmail = sessionEmail || profile.email || auth?.currentUser?.email || '';
+    const myUid = getActiveAuthUid();
     const myName = sanitizeTextInput(profile.name || 'Student', 100);
     let cleanTarget = String(targetInput || '').trim();
     let resolvedDisplayName = targetDisplayName;
@@ -3070,13 +3120,13 @@ export function initApp() {
       return;
     }
 
-    // If user typed a squadmate's name or username prefix, resolve to their squad member UID/email
+    // If user typed a squadmate's name or username prefix, resolve to their squad member UID
     if (!cleanTarget.includes('@')) {
       const qLower = cleanTarget.toLowerCase();
       const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
       const { allMembers } = getProcessedSquadMembers(activeSquad);
       const matchedMember = allMembers.find((m) => {
-        if (!m || getEmailDocId(m.uid || '') === myUid) return false;
+        if (!m || normalizeUserId(m.uid || '') === myUid) return false;
         const mName = String(m.displayName || '').trim().toLowerCase();
         const mUid = String(m.uid || '').trim().toLowerCase();
         const mPrefix = mUid.includes('@') ? mUid.split('@')[0] : mUid;
@@ -3320,7 +3370,7 @@ export function initApp() {
     const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
     if (!activeSquad) return;
     const cleanSubject = sanitizeTextInput(subjectStr || courses[0]?.title || 'General Study', 120) || 'General Study';
-    const myUid = getEmailDocId(sessionEmail || profile.email || auth?.currentUser?.email || 'local_student');
+    const myUid = getActiveAuthUid();
     const myName = sanitizeTextInput(profile.name || 'Student', 100);
     const startedAt = new Date().toISOString();
 
@@ -3348,7 +3398,7 @@ export function initApp() {
 
   async function stopLiveStudySession() {
     const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0] || null;
-    const myUid = getEmailDocId(sessionEmail || profile.email || auth?.currentUser?.email || 'local_student');
+    const myUid = getActiveAuthUid();
     const existingLive =
       myLiveSession || squadPresence.find((p) => p.uid === myUid && p.status === 'live');
 
@@ -3438,7 +3488,7 @@ export function initApp() {
   async function performLeaveSquad(leaveSquadId) {
     if (!leaveSquadId) return;
     const email = sessionEmail || profile.email;
-    const uid = getEmailDocId(email || auth?.currentUser?.email || 'local_student');
+    const uid = getActiveAuthUid();
     squads = squads.filter((s) => s.id !== leaveSquadId);
     const nextActive = squads[0]?.id || null;
     activeSquadId = nextActive;
@@ -3835,8 +3885,12 @@ export function initApp() {
   }
 
   // --- Auth Events & Cloud Restoration ---
-  function completeCloudLogin(userData, emailStr) {
+  function completeCloudLogin(userData, emailStr, uidStr = '') {
     const normalizedEmail = emailStr.toLowerCase().trim();
+    const resolvedUid = normalizeUserId(uidStr || auth?.currentUser?.uid || userData?.uid || '');
+    if (resolvedUid) {
+      sessionUid = resolvedUid;
+    }
     sessionEmail = normalizedEmail;
     isAuthenticated = true;
     try {
@@ -3859,90 +3913,6 @@ export function initApp() {
     setStatus(`Logged in as ${normalizedEmail}`);
   }
 
-  async function completeGoogleUserSignIn(googleUser) {
-    const mail = googleUser?.email?.trim().toLowerCase() || '';
-    if (!mail) {
-      authNotice = {
-        type: 'error',
-        text: 'Google account did not return an email address.',
-      };
-      populateLoginPage();
-      return;
-    }
-
-    const docId = getEmailDocId(mail);
-    const fallbackRecord = stripUndefinedDeep({
-      uid: docId,
-      authUid: googleUser.uid || docId,
-      email: mail,
-      name: sanitizeTextInput(googleUser.displayName || profile.name || mail.split('@')[0], 100),
-      studentId: '',
-      authProvider: 'google',
-      emailVerified: true,
-      degreeName: '',
-      institution: '',
-      degreeType: INITIAL_PROFILE.degreeType,
-      totalTargetCFU: INITIAL_PROFILE.totalTargetCFU,
-      academicYear: INITIAL_PROFILE.academicYear,
-      courses: [],
-      studyLogs: [],
-      assignments: [],
-      quickNotes: '',
-      checklist: [],
-      resourceLinks: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: Date.now(),
-    });
-
-    if (!db) {
-      courses = [];
-      studyLogs = [];
-      assignments = [];
-      quickNotes = '';
-      checklist = [];
-      resourceLinks = [];
-      completeCloudLogin(fallbackRecord, mail);
-      return;
-    }
-
-    const userRef = doc(db, 'users', docId);
-
-    try {
-      const snap = await fetchFreshUserDoc(userRef);
-      if (snap.exists()) {
-        const existingData = snap.data();
-        const targetAuthUid = googleUser.uid || existingData.authUid || docId;
-        if (existingData.authUid !== targetAuthUid || !existingData.emailVerified) {
-          await setDoc(
-            userRef,
-            {
-              authUid: targetAuthUid,
-              authProvider: existingData.authProvider || 'google',
-              emailVerified: true,
-            },
-            { merge: true }
-          ).catch(() => {});
-        }
-        completeCloudLogin(existingData, mail);
-        return;
-      }
-
-      clearLocalWorkspaceStorage();
-      profile = { ...INITIAL_PROFILE };
-      courses = [];
-      studyLogs = [];
-      assignments = [];
-      quickNotes = '';
-      checklist = [];
-      resourceLinks = [];
-      await setDoc(userRef, fallbackRecord, { merge: true });
-      completeCloudLogin(fallbackRecord, mail);
-    } catch (firestoreErr) {
-      console.warn('Firestore profile sync after Google SSO notice:', firestoreErr);
-      completeCloudLogin(fallbackRecord, mail);
-    }
-  }
-
   const boundElements = new WeakSet();
   function bindOnce(el, eventName, handler) {
     if (!el || boundElements.has(el)) return false;
@@ -3951,7 +3921,6 @@ export function initApp() {
     return true;
   }
   let isEmailAuthPending = false;
-  let isGoogleSignInPending = false;
 
   function getDocWithTimeout(docRef, timeoutMs = 10000) {
     return Promise.race([
@@ -3963,66 +3932,6 @@ export function initApp() {
         )
       ),
     ]);
-  }
-
-  async function handleGoogleSignIn() {
-    if (isGoogleSignInPending) return;
-    isGoogleSignInPending = true;
-
-    const googleBtn = document.getElementById('btn-google-sso');
-    if (googleBtn) {
-      googleBtn.disabled = true;
-      googleBtn.textContent = 'Signing in with Google...';
-    }
-
-    try {
-      const provider = new GoogleAuthProvider();
-      provider.addScope('email');
-      provider.addScope('profile');
-      provider.setCustomParameters({ prompt: 'select_account' });
-
-      const res = await signInWithPopup(auth, provider);
-      if (res?.user) {
-        await completeGoogleUserSignIn(res.user);
-      }
-    } catch (err) {
-      const classified = formatGoogleAuthError(err);
-      if (classified.shouldFallbackToRedirect) {
-        authNotice = {
-          type: 'success',
-          text: classified.message,
-        };
-        populateLoginPage();
-        try {
-          const redirectProvider = new GoogleAuthProvider();
-          redirectProvider.addScope('email');
-          redirectProvider.addScope('profile');
-          redirectProvider.setCustomParameters({ prompt: 'select_account' });
-          await signInWithRedirect(auth, redirectProvider);
-          return;
-        } catch (redirectErr) {
-          const redirectClassified = formatGoogleAuthError(redirectErr);
-          authNotice = {
-            type: 'error',
-            text: redirectClassified.message,
-          };
-          populateLoginPage();
-        }
-      } else {
-        authNotice = {
-          type: 'error',
-          text: classified.message,
-        };
-        populateLoginPage();
-      }
-    } finally {
-      isGoogleSignInPending = false;
-      const btnAfter = document.getElementById('btn-google-sso');
-      if (btnAfter) {
-        btnAfter.disabled = false;
-        btnAfter.textContent = 'Sign In with Google';
-      }
-    }
   }
 
   function bindAuthEvents() {
@@ -4057,7 +3966,7 @@ export function initApp() {
         }
 
         const submitBtn = loginForm.querySelector('button[type="submit"]');
-        const originalBtnText = submitBtn ? submitBtn.textContent : 'Log-In';
+        const originalBtnText = submitBtn ? submitBtn.textContent : 'Sign In';
         if (submitBtn) {
           submitBtn.disabled = true;
           submitBtn.textContent = 'Signing in...';
@@ -4065,113 +3974,73 @@ export function initApp() {
         isEmailAuthPending = true;
 
         try {
-          if (!db) {
+          if (!auth || !db) {
             loginRateLimiter.reset(normalizedEmail);
             completeCloudLogin(null, normalizedEmail);
             return;
           }
 
-          const docId = getEmailDocId(normalizedEmail);
-          const userRef = doc(db, 'users', docId);
-
-          let firebaseAuthSucceeded = false;
-          if (auth) {
-            try {
-              await signInWithEmailAndPassword(auth, normalizedEmail, password);
-              firebaseAuthSucceeded = true;
-            } catch (fbErr) {
-              const fbCode = String(fbErr?.code || '');
-              if (fbCode === 'auth/too-many-requests') {
-                loginRateLimiter.consume(normalizedEmail);
-                authNotice = {
-                  type: 'error',
-                  scope: 'login',
-                  text: 'Account temporarily locked due to too many failed attempts. Please try again later.',
-                };
-                populateLoginPage();
-                return;
-              }
-            }
-          }
-
-          let snap = null;
+          let cred = null;
           try {
-            snap = await getDocWithTimeout(userRef, 10000);
-          } catch (docErr) {
-            if (firebaseAuthSucceeded) {
-              loginRateLimiter.reset(normalizedEmail);
-              completeCloudLogin(null, normalizedEmail);
-              return;
-            }
-            throw docErr;
-          }
-
-          if (!snap || !snap.exists()) {
-            if (firebaseAuthSucceeded) {
-              loginRateLimiter.reset(normalizedEmail);
-              completeCloudLogin(null, normalizedEmail);
-              return;
-            }
-            loginRateLimiter.consume(normalizedEmail);
-            authNotice = {
-              type: 'error',
-              scope: 'login',
-              text: 'No account found with this email. Use "Register New Account" to create one.',
-            };
-            populateLoginPage();
-            return;
-          }
-
-          const data = snap.data();
-
-          if (!firebaseAuthSucceeded) {
-            if (!data.passwordHash) {
-              loginRateLimiter.consume(normalizedEmail);
+            cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+          } catch (fbErr) {
+            const fbCode = String(fbErr?.code || '');
+            const consumed = loginRateLimiter.consume(normalizedEmail);
+            if (fbCode === 'auth/too-many-requests') {
               authNotice = {
                 type: 'error',
                 scope: 'login',
-                text:
-                  data.authProvider === 'google'
-                    ? 'This account uses Google Sign-In. Please click "Sign In with Google".'
-                    : 'Incorrect email or password. Please try again.',
+                text: 'Account temporarily locked due to too many failed attempts. Please try again later.',
               };
-              populateLoginPage();
-              return;
-            }
-
-            const isPasswordValid = await verifyPassword(password, data.passwordHash);
-            if (!isPasswordValid) {
-              const consumed = loginRateLimiter.consume(normalizedEmail);
+            } else if (
+              fbCode === 'auth/wrong-password' ||
+              fbCode === 'auth/invalid-credential' ||
+              fbCode === 'auth/user-not-found'
+            ) {
               authNotice = {
                 type: 'error',
                 scope: 'login',
                 text: consumed.allowed
-                  ? `Incorrect password. Please try again (${consumed.remaining} attempts remaining).`
+                  ? `Incorrect email or password (${consumed.remaining} attempts remaining). If you previously used Google Sign-In, click "Forgot password?" to set a password.`
                   : `Too many failed sign-in attempts. Please wait ${consumed.retryAfterSeconds}s.`,
               };
-              populateLoginPage();
-              return;
+            } else {
+              authNotice = {
+                type: 'error',
+                scope: 'login',
+                text: fbErr instanceof Error ? fbErr.message : 'Sign-in failed.',
+              };
             }
+            populateLoginPage();
+            return;
+          }
 
-            // Upgrade legacy unsalted SHA-256 hash to salted PBKDF2 hash transparently
-            if (!String(data.passwordHash).startsWith('pbkdf2$')) {
-              const upgradedHash = await hashPassword(password);
-              await setDoc(userRef, { passwordHash: upgradedHash }, { merge: true }).catch(() => {});
-            }
+          const authUid = cred.user?.uid || '';
+          if (authUid) {
+            migratedUidsThisSession.add(authUid);
+            await runOneTimeLegacyMigration({
+              authUser: cred.user,
+              profile,
+              courses,
+              studyLogs,
+              assignments,
+              dbInstance: db,
+            }).catch(() => {});
+          }
 
-            // Ensure legacy Firestore account also exists in Firebase Auth
-            if (auth) {
-              try {
-                await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-              } catch {}
-            }
-          } else if (data.passwordHash && !String(data.passwordHash).startsWith('pbkdf2$')) {
-            const upgradedHash = await hashPassword(password);
-            await setDoc(userRef, { passwordHash: upgradedHash }, { merge: true }).catch(() => {});
+          const userRef = doc(db, 'users', authUid || getEmailDocId(normalizedEmail));
+          let snap = null;
+          try {
+            snap = await getDocWithTimeout(userRef, 10000);
+          } catch {
+            loginRateLimiter.reset(normalizedEmail);
+            completeCloudLogin(null, normalizedEmail, authUid);
+            return;
           }
 
           loginRateLimiter.reset(normalizedEmail);
-          completeCloudLogin(data, normalizedEmail);
+          const userData = snap && snap.exists() ? snap.data() : null;
+          completeCloudLogin(userData, normalizedEmail, authUid);
         } catch (err) {
           loginRateLimiter.consume(normalizedEmail);
           authNotice = {
@@ -4187,15 +4056,6 @@ export function initApp() {
             submitBtn.textContent = originalBtnText;
           }
         }
-      });
-    }
-
-    const googleBtn = document.getElementById('btn-google-sso');
-    if (googleBtn && !boundElements.has(googleBtn)) {
-      boundElements.add(googleBtn);
-      googleBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        void handleGoogleSignIn();
       });
     }
 
@@ -4344,7 +4204,7 @@ export function initApp() {
 
         try {
           if (regCode) {
-            const ver = await verifyEmailCode(regEmail, regCode, db);
+            const ver = await verifyEmailCode(regEmail, regCode);
             if (!ver.success) {
               authNotice = {
                 type: 'error',
@@ -4356,11 +4216,11 @@ export function initApp() {
             }
           }
 
-          let authUid = null;
+          let authUid = '';
           if (auth) {
             try {
               const cred = await createUserWithEmailAndPassword(auth, regEmail, regPass);
-              authUid = cred.user?.uid || null;
+              authUid = cred.user?.uid || '';
               await updateProfile(cred.user, { displayName: regName });
             } catch (fbErr) {
               if (fbErr?.code === 'auth/email-already-in-use') {
@@ -4372,11 +4232,11 @@ export function initApp() {
                 populateLoginPage();
                 return;
               }
+              throw fbErr;
             }
           }
 
-          const docId = getEmailDocId(regEmail);
-          const passwordHash = await hashPassword(regPass);
+          const docId = normalizeUserId(authUid || getEmailDocId(regEmail));
 
           clearLocalWorkspaceStorage();
           profile = { ...INITIAL_PROFILE };
@@ -4393,7 +4253,7 @@ export function initApp() {
             email: regEmail,
             name: regName,
             studentId: '',
-            passwordHash,
+            authProvider: 'email',
             emailVerified: Boolean(regCode),
             degreeName: regDegree,
             institution: regInstitution,
@@ -4410,11 +4270,19 @@ export function initApp() {
             updatedAt: Date.now(),
           };
 
-          if (db) {
+          if (db && docId) {
             const userRef = doc(db, 'users', docId);
             await setDoc(userRef, newRecord, { merge: true });
+            const friendProfile = buildFriendProfilePayload({
+              uid: docId,
+              profile: newRecord,
+              courses: [],
+              studyLogs: [],
+              assignments: [],
+            });
+            await syncFriendProfileAndLookup({ uid: docId, email: regEmail, friendProfile });
           }
-          completeCloudLogin(newRecord, regEmail);
+          completeCloudLogin(newRecord, regEmail, docId);
         } catch (err) {
           authNotice = {
             type: 'error',
@@ -4763,6 +4631,86 @@ export function initApp() {
         populateCurrentPageData();
         setStatus('All data cleared');
       });
+
+      bindOnce(document.getElementById('btn-open-delete-account'), 'click', () => {
+        const dialog = document.getElementById('modal-delete-account');
+        const pwdInput = document.getElementById('input-delete-password');
+        const chkInput = document.getElementById('chk-delete-confirm');
+        const statusEl = document.getElementById('delete-account-status');
+        if (pwdInput) pwdInput.value = '';
+        if (chkInput) chkInput.checked = false;
+        if (statusEl) {
+          statusEl.hidden = true;
+          statusEl.textContent = '';
+          statusEl.classList.remove('notice-error', 'notice-success');
+        }
+        if (dialog && !dialog.open) {
+          dialog.showModal();
+        }
+      });
+
+      bindOnce(document.getElementById('form-delete-account'), 'submit', async (e) => {
+        e.preventDefault();
+        const pwdInput = document.getElementById('input-delete-password');
+        const chkInput = document.getElementById('chk-delete-confirm');
+        const statusEl = document.getElementById('delete-account-status');
+        const confirmBtn = document.getElementById('btn-confirm-delete-account');
+        const cancelBtn = document.getElementById('btn-cancel-delete-account');
+
+        const password = String(pwdInput?.value || '');
+        if (!chkInput?.checked) {
+          if (statusEl) {
+            statusEl.hidden = false;
+            statusEl.className = 'notice-box notice-error';
+            statusEl.textContent = 'Please confirm permanent account deletion before continuing.';
+          }
+          return;
+        }
+        if (!password) {
+          if (statusEl) {
+            statusEl.hidden = false;
+            statusEl.className = 'notice-box notice-error';
+            statusEl.textContent = 'Please enter your current password.';
+          }
+          return;
+        }
+
+        if (confirmBtn) {
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'Deleting Account...';
+        }
+        if (cancelBtn) cancelBtn.disabled = true;
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.className = 'notice-box';
+          statusEl.textContent = 'Verifying password and erasing account data...';
+        }
+
+        try {
+          const result = await deleteCurrentUserAccount({
+            authUser: auth?.currentUser,
+            password,
+            cleanupActiveListeners: cleanupAllRealtimeListeners,
+            clearBrowserStorage: clearAllUniSphereBrowserStorage,
+          });
+          if (!result.ok) {
+            if (statusEl) {
+              statusEl.hidden = false;
+              statusEl.className = 'notice-box notice-error';
+              statusEl.textContent = result.error || 'Could not delete account.';
+            }
+            return;
+          }
+
+          window.location.replace('/index.html');
+        } finally {
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Permanently Delete Account';
+          }
+          if (cancelBtn) cancelBtn.disabled = false;
+        }
+      });
     }
   }
 
@@ -4772,7 +4720,7 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-auth-mode], [data-auth-switch], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-theme-toggle, #btn-sync-retry, #btn-undo-action, #btn-dismiss-undo, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
+            '[data-nav], [data-auth-mode], [data-auth-switch], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-header-logout, #btn-theme-toggle, #btn-sync-retry, #btn-undo-action, #btn-dismiss-undo, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
@@ -4821,12 +4769,6 @@ export function initApp() {
       return;
     }
 
-    if (target.id === 'btn-google-sso') {
-      e.preventDefault();
-      void handleGoogleSignIn();
-      return;
-    }
-
     if (target.id === 'btn-open-create-join-squad' || target.id === 'btn-empty-create-join-squad') {
       e.preventDefault();
       openSquadCreateJoinModal();
@@ -4855,7 +4797,7 @@ export function initApp() {
 
     if (target.id === 'btn-go-live-toggle') {
       e.preventDefault();
-      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const myUid = getActiveAuthUid();
       const isLiveNow =
         (myLiveSession && myLiveSession.squadId === activeSquadId) ||
         squadPresence.some((p) => p.uid === myUid && p.status === 'live');
@@ -4883,7 +4825,7 @@ export function initApp() {
       e.preventDefault();
       const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
       if (!activeSquad) return;
-      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const myUid = getActiveAuthUid();
       const myName = sanitizeTextInput(profile.name || 'Student', 100);
       const currentSession = activeSquad.nextSession || {
         title: 'Group Study Session',
@@ -5235,7 +5177,7 @@ export function initApp() {
       const friendshipId = target.getAttribute('data-friendship-id');
       const friendName = target.getAttribute('data-friend-name') || 'Friend';
       if (!friendshipId) return;
-      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const myUid = getActiveAuthUid();
       friendships = friendships.filter((f) => f.id !== friendshipId);
       void selectFriendForStatsView(null);
       void declineOrRemoveFriendship(friendshipId, myUid);
@@ -5263,14 +5205,14 @@ export function initApp() {
     const acceptFriendshipId = target.getAttribute('data-accept-friend-request');
     if (acceptFriendshipId) {
       e.preventDefault();
-      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const myUid = getActiveAuthUid();
       const myName = sanitizeTextInput(profile.name || '', 100);
       friendships = friendships.map((f) =>
         f.id === acceptFriendshipId
           ? {
               ...f,
               ...(myUid && myUid !== 'local_student'
-                ? { recipientUid: myUid, recipientEmail: myUid }
+                ? { recipientUid: myUid }
                 : {}),
               ...(myName ? { recipientName: myName } : {}),
               status: 'accepted',
@@ -5288,7 +5230,7 @@ export function initApp() {
     const declineFriendshipId = target.getAttribute('data-decline-friend-request');
     if (declineFriendshipId) {
       e.preventDefault();
-      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const myUid = getActiveAuthUid();
       friendships = friendships.filter((f) => f.id !== declineFriendshipId);
       void declineOrRemoveFriendship(declineFriendshipId, myUid);
       friendActionNotice = null;
@@ -5313,7 +5255,7 @@ export function initApp() {
 
         const code = generateSquadCode();
         const squadId = `squad-${Date.now()}`;
-        const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+        const uid = getActiveAuthUid();
         const newSquad = {
           id: squadId,
           name,
@@ -5330,6 +5272,7 @@ export function initApp() {
         try {
           if (db) {
             await setDoc(doc(db, 'squads', squadId), newSquad);
+            await createSquadInvite({ code, squadId, createdBy: uid });
           }
           const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
           const streak = calculateCurrentStreak(studyLogs, profile);
@@ -5386,14 +5329,12 @@ export function initApp() {
         if (!code || !db) return;
 
         try {
-          const q = query(collection(db, 'squads'), where('code', '==', code));
-          const snap = await getDocs(q);
-          if (snap.empty) {
+          const foundSquad = await resolveSquadByInviteCode(code);
+          if (!foundSquad) {
             alert(`No squad found with code "${code}".`);
             return;
           }
-          const foundSquad = { id: snap.docs[0].id, ...snap.docs[0].data() };
-          const uid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+          const uid = getActiveAuthUid();
           const weekMinutes = getWeekDaysSummary(studyLogs).weekTotalMinutes;
           const streak = calculateCurrentStreak(studyLogs, profile);
           const tasksThisWeek = countCompletedTasksThisWeek(assignments);
@@ -5414,7 +5355,7 @@ export function initApp() {
             joinedAt: now,
             updatedAt: now,
           };
-          await saveSquadMemberToCloud(foundSquad.id, member);
+          await joinSquadInCloud({ squadId: foundSquad.id, uid, member });
           await syncSquadToUserDoc(sessionEmail || profile.email, uid, foundSquad.id, true);
 
           if (!squads.some((s) => s.id === foundSquad.id)) {
@@ -5469,11 +5410,12 @@ export function initApp() {
 
       document.getElementById('btn-delete-squad-confirm')?.addEventListener('click', async () => {
         const activeSquad = squads.find((s) => s.id === activeSquadId) || squads[0];
-        const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+        const myUid = getActiveAuthUid();
         if (!activeSquad || !isCurrentUserSquadCreator(activeSquad)) return;
         if (!window.confirm(`Delete squad "${activeSquad.name}" permanently?`)) return;
 
         const targetId = activeSquad.id;
+        const targetCode = activeSquad.code || '';
         squads = squads.filter((s) => s.id !== targetId);
         const nextActive = squads[0]?.id || null;
         activeSquadId = nextActive;
@@ -5486,7 +5428,8 @@ export function initApp() {
           targetId,
           sessionEmail || profile.email,
           myUid,
-          nextActive
+          nextActive,
+          targetCode
         );
         document.getElementById('modal-squad-admin')?.close();
         void pushWorkstationToCloud();
@@ -5535,7 +5478,7 @@ export function initApp() {
         const safeUrl = rawUrl ? sanitizeResourceUrl(rawUrl) || '' : '';
         if (!text) return;
 
-        const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+        const myUid = getActiveAuthUid();
         const myName = sanitizeTextInput(profile.name || 'Student', 100);
         const note = await addSquadFeedNote(activeSquad.id, {
           uid: myUid,
@@ -5928,36 +5871,39 @@ export function initApp() {
 
   // --- Firebase Auth Listener & Browser History Navigation ---
   if (auth) {
-    getRedirectResult(auth)
-      .then((res) => {
-        if (res?.user) {
-          void completeGoogleUserSignIn(res.user);
-        }
-      })
-      .catch((err) => {
-        const classified = formatGoogleAuthError(err);
-        if (classified.code) {
-          authNotice = { type: 'error', text: classified.message };
-          populateLoginPage();
-        }
-      });
-
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
       if (isEmailAuthPending) return;
-      if (user?.email) {
+      if (user?.uid && user?.email) {
         const cleanEmail = user.email.trim().toLowerCase();
-        const wasUnauthenticated = !isAuthenticated;
+        const wasUnauthenticated = !isAuthenticated || sessionUid !== user.uid;
+        sessionUid = normalizeUserId(user.uid);
         sessionEmail = cleanEmail;
         isAuthenticated = true;
         try {
           localStorage.setItem(`${STORAGE_KEY}_session_email`, cleanEmail);
         } catch {}
+
+        if (db && !migratedUidsThisSession.has(sessionUid)) {
+          migratedUidsThisSession.add(sessionUid);
+          await runOneTimeLegacyMigration({
+            authUser: user,
+            profile,
+            courses,
+            studyLogs,
+            assignments,
+            dbInstance: db,
+          }).catch(() => {});
+        }
+
         setupRealtimeFirestoreSync();
         if (wasUnauthenticated) {
-          void completeGoogleUserSignIn(user);
-        } else {
-          void loadAndRenderPage(getRouteFromLocation(), false);
+          void loadUserSquads();
+          void pullWorkstationFromCloud({ force: true });
         }
+        void loadAndRenderPage(getRouteFromLocation(), false);
+      } else if (!user) {
+        cleanupAllRealtimeListeners();
+        sessionUid = '';
       }
     });
   }
@@ -6079,7 +6025,7 @@ export function initApp() {
       return;
     }
     if (e.key === FRIENDSHIPS_STORAGE_KEY || e.key === 'unisphere_workspace_friendships_v1') {
-      const myUid = getEmailDocId(sessionEmail || profile.email || 'local_student');
+      const myUid = getActiveAuthUid();
       void subscribeToUserFriendships(myUid);
       return;
     }

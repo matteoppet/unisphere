@@ -134,8 +134,58 @@
                 <button type="button" id="btn-reset-data" class="btn-danger">Reset All Data</button>
               </div>
             </section>
+
+            <section class="card danger-zone-card" id="settings-danger-zone">
+              <div class="card-header">
+                <h3>Danger Zone — Delete Account</h3>
+              </div>
+              <p style="margin: 0 0 12px 0; font-size: 14px;">
+                Permanently erase your UniSphere account, academic records, friendships, shared Squad posts/sessions, and Firebase login (GDPR Art. 17). Owned Squads with other members are randomly reassigned to another member; solo Squads are deleted.
+              </p>
+              <div class="card-toolbar">
+                <button type="button" id="btn-open-delete-account" class="btn-danger btn-danger-solid">
+                  Delete My Account
+                </button>
+              </div>
+            </section>
           </div>
         </div>
+
+        <dialog id="modal-delete-account" class="modal-dialog" aria-labelledby="modal-delete-account-title">
+          <div class="modal-card">
+            <div class="card-header">
+              <h3 id="modal-delete-account-title">Permanently Delete Account</h3>
+            </div>
+            <p class="field-hint" style="margin-top: 0;">
+              This permanently erases your profile, courses, study logs, exams, notes, friend links, shared Squad entries, and Firebase Authentication login. This action cannot be undone.
+            </p>
+            <form id="form-delete-account">
+              <div class="form-row">
+                <label for="input-delete-password">Current Password *</label>
+                <input
+                  type="password"
+                  id="input-delete-password"
+                  autocomplete="current-password"
+                  required
+                  placeholder="Enter your password to confirm"
+                />
+              </div>
+              <div class="form-row">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="chk-delete-confirm" required />
+                  <span>I understand this permanently deletes my account and cannot be undone.</span>
+                </label>
+              </div>
+              <div id="delete-account-status" class="notice-box" role="status" aria-live="polite" hidden></div>
+              <div class="dialog-actions">
+                <button type="button" id="btn-cancel-delete-account" data-close-modal="modal-delete-account">Cancel</button>
+                <button type="submit" id="btn-confirm-delete-account" class="btn-danger btn-danger-solid">
+                  Permanently Delete Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </dialog>
       </main>
     </div>
 

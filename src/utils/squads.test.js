@@ -945,8 +945,10 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       assert.match(appSrc, /friendsSidebarEl\.style\.minHeight\s*=\s*`\$\{sidebarH\}px`/);
       assert.match(cssSrc, /\.friends-sidebar-card\s*\{[\s\S]*?calc\(100vh\s*-\s*200px\)/);
 
-      // Real-time hub listener and cross-tab localStorage listener
-      assert.match(appSrc, /FRIENDS_HUB_SQUAD_ID/);
+      // Real-time participant-scoped friendships listener and cross-tab localStorage listener
+      assert.match(appSrc, /collection\(db,\s*'friendships'\)/);
+      assert.match(appSrc, /where\('users',\s*'array-contains',/);
+      assert.doesNotMatch(appSrc, /FRIENDS_HUB_SQUAD_ID/);
       assert.match(appSrc, /unisphere_workspace_friendships_v1/);
     });
 

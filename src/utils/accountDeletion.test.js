@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   selectRandomNextCreator,
   cleanNextSessionForUser,
@@ -222,5 +224,56 @@ describe('GDPR Art. 17 Self-Serve Account Deletion Service (Milestone 2)', () =>
     assert.match(res.error || '', /network-failure/i);
     assert.equal(deletedAuth, false);
     assert.equal(clearedStorage, false);
+  });
+
+  it('renders Danger Zone Delete Account card and modal in pages/settings.html and enforces strict UID auth & teardown in src/app.js', () => {
+    const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+    const settingsHtml = fs.readFileSync(path.join(repoRoot, 'pages/settings.html'), 'utf8');
+    const cssSrc = fs.readFileSync(path.join(repoRoot, 'src/index.css'), 'utf8');
+    const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+
+    assert.match(settingsHtml, /id="settings-danger-zone"/);
+    assert.match(settingsHtml, /id="btn-open-delete-account"/);
+    assert.match(settingsHtml, /<dialog[^>]*id="modal-delete-account"/);
+    assert.match(settingsHtml, /id="form-delete-account"/);
+    assert.match(settingsHtml, /id="input-delete-password"/);
+    assert.match(settingsHtml, /id="chk-delete-confirm"/);
+    assert.match(settingsHtml, /id="delete-account-status"/);
+    assert.match(settingsHtml, /id="btn-confirm-delete-account"/);
+    assert.match(settingsHtml, /id="btn-cancel-delete-account"/);
+
+    assert.match(cssSrc, /\.danger-zone-card/);
+    assert.match(cssSrc, /html\[data-theme="dark"\][\s\S]*\.danger-zone-card/);
+
+    for (const forbidden of [
+      'GoogleAuthProvider',
+      'signInWithPopup',
+      'signInWithRedirect',
+      'getRedirectResult',
+      'completeGoogleUserSignIn',
+      'btn-google-sso',
+      'formatGoogleAuthError',
+      'verifyPassword',
+      'FRIENDS_HUB_SQUAD_ID',
+      'hubActivityDocToFriendship',
+    ]) {
+      assert.equal(
+        appSrc.includes(forbidden),
+        false,
+        `src/app.js must not reference removed Google/PBKDF2/Hub symbol: ${forbidden}`
+      );
+    }
+
+    for (const required of [
+      'deleteCurrentUserAccount',
+      'runOneTimeLegacyMigration',
+      'cleanupAllRealtimeListeners',
+      'friendProfiles',
+      "where('users', 'array-contains',",
+      'joinSquadInCloud',
+      'resolveSquadByInviteCode',
+    ]) {
+      assert.ok(appSrc.includes(required), `src/app.js must wire ${required}`);
+    }
   });
 });
