@@ -715,16 +715,22 @@ export function getMemberEffectiveTelemetry(member = {}, referenceDate = new Dat
   };
 }
 
+export function normalizeUserId(value = '') {
+  const clean = String(value || '').trim().replace(/\//g, '_');
+  if (!clean) return '';
+  return clean.includes('@') ? clean.toLowerCase() : clean;
+}
+
 export function canManageSquad(squad, currentUid, extra = {}) {
   if (!squad || typeof squad !== 'object') return false;
-  const creator = String(squad.createdBy || '').trim().toLowerCase();
+  const creator = normalizeUserId(squad.createdBy || '');
   const candidates = [
     currentUid,
     extra?.authUid,
     extra?.studentId,
     extra?.email,
   ]
-    .map((v) => String(v || '').trim().toLowerCase())
+    .map((v) => normalizeUserId(v || ''))
     .filter(Boolean);
 
   if (creator && candidates.includes(creator)) {
@@ -1004,12 +1010,12 @@ export function isCurrentUserRemovedFromSquad(
   const candidateUids = new Set(
     [identity.myUid, identity.authUid, identity.studentId, identity.email]
       .filter(Boolean)
-      .map((u) => String(u).trim().toLowerCase())
+      .map((u) => normalizeUserId(u))
   );
   const myNormName = String(identity.myDisplayName || '').trim().toLowerCase();
 
   const myMemberDoc = Array.isArray(members)
-    ? members.find((m) => m && m.uid && candidateUids.has(String(m.uid).trim().toLowerCase()))
+    ? members.find((m) => m && m.uid && candidateUids.has(normalizeUserId(m.uid)))
     : null;
   const joinedAtMs = myMemberDoc?.joinedAt ? Date.parse(String(myMemberDoc.joinedAt)) || 0 : 0;
 
@@ -1019,7 +1025,7 @@ export function isCurrentUserRemovedFromSquad(
   if (Array.isArray(activities)) {
     for (const act of activities) {
       if (!act) continue;
-      const actUid = String(act.uid || '').trim().toLowerCase();
+      const actUid = normalizeUserId(act.uid || '');
       const actName = String(act.displayName || '').trim().toLowerCase();
       const matchesUser =
         (actUid && candidateUids.has(actUid)) ||
@@ -1048,19 +1054,15 @@ export function isCurrentUserRemovedFromSquad(
 
 /**
  * Builds a canonical, order-independent document ID for a friendship between two users (#44).
- * Returns '' if either ID is empty or if both IDs resolve to the same user.
+ * Uses ASCII comparison (`<`) matching Firestore security rules and permits up to 512 chars.
+ * Returns '' if either ID is empty, if both IDs match, or if combined length exceeds 512.
  */
 export function getFriendshipId(uidA, uidB) {
-  const normA = String(uidA || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\//g, '_');
-  const normB = String(uidB || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\//g, '_');
+  const normA = normalizeUserId(uidA);
+  const normB = normalizeUserId(uidB);
   if (!normA || !normB || normA === normB) return '';
-  return [normA, normB].sort().join('__');
+  const combined = normA < normB ? `${normA}__${normB}` : `${normB}__${normA}`;
+  return combined.length <= 512 ? combined : '';
 }
 
 function formatReadableFallbackName(uidOrEmail = '') {
@@ -1081,24 +1083,15 @@ function formatReadableFallbackName(uidOrEmail = '') {
  */
 export function doesFriendshipMatchUser(item, myUid = '', myDisplayName = '') {
   if (!item || typeof item !== 'object') return false;
-  const normMe = String(myUid || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\//g, '_');
+  const normMe = normalizeUserId(myUid);
   const normMyName = String(myDisplayName || '')
     .trim()
     .toLowerCase()
     .replace(/\//g, '_');
   const myEmailPrefix = normMe.includes('@') ? normMe.split('@')[0] : '';
 
-  const reqUid = String(item.requesterUid || item.requesterEmail || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\//g, '_');
-  const recUid = String(item.recipientUid || item.recipientEmail || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\//g, '_');
+  const reqUid = normalizeUserId(item.requesterUid || item.requesterEmail || '');
+  const recUid = normalizeUserId(item.recipientUid || item.recipientEmail || '');
   const recName = String(item.recipientName || '')
     .trim()
     .toLowerCase()
@@ -1108,23 +1101,17 @@ export function doesFriendshipMatchUser(item, myUid = '', myDisplayName = '') {
     if (reqUid === normMe || recUid === normMe) return true;
     if (
       Array.isArray(item.users) &&
-      item.users.some(
-        (u) =>
-          String(u || '')
-            .trim()
-            .toLowerCase()
-            .replace(/\//g, '_') === normMe
-      )
+      item.users.some((u) => normalizeUserId(u) === normMe)
     ) {
       return true;
     }
-    if (myEmailPrefix && !recUid.includes('@') && recUid === myEmailPrefix) {
+    if (myEmailPrefix && !recUid.includes('@') && recUid.toLowerCase() === myEmailPrefix) {
       return true;
     }
   }
 
   if (normMyName && normMyName !== 'student' && normMyName !== 'local_student') {
-    if (!recUid.includes('@') && (recUid === normMyName || recName === normMyName)) {
+    if (!recUid.includes('@') && (recUid.toLowerCase() === normMyName || recName === normMyName)) {
       return true;
     }
   }
@@ -1136,10 +1123,7 @@ export function doesFriendshipMatchUser(item, myUid = '', myDisplayName = '') {
  * Classifies friendship records for `myUid` into acceptedFriends, incomingRequests, and outgoingRequests (#44).
  */
 export function partitionFriendships(friendships = [], myUid = '', myDisplayName = '') {
-  const normMe = String(myUid || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\//g, '_');
+  const normMe = normalizeUserId(myUid);
   const normMyName = String(myDisplayName || '')
     .trim()
     .toLowerCase()
@@ -1160,14 +1144,8 @@ export function partitionFriendships(friendships = [], myUid = '', myDisplayName
     const status = String(item.status || 'pending').trim().toLowerCase();
     if (status === 'removed' || status === 'declined') continue;
 
-    const reqUid = String(item.requesterUid || item.requesterEmail || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\//g, '_');
-    const recUid = String(item.recipientUid || item.recipientEmail || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\//g, '_');
+    const reqUid = normalizeUserId(item.requesterUid || item.requesterEmail || '');
+    const recUid = normalizeUserId(item.recipientUid || item.recipientEmail || '');
     const recNameNorm = String(item.recipientName || '')
       .trim()
       .toLowerCase()
@@ -1177,12 +1155,12 @@ export function partitionFriendships(friendships = [], myUid = '', myDisplayName
     const isRequester = Boolean(normMe && reqUid === normMe);
     const isRecipient = Boolean(
       (normMe && recUid === normMe) ||
-        (myEmailPrefix && !recUid.includes('@') && recUid === myEmailPrefix) ||
+        (myEmailPrefix && !recUid.includes('@') && recUid.toLowerCase() === myEmailPrefix) ||
         (normMyName &&
           normMyName !== 'student' &&
           normMyName !== 'local_student' &&
           !recUid.includes('@') &&
-          (recUid === normMyName || recNameNorm === normMyName))
+          (recUid.toLowerCase() === normMyName || recNameNorm === normMyName))
     );
     if (!isRequester && !isRecipient) continue;
 
@@ -1257,8 +1235,8 @@ export function buildFriendTelemetrySummary(
   const safeDoc = userDocData && typeof userDocData === 'object' ? userDocData : {};
   const safeFallback = fallbackFriend && typeof fallbackFriend === 'object' ? fallbackFriend : {};
 
-  const uid = String(safeDoc.uid || safeFallback.uid || safeDoc.email || '').trim().toLowerCase();
-  const email = String(safeDoc.email || safeFallback.email || uid).trim().toLowerCase();
+  const uid = normalizeUserId(safeDoc.uid || safeFallback.uid || safeDoc.email || '');
+  const email = String(safeDoc.email || safeFallback.email || '').trim().toLowerCase();
   const displayName =
     String(safeDoc.name || safeDoc.displayName || safeFallback.displayName || '').trim() ||
     formatReadableFallbackName(email || uid);
@@ -1352,6 +1330,61 @@ export function buildFriendTelemetrySummary(
     weekDays,
     subjects,
     courses,
+  };
+}
+
+/**
+ * Builds the grade-free `/friendProfiles/{uid}` projection shared only with accepted friends.
+ */
+export function buildFriendProfilePayload({
+  uid,
+  profile = {},
+  courses = [],
+  studyLogs = [],
+  assignments = [],
+  referenceDate = new Date(),
+} = {}) {
+  const cleanUid = normalizeUserId(uid || profile?.uid || '');
+  const safeProfile = profile && typeof profile === 'object' ? profile : {};
+  const displayName =
+    String(safeProfile.name || safeProfile.displayName || '').trim() || 'Student';
+  const weekTotalMinutes = Math.min(
+    10080,
+    Math.max(0, getWeekDaysSummary(studyLogs, referenceDate).weekTotalMinutes)
+  );
+  const currentStreak = Math.min(10000, Math.max(0, calculateCurrentStreak(studyLogs, safeProfile, referenceDate)));
+  const tasksThisWeek = Math.min(10000, Math.max(0, countCompletedTasksThisWeek(assignments, referenceDate)));
+  const dailyMinutes = getWeeklyDailyMinutesMap(studyLogs, referenceDate);
+  const subjectMinutes = getWeeklySubjectMinutesMap(studyLogs, referenceDate);
+  const gradeFreeCourses = (Array.isArray(courses) ? courses : [])
+    .filter((c) => c && typeof c === 'object' && String(c.title || '').trim())
+    .slice(0, 120)
+    .map((c) => ({
+      id: String(c.id || '').slice(0, 80),
+      title: String(c.title || '').trim().slice(0, 120),
+      code: String(c.code || '').trim().slice(0, 40),
+      semester: String(c.semester || '').trim().slice(0, 60),
+      status: String(c.status || 'Active').trim().slice(0, 40),
+    }));
+
+  return {
+    uid: cleanUid,
+    name: displayName.slice(0, 100),
+    displayName: displayName.slice(0, 100),
+    institution: String(safeProfile.institution || '').trim().slice(0, 120),
+    degreeName: String(safeProfile.degreeName || '').trim().slice(0, 120),
+    degreeType: String(safeProfile.degreeType || '').trim().slice(0, 80),
+    academicYear: String(safeProfile.academicYear || '').trim().slice(0, 60),
+    status: String(safeProfile.status || 'Enrolled').trim().slice(0, 40),
+    weeklyGoalHours: Math.min(168, Math.max(1, Number(safeProfile.weeklyGoalHours) || 20)),
+    minutesThisWeek: weekTotalMinutes,
+    tasksThisWeek,
+    currentStreak,
+    xp: Math.max(0, Number(safeProfile.xp) || 0),
+    dailyMinutes,
+    subjectMinutes,
+    courses: gradeFreeCourses,
+    updatedAt: referenceDate instanceof Date ? referenceDate.toISOString() : new Date().toISOString(),
   };
 }
 

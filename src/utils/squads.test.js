@@ -16,9 +16,11 @@ import {
   getMemberEffectiveTelemetry,
   calculateTableScrollMaxHeight,
   getFriendshipId,
+  normalizeUserId,
   partitionFriendships,
   filterFriendsByQuery,
   buildFriendTelemetrySummary,
+  buildFriendProfilePayload,
 } from './telemetry.js';
 import { sanitizeUserProfile, stripUndefinedDeep } from '../lib/authService.js';
 import * as squadService from '../lib/squadService.js';
@@ -490,6 +492,99 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       );
       assert.equal(getFriendshipId('mat.petrini@stud.uniroma3.it', 'MAT.PETRINI@stud.uniroma3.it'), '');
       assert.equal(getFriendshipId('', 'lorenzo@stud.uniroma3.it'), '');
+    });
+
+    it('preserves case-sensitive Firebase Auth UIDs, sorts by ASCII order, supports IDs up to 512 chars, and builds grade-free FriendProfiles', () => {
+      assert.equal(normalizeUserId('  UidAlpha99/abc  '), 'UidAlpha99_abc');
+      assert.equal(normalizeUserId('  Mat.Petrini@Stud.UniRoma3.it '), 'mat.petrini@stud.uniroma3.it');
+
+      // ASCII '<' places uppercase 'U' before lowercase 'u'
+      assert.equal(getFriendshipId('uidBeta12', 'UidAlpha99'), 'UidAlpha99__uidBeta12');
+      assert.equal(
+        getFriendshipId('UidAlpha99', 'uidalpha99'),
+        'UidAlpha99__uidalpha99'
+      );
+
+      // Canonical friendship IDs > 128 chars up to 512 chars must NOT be truncated
+      const longUidA = 'U' + 'a'.repeat(100);
+      const longUidB = 'U' + 'b'.repeat(100);
+      const longPair = getFriendshipId(longUidA, longUidB);
+      assert.equal(longPair, `${longUidA}__${longUidB}`);
+      assert.equal(longPair.length, 204);
+
+      const overLimitA = 'A'.repeat(260);
+      const overLimitB = 'B'.repeat(260);
+      assert.equal(getFriendshipId(overLimitA, overLimitB), '');
+
+      // Mixed-case UID check in canManageSquad
+      assert.equal(canManageSquad({ createdBy: 'UidCreator1' }, 'UidCreator1'), true);
+      assert.equal(canManageSquad({ createdBy: 'UidCreator1' }, 'uidcreator1'), false);
+
+      // Mixed-case UID partitioning preserves exact UID casing
+      const mixedDocs = [
+        {
+          id: 'UidAlpha99__uidBeta12',
+          users: ['UidAlpha99', 'uidBeta12'],
+          requesterUid: 'UidAlpha99',
+          requesterName: 'Alice',
+          recipientUid: 'uidBeta12',
+          recipientName: 'Bob',
+          status: 'accepted',
+        },
+      ];
+      const part = partitionFriendships(mixedDocs, 'UidAlpha99', 'Alice');
+      assert.equal(part.acceptedFriends.length, 1);
+      assert.equal(part.acceptedFriends[0].uid, 'uidBeta12');
+
+      // buildFriendProfilePayload omits grades, cfu, secrets, raw studyLogs & assignments while feeding buildFriendTelemetrySummary
+      const payload = buildFriendProfilePayload(
+        {
+          uid: 'UidGiulia9',
+          profile: {
+            name: 'Giulia Conti',
+            institution: 'Università Roma Tre',
+            degreeName: 'Ingegneria Informatica',
+            degreeType: 'Laurea Triennale',
+            academicYear: 'Year 2',
+            status: 'Enrolled',
+            weeklyGoalHours: 25,
+            xp: 1450,
+            quickNotes: 'private notes',
+            passwordHash: 'secret-hash',
+          },
+          courses: [
+            { id: 'c1', title: 'Analisi 1', code: 'MAT01', semester: 'Sem 1', status: 'Active', grade: 30, cfu: 12 },
+            { id: 'c2', title: 'Fisica 1', code: 'FIS01', semester: 'Sem 1', status: 'Passed', grade: 28, cfu: 9 },
+          ],
+          studyLogs: [
+            { id: 'l1', date: '2026-11-09', courseName: 'Analisi 1', durationMinutes: 120 },
+            { id: 'l2', date: '2026-11-11', courseName: 'Fisica 1', durationMinutes: 60 },
+          ],
+          assignments: [
+            { id: 'a1', title: 'Homework 1', status: 'completed', completedAt: new Date(2026, 10, 10, 12, 0).getTime(), grade: 30 },
+          ],
+          referenceDate: refWednesday,
+        }
+      );
+
+      assert.equal(payload.uid, 'UidGiulia9');
+      assert.equal(payload.name, 'Giulia Conti');
+      assert.equal(payload.minutesThisWeek, 180);
+      assert.equal(payload.tasksThisWeek, 1);
+      assert.equal(payload.dailyMinutes['2026-11-09'], 120);
+      assert.equal(payload.subjectMinutes['Analisi 1'], 120);
+      assert.equal('passwordHash' in payload, false);
+      assert.equal('quickNotes' in payload, false);
+      assert.equal('studyLogs' in payload, false);
+      assert.equal('assignments' in payload, false);
+      assert.equal('grade' in payload.courses[0], false);
+      assert.equal('cfu' in payload.courses[0], false);
+
+      const roundTripSummary = buildFriendTelemetrySummary(payload, {}, refWednesday);
+      assert.equal(roundTripSummary.uid, 'UidGiulia9');
+      assert.equal(roundTripSummary.weekTotalMinutes, 180);
+      assert.equal(roundTripSummary.courses.length, 2);
+      assert.equal(roundTripSummary.courses[0].title, 'Analisi 1');
     });
 
     it('partitions friendships into acceptedFriends, incomingRequests, and outgoingRequests', () => {
