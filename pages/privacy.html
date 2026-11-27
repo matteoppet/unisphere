@@ -63,23 +63,31 @@
         model training on your records.
       </p>
 
-      <h2>2. Personal Data We Collect</h2>
+      <h2>2. Personal Data We Collect &amp; Privacy Separation</h2>
       <ul>
         <li>
-          <strong>Account &amp; Profile Data:</strong> Email address, display name, salted PBKDF2
-          password hash (or Google Sign-In identifier), plus academic profile fields you enter such
-          as degree program, institution, target CFU, and optional student ID
-          (<em>matricola</em>).
+          <strong>Account &amp; Profile Data:</strong> Email address and Firebase Authentication
+          Email/Password credential (handled directly by Firebase Auth), Firebase Auth UID, plus
+          academic profile fields you enter such as display name, degree program, institution, target
+          CFU, and optional student ID (<em>matricola</em>). Legacy email-keyed documents are
+          automatically migrated one-to-one to your Firebase Auth UID upon sign-in, removing any
+          stored password hashes.
         </li>
         <li>
-          <strong>Academic Workspace Data:</strong> Courses, exam dates and grades, study session
-          logs, goals/checklists, quick notes, and saved resource links.
+          <strong>Owner-Only Academic Workspace Data (<code>/users/{uid}</code>):</strong> Courses,
+          exam dates and grades, study session logs, goals/checklists, quick notes, and saved
+          resource links. Every database read and write requires strict Firebase Authentication
+          (<code>request.auth != null</code>), and your full workspace document is readable and
+          writable exclusively by you.
         </li>
         <li>
-          <strong>Optional Social Data (Squads &amp; Friends):</strong> If you join or create a
-          Squad or add Friends, your display name, email address, live study status/subject, weekly
-          study totals, squad feed notes, and friendship link records are shared with those Squad
-          members or accepted friends.
+          <strong>Optional Social Data (Squads &amp; Friends):</strong> If you choose to add Friends
+          or join/create a Squad, only a grade-free summary projection
+          (<code>friendProfiles/{uid}</code> containing display name, degree/institution metadata,
+          weekly study totals, and enrolled course names without grades) is readable by accepted
+          friends. Squadmates share only member UID, display name, live study status/subject,
+          weekly study totals, and Squad feed posts. Exact-email friend requests use a one-way
+          SHA-256 email hash lookup with zero directory listing.
         </li>
         <li>
           <strong>Technical Security Data:</strong> IP address held transiently in server memory
@@ -92,13 +100,14 @@
       <ul>
         <li>
           <strong>Contract Performance — Art. 6(1)(b) GDPR:</strong> Creating and authenticating
-          your account, sending requested 6-digit email verification codes, syncing your academic
-          workspace across devices, and operating Squads &amp; Friends when you choose to use them.
+          your Email/Password account, sending requested 6-digit email verification codes, syncing
+          your academic workspace across devices, and operating Squads &amp; Friends when you choose
+          to use them.
         </li>
         <li>
           <strong>Legitimate Interest — Art. 6(1)(f) GDPR:</strong> Protecting authentication and
           email endpoints from spam, brute-force attempts, and abuse through short-lived rate
-          limiting and transport security.
+          limiting and strict authenticated database rules.
         </li>
       </ul>
 
@@ -110,8 +119,8 @@
       </p>
       <ul>
         <li>
-          <strong>Google LLC (Firebase Authentication &amp; Cloud Firestore):</strong> Account
-          authentication, Google Sign-In, and cloud database sync.
+          <strong>Google LLC (Firebase Authentication &amp; Cloud Firestore):</strong> Email/Password
+          authentication, one-time UID migration, and strictly authenticated cloud database sync.
         </li>
         <li>
           <strong>Vercel Inc.:</strong> Static site hosting and serverless API execution.
@@ -169,10 +178,14 @@
           <em>Settings</em> at any time.
         </li>
         <li>
-          <strong>Access, Rectification &amp; Erasure (Arts. 15, 16, 17):</strong> You can edit or
-          clear workspace entries in the app, and request full account deletion anytime by emailing
-          <a href="mailto:privacy@unispherelife.me">privacy@unispherelife.me</a>. (Self-serve
-          in-app account deletion is also scheduled in our next milestone.)
+          <strong>Access, Rectification &amp; Self-Serve Erasure (Arts. 15, 16, 17):</strong> You can
+          edit or clear workspace entries in the app, and permanently erase your entire account
+          anytime using <strong>Delete My Account</strong> inside <em>Settings</em> (requires
+          password re-authentication and immediately deletes your private workspace, friend profile,
+          friendship links, shared Squad notes/sessions/attendance, and Firebase Auth login; owned
+          Squads with other members are randomly reassigned to a remaining member while solo Squads
+          are deleted). You can also contact
+          <a href="mailto:privacy@unispherelife.me">privacy@unispherelife.me</a> for assistance.
         </li>
         <li>
           <strong>Right to Complain (Art. 77):</strong> You have the right to lodge a complaint with

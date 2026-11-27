@@ -231,12 +231,21 @@ describe('Standalone Legal Pages (privacy.html & terms.html)', () => {
       'Art. 2-quinquies',
       '16',
       '14',
+      'Delete My Account',
+      'Email/Password',
+      'request.auth != null',
+      'friendProfiles',
     ]) {
       assert.ok(html.includes(term), `pages/privacy.html must cover "${term}"`);
     }
+    assert.equal(
+      /Google Sign-In|PBKDF2|next milestone/i.test(html),
+      false,
+      'pages/privacy.html must remove outdated Google Sign-In, PBKDF2, and next-milestone deletion text'
+    );
   });
 
-  it('terms.html covers MIT License, user data ownership, age, DSA reporting, and Italian Civil Code Art. 1229', () => {
+  it('terms.html covers MIT License, user data ownership, age, DSA reporting, Italian Civil Code Art. 1229, and Squad creator continuity', () => {
     const html = fs.readFileSync(path.join(repoRoot, 'pages/terms.html'), 'utf8');
     for (const term of [
       'MIT License',
@@ -246,9 +255,16 @@ describe('Standalone Legal Pages (privacy.html & terms.html)', () => {
       'privacy@unispherelife.me',
       'Art. 1229',
       'dolo o colpa grave',
+      'Delete My Account',
+      'randomly reassigned',
     ]) {
       assert.ok(html.includes(term), `pages/terms.html must cover "${term}"`);
     }
+    assert.equal(
+      /Google Sign-In/i.test(html),
+      false,
+      'pages/terms.html must not reference Google Sign-In'
+    );
   });
 });
 
