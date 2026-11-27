@@ -131,6 +131,10 @@ import {
   getNextTheme,
   getThemeToggleDisplay,
 } from './utils/uiState.js';
+import {
+  resolveLoginFocusTarget,
+  validateRegistrationTermsAccepted,
+} from './utils/introRouting.js';
 
 const STORAGE_KEY = 'unisphere_workspace';
 
@@ -1302,6 +1306,27 @@ export function initApp() {
     const regEmail = document.getElementById('auth-reg-email');
     if (regEmail && !regEmail.value && (verificationSentTo || profile.email)) {
       regEmail.value = verificationSentTo || profile.email || '';
+    }
+
+    const focusTarget = resolveLoginFocusTarget(window.location.hash);
+    const loginCard = document.getElementById('auth-card-login');
+    const regCard = document.getElementById('auth-card-register');
+    if (loginCard) {
+      loginCard.classList.toggle('auth-card-targeted', focusTarget === 'login');
+    }
+    if (regCard) {
+      regCard.classList.toggle('auth-card-targeted', focusTarget === 'register');
+    }
+
+    if (!authNotice) {
+      if (focusTarget === 'register') {
+        if (regCard && window.innerWidth <= 720 && typeof regCard.scrollIntoView === 'function') {
+          regCard.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }
+        document.getElementById('auth-reg-name')?.focus({ preventScroll: true });
+      } else if (focusTarget === 'login') {
+        document.getElementById('auth-login-email')?.focus({ preventScroll: true });
+      }
     }
   }
 
@@ -4245,6 +4270,19 @@ export function initApp() {
         );
         const regPass = String(document.getElementById('auth-reg-password').value || '');
         const regCode = sanitizeTextInput(document.getElementById('auth-reg-code').value, 6);
+        const termsCheck = validateRegistrationTermsAccepted(
+          Boolean(document.getElementById('auth-reg-terms')?.checked)
+        );
+
+        if (!termsCheck.valid) {
+          authNotice = {
+            type: 'error',
+            scope: 'register',
+            text: termsCheck.error,
+          };
+          populateLoginPage();
+          return;
+        }
 
         if (!regName || !regEmail || regPass.length < 6) {
           authNotice = {

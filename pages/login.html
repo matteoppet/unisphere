@@ -13,7 +13,7 @@
       <a href="#app-main" class="skip-link">Skip to main content</a>
       <header class="site-header">
         <div class="header-top">
-          <span class="site-brand">UniSphere</span>
+          <a href="/?intro=1" class="site-brand">UniSphere</a>
           <div class="header-actions">
             <div id="sync-status" class="sync-status" role="status" aria-live="polite">Not Signed In</div>
             <button type="button" id="btn-theme-toggle" class="theme-toggle-btn" aria-label="Switch to dark theme">Dark Theme</button>
@@ -40,7 +40,7 @@
 
         <div class="grid-2 login-grid" style="margin-top: 0;">
           <!-- 1. Sign In Card -->
-          <section class="card">
+          <section class="card" id="auth-card-login">
             <div class="card-header">
               <h2>Sign In</h2>
             </div>
@@ -59,11 +59,16 @@
                 <button type="button" id="btn-google-sso">Sign In with Google</button>
                 <button type="button" id="btn-forgot-password" class="btn-inline-action">Forgot password?</button>
               </div>
+              <p class="auth-legal-note">
+                Signing in with Google is governed by our
+                <a href="/pages/terms.html">Terms &amp; Conditions</a> and
+                <a href="/pages/privacy.html">Privacy Policy</a>.
+              </p>
             </form>
           </section>
 
           <!-- 2. Register Card -->
-          <section class="card">
+          <section class="card" id="auth-card-register">
             <div class="card-header">
               <h2>Register New Account</h2>
             </div>
@@ -110,11 +115,33 @@
                 <span class="field-hint">Optional: verify your university email now, or leave blank to register immediately.</span>
               </div>
 
+              <div class="form-row auth-legal-row">
+                <label class="checkbox-inline" for="auth-reg-terms">
+                  <input type="checkbox" id="auth-reg-terms" required />
+                  <span>
+                    I agree to the <a href="/pages/terms.html">Terms &amp; Conditions</a> and
+                    confirm I am at least 16 years old (or 14+ in Italy). *
+                  </span>
+                </label>
+                <p class="auth-legal-note">
+                  By creating an account, you acknowledge our
+                  <a href="/pages/privacy.html">Privacy &amp; Storage Policy</a> (strictly necessary
+                  storage only, zero ads or tracking).
+                </p>
+              </div>
+
               <div id="auth-reg-error" class="field-error" role="alert" hidden></div>
               <button type="submit">Register</button>
             </form>
           </section>
         </div>
+
+        <footer class="auth-footer">
+          <a href="/?intro=1">Overview</a>
+          <a href="/pages/privacy.html">Privacy Policy</a>
+          <a href="/pages/terms.html">Terms &amp; Conditions</a>
+          <a href="https://github.com/matteoppet/unisphere" target="_blank" rel="noopener noreferrer">GitHub</a>
+        </footer>
       </main>
     </div>
 

@@ -251,6 +251,45 @@ h3 {
   max-width: 960px;
 }
 
+.auth-card-targeted {
+  border-color: #111111;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+}
+
+.auth-legal-row {
+  margin-top: 12px;
+  margin-bottom: 14px;
+}
+
+.auth-legal-row .checkbox-inline {
+  align-items: flex-start;
+  font-weight: normal;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.auth-legal-row .checkbox-inline input[type="checkbox"] {
+  margin-top: 3px;
+}
+
+.auth-legal-note {
+  margin: 10px 0 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #555555;
+}
+
+.auth-footer {
+  max-width: 960px;
+  margin: 24px 0 0 0;
+  padding-top: 14px;
+  border-top: 1px solid #e2e2e2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -1947,6 +1986,19 @@ html[data-theme="dark"] dialog {
   border-color: #2e323a;
   color: #e6e8ec;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+html[data-theme="dark"] .auth-card-targeted {
+  border-color: #e6e8ec;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+}
+
+html[data-theme="dark"] .auth-legal-note {
+  color: #a3aab5;
+}
+
+html[data-theme="dark"] .auth-footer {
+  border-top-color: #2e323a;
 }
 
 html[data-theme="dark"] dialog::backdrop {

@@ -241,3 +241,60 @@ describe('Standalone Legal Pages (privacy.html & terms.html)', () => {
     }
   });
 });
+
+describe('Login & Registration Legal Wiring and Hash Targeting', () => {
+  it('links brand back to intro without data-nav, exposes card IDs, and includes unchecked required Terms checkbox and Privacy notice', () => {
+    const html = fs.readFileSync(path.join(repoRoot, 'pages/login.html'), 'utf8');
+    assert.ok(
+      html.includes('<a href="/?intro=1" class="site-brand">UniSphere</a>'),
+      'pages/login.html header brand must link back to /?intro=1 without data-nav'
+    );
+    assert.ok(html.includes('id="auth-card-login"'), 'pages/login.html must include #auth-card-login');
+    assert.ok(
+      html.includes('id="auth-card-register"'),
+      'pages/login.html must include #auth-card-register'
+    );
+
+    const termsInputMatch = html.match(/<input[^>]*id="auth-reg-terms"[^>]*>/);
+    assert.ok(termsInputMatch, 'pages/login.html must include #auth-reg-terms checkbox');
+    assert.ok(
+      /type="checkbox"/.test(termsInputMatch[0]) && /\brequired\b/.test(termsInputMatch[0]),
+      '#auth-reg-terms must be a required checkbox'
+    );
+    assert.equal(
+      /\bchecked\b/.test(termsInputMatch[0]),
+      false,
+      '#auth-reg-terms must never be pre-checked'
+    );
+
+    assert.ok(html.includes('href="/pages/terms.html"'));
+    assert.ok(html.includes('href="/pages/privacy.html"'));
+    assert.ok(html.includes('https://github.com/matteoppet/unisphere'));
+    assert.match(html, /Signing in with Google is governed by/i);
+  });
+
+  it('wires resolveLoginFocusTarget and validateRegistrationTermsAccepted in src/app.js and styles auth legal UI in src/index.css', () => {
+    const appJs = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+    assert.ok(appJs.includes('resolveLoginFocusTarget'), 'src/app.js must use resolveLoginFocusTarget');
+    assert.ok(
+      appJs.includes('validateRegistrationTermsAccepted'),
+      'src/app.js must use validateRegistrationTermsAccepted'
+    );
+
+    const regSubmitIdx = appJs.indexOf("regForm.addEventListener('submit'");
+    assert.notEqual(regSubmitIdx, -1, 'register submit handler must exist');
+    const termsCheckIdx = appJs.indexOf('validateRegistrationTermsAccepted', regSubmitIdx);
+    const firebaseRegIdx = appJs.indexOf('createUserWithEmailAndPassword', regSubmitIdx);
+    assert.ok(
+      termsCheckIdx !== -1 && (firebaseRegIdx === -1 || termsCheckIdx < firebaseRegIdx),
+      'Terms validation must execute before Firebase registration'
+    );
+
+    const css = fs.readFileSync(path.join(repoRoot, 'src/index.css'), 'utf8');
+    const darkSection = css.slice(css.indexOf('html[data-theme="dark"]'));
+    for (const selector of ['.auth-card-targeted', '.auth-legal-note', '.auth-footer']) {
+      assert.ok(css.includes(selector), `src/index.css must style ${selector}`);
+      assert.ok(darkSection.includes(selector), `src/index.css dark theme must style ${selector}`);
+    }
+  });
+});
