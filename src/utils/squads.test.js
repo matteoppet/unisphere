@@ -831,7 +831,7 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       assert.equal(friendshipsStore.has(sendRes.friendship.id), false);
     });
 
-    it('verifies firestore.rules defines match /friendships/{friendshipId} and isValidFriendshipPayload (#44)', () => {
+    it('verifies firestore.rules enforces participant-only /friendships up to 512 chars and /friendProfiles gating (#44)', () => {
       const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
       const rules = fs.readFileSync(path.join(repoRoot, 'firestore.rules'), 'utf8');
       assert.match(rules, /match\s+\/friendships\/\{friendshipId\}/);
@@ -839,6 +839,10 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       assert.match(rules, /requesterUid/);
       assert.match(rules, /recipientUid/);
       assert.match(rules, /data\.requesterUid != data\.recipientUid/);
+      assert.match(rules, /friendshipId\.size\(\)\s*<=\s*512/);
+      assert.doesNotMatch(rules, /match\s+\/friendships\/\{friendshipId\}[\s\S]*?allow get, list:\s*if true;/);
+      assert.match(rules, /match\s+\/friendProfiles\/\{userId\}/);
+      assert.match(rules, /isAcceptedFriendOf/);
     });
 
     it('renders the Friends left sidebar + right Current Squad / Friend Infos & Stats dual view in pages/squads.html and wires real-time friends workflow in src/app.js (#44)', () => {

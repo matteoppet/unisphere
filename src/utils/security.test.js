@@ -223,21 +223,34 @@ describe('Firebase Config Fallback, Login Binding & Firestore Rules Hardening (#
     );
   });
 
-  it('verifies firestore.rules prevents user enumeration, enforces schema validation, and forbids plaintext OTP codes', () => {
+  it('verifies firestore.rules enforces strict authentication everywhere, prevents enumeration, and locks legacy collections', () => {
     const rulesContent = fs.readFileSync(path.join(repoRoot, 'firestore.rules'), 'utf8');
 
-    assert.ok(
-      rulesContent.includes('allow list: if false;'),
-      'users list rule must be false to prevent collection-wide user enumeration'
+    assert.equal(
+      /\ballow\s+[^;]*\bif\s+true\s*;/.test(rulesContent),
+      false,
+      'firestore.rules must contain zero unauthenticated `if true` allow clauses'
     );
-    assert.ok(
-      rulesContent.includes('allow get: if isUserDocOwner(userId) || isValidDocId(userId);'),
-      'users get rule must support authenticated owner and hybrid PBKDF2 login lookup'
+    assert.equal(
+      rulesContent.includes('isValidDocId(userId)'),
+      false,
+      'firestore.rules must not allow unauthenticated isValidDocId(userId) user reads'
     );
-    assert.ok(
-      rulesContent.includes("(!('code' in data) || data.code == null)"),
-      'emailVerifications must forbid storing non-null plaintext code'
+    assert.equal(
+      rulesContent.includes('allow delete: if false;'),
+      false,
+      'firestore.rules must allow creator/self session deletion for GDPR Art. 17 erasure'
     );
+
+    assert.match(rulesContent, /allow list:\s*if false;/);
+    assert.match(rulesContent, /!\('passwordHash' in request\.resource\.data\)/);
+    assert.match(rulesContent, /match\s+\/friendLookups\/\{emailHash\}/);
+    assert.match(rulesContent, /match\s+\/friendProfiles\/\{userId\}/);
+    assert.match(rulesContent, /isAcceptedFriendOf/);
+    assert.match(rulesContent, /match\s+\/squadInvites\/\{code\}/);
+    assert.match(rulesContent, /match\s+\/emailVerifications\/\{docId\}[\s\S]*?allow read, write:\s*if false;/);
+    assert.match(rulesContent, /match\s+\/mail\/\{docId\}[\s\S]*?allow read, write:\s*if false;/);
+    assert.match(rulesContent, /match\s+\/test\/\{docId\}[\s\S]*?allow read, write:\s*if false;/);
   });
 });
 

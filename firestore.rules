@@ -7,15 +7,14 @@ rules_version = '2';
 // This security rules file assumes the following data structures:
 //
 // Collection: users
-// Document ID: {userId} (normalized email: email.trim().toLowerCase().replace(/\//g, '_') or Firebase Auth UID)
+// Document ID: {userId} (Firebase Auth UID; legacy email-slug docs allowed read/delete only for one-time migration)
 // Fields:
-//   - uid: string (optional, <= 254 chars) - normalized email document ID
+//   - uid: string (optional, <= 254 chars) - Firebase Auth UID
 //   - authUid: string (optional, <= 254 chars) - Firebase Auth UID
 //   - email: string (optional, 4..254 chars) - user email address
 //   - name: string (optional, <= 120 chars) - display name
 //   - studentId: string (optional, <= 64 chars) - university matricola / ID
-//   - passwordHash: string (optional, <= 512 chars) - salted PBKDF2-HMAC-SHA256 hash
-//   - authProvider: string (optional, <= 32 chars) - 'email' | 'google' | 'microsoft'
+//   - authProvider: string (optional, <= 32 chars) - 'email'
 //   - emailVerified: bool (optional) - whether email was verified
 //   - degreeLevel: string (optional, <= 64 chars)
 //   - degreeName: string (optional, <= 160 chars)
@@ -46,68 +45,89 @@ rules_version = '2';
 //   - createdAt: string|number|timestamp (optional, immutable once set)
 //   - updatedAt: string|number|timestamp (optional)
 //   - updatedBy: string (optional, <= 128 chars)
+//   - migratedFromEmailId: string (optional, <= 254 chars)
+//   - migratedAt: string|number|timestamp (optional)
+//   Note: passwordHash is strictly forbidden on all writes.
 //
-// Collection: emailVerifications
-// Document ID: {verificationId} (normalized email)
+// Collection: friendLookups
+// Document ID: {emailHash} (64-char lowercase hex SHA-256 of normalized email)
 // Fields:
-//   - email: string (required, 4..254 chars)
-//   - code: null (optional, must ALWAYS be null if present; plaintext OTP storage is forbidden)
-//   - codeHash: string (required, 32..128 chars) - SHA-256 / HMAC digest of OTP code
-//   - codeSalt: string (optional, <= 64 chars) - optional per-OTP salt
-//   - attempts: number (optional, 0..100)
-//   - maxAttempts: number (optional, 1..100)
-//   - expiresAt: number (required, > 0)
-//   - verified: bool (required)
-//   - createdAt: string (optional, <= 64 chars)
-//   - verifiedAt: string (optional, <= 64 chars)
+//   - uid: string (required, == request.auth.uid, <= 254 chars)
+//   - displayName: string (required, <= 120 chars)
+//   - emailHash: string (required, == emailHash)
+//   - updatedAt: string|number|timestamp (optional)
 //
-// Collection: mail
-// Document ID: {mailId}
+// Collection: friendProfiles
+// Document ID: {userId} (Firebase Auth UID)
 // Fields:
-//   - to: list (required, size == 1)
-//   - message: map (required, keys: subject, text, html)
-//   - createdAt: timestamp|string|number (optional)
+//   - uid: string (required, == request.auth.uid, <= 254 chars)
+//   - name: string (optional, <= 120 chars)
+//   - displayName: string (optional, <= 120 chars)
+//   - institution: string (optional, <= 160 chars)
+//   - degreeName: string (optional, <= 160 chars)
+//   - degreeType: string (optional, <= 80 chars)
+//   - academicYear: string (optional, <= 64 chars)
+//   - status: string (optional, <= 64 chars)
+//   - weeklyGoalHours: number (optional, 0..168)
+//   - minutesThisWeek: number (optional, 0..10080)
+//   - tasksThisWeek: number (optional, 0..10000)
+//   - currentStreak: number (optional, 0..10000)
+//   - xp: number (optional, 0..100000000)
+//   - dailyMinutes: map (optional, <= 14 entries)
+//   - subjectMinutes: map (optional, <= 50 entries)
+//   - courses: list (optional, <= 200 items, grade-free summaries)
+//   - updatedAt: string|number|timestamp (optional)
+//   Note: grades and passwordHash are strictly forbidden.
+//
+// Collection: friendships
+// Document ID: {friendshipId} (canonical sorted pair uidA__uidB, <= 512 chars)
+// Fields:
+//   - id: string (optional, <= 512 chars)
+//   - users: list of 2 strings (required, size == 2) - [uidA, uidB] participant UIDs
+//   - requesterUid: string (required, 1..254 chars, immutable)
+//   - requesterName: string (optional, <= 120 chars)
+//   - recipientUid: string (required, 1..254 chars, immutable)
+//   - recipientName: string (optional, <= 120 chars)
+//   - requesterEmail: string (optional, <= 254 chars)
+//   - recipientEmail: string (optional, <= 254 chars)
+//   - status: string (required, 'pending' | 'accepted')
+//   - createdAt: string|number|timestamp (optional)
+//   - updatedAt: string|number|timestamp (optional)
+//
+// Collection: squadInvites
+// Document ID: {code} (4..20 chars uppercase alphanumeric/hyphen invite code)
+// Fields:
+//   - code: string (required, == code)
+//   - squadId: string (required, <= 128 chars)
+//   - createdBy: string (required, == request.auth.uid)
+//   - createdAt: string|number|timestamp (optional)
 //
 // Collection: squads
 // Document ID: {squadId}
 // Fields:
 //   - id: string (optional, <= 128 chars)
 //   - name: string (required on create, 1..100 chars)
-//   - code: string (required on create, 4..16 chars)
+//   - code: string (required on create, 4..20 chars)
 //   - description: string (optional, <= 500 chars)
 //   - weeklyGoalHours: number (optional, 1..1000)
 //   - nextSession: map|null (optional, <= 10 keys)
 //   - createdAt: string|number|timestamp (optional)
-//   - createdBy: string (optional, <= 254 chars)
+//   - createdBy: string (required on create, <= 254 chars)
 //   - creatorName: string (optional, <= 120 chars)
 //   - memberCount: number (optional, 0..500)
-//   - memberUids: list (optional, <= 200 items)
+//   - memberUids: list (required on create, <= 200 items)
 //   - updatedAt: string|number|timestamp (optional)
 //
 // Subcollections under /squads/{squadId}:
 //   - members/{memberId}: uid, displayName, email, color, elo, minutesThisWeek, tasksThisWeek, currentStreak, joinedAt, updatedAt, avatarUrl, dailyMinutes, subjectMinutes, status, liveSubject, liveStartedAt, nudgeCount, lastNudgedBy, lastNudgedAt
-//   - presence/{presenceId}: uid, displayName, status, subject, startedAt, updatedAt
-//   - activities/{activityId}: id, uid, displayName, type, text, courseName, url, title, createdAt, updatedAt
+//   - presence/{memberId}: uid, displayName, status, subject, startedAt, updatedAt
+//   - activities/{activityId}: id, uid, displayName, type, text, courseName, url, title, status, createdAt, updatedAt
 //   - sessions/{sessionId}: id, uid, displayName, durationMinutes, subject, courseName, completedAt, createdAt
 //
-// Collection: friendships
-// Document ID: {friendshipId} (canonical sorted pair uidA__uidB)
-// Fields:
-//   - id: string (optional, <= 512 chars) - friendship document ID
-//   - users: list of 2 strings (required, size == 2) - [uidA, uidB] participant UIDs
-//   - requesterUid: string (required, 1..254 chars, immutable) - UID of requester
-//   - requesterEmail: string (optional, <= 254 chars) - email of requester
-//   - requesterName: string (optional, <= 120 chars) - display name of requester
-//   - recipientUid: string (required, 1..254 chars, immutable) - UID of recipient
-//   - recipientEmail: string (optional, <= 254 chars) - email of recipient
-//   - recipientName: string (optional, <= 120 chars) - display name of recipient
-//   - status: string (required, 'pending' | 'accepted') - friendship status
-//   - createdAt: string|number|timestamp (optional)
-//   - updatedAt: string|number|timestamp (optional)
-//
-// Collection: test
-// Document ID: connection
-//   - Connectivity check document read via getDocFromServer(doc(db, 'test', 'connection'))
+// Legacy / Deprecated Collections (Locked Down):
+//   - emailVerifications/{docId}: read/write denied
+//   - mail/{docId}: read/write denied
+//   - test/{docId}: read/write denied
 //
 // ===============================================================
 
@@ -118,35 +138,30 @@ service cloud.firestore {
     // Helper Functions
     // ===============================================================
 
-    function isAuthenticated() {
+    function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
-    }
-
-    function hasAuthEmail() {
-      return isAuthenticated() &&
+    function authEmail() {
+      return isSignedIn() &&
              request.auth.token.email is string &&
-             request.auth.token.email.size() > 0;
+             request.auth.token.email.size() > 0
+        ? request.auth.token.email.lower()
+        : '';
     }
 
-    function isEmailOwner(emailField) {
-      return hasAuthEmail() &&
-             emailField is string &&
-             request.auth.token.email.lower() == emailField.lower();
+    function legacyEmailDocId() {
+      return authEmail() != '' ? authEmail().replace('/', '_') : '';
     }
 
-    function isValidDocId(docId) {
-      return docId is string && docId.size() > 0 && docId.size() <= 254;
+    function isUserDocOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isValidEmail(email) {
-      return email is string &&
-             email.size() > 3 &&
-             email.size() <= 254 &&
-             email.matches("^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$");
+    function isLegacyEmailOwner(userId) {
+      return isSignedIn() &&
+             legacyEmailDocId() != '' &&
+             legacyEmailDocId() == userId;
     }
 
     function isValidOptionalString(data, field, maxLen) {
@@ -188,13 +203,49 @@ service cloud.firestore {
              (data[field] is number && data[field] >= 0);
     }
 
+    function isAcceptedFriendOf(targetUserId) {
+      let pairId = request.auth.uid < targetUserId
+        ? request.auth.uid + '__' + targetUserId
+        : targetUserId + '__' + request.auth.uid;
+      return isSignedIn() &&
+             pairId.size() <= 512 &&
+             exists(/databases/$(database)/documents/friendships/$(pairId)) &&
+             get(/databases/$(database)/documents/friendships/$(pairId)).data.status == 'accepted';
+    }
+
+    function isSquadMember(squadId) {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/squads/$(squadId)) &&
+             request.auth.uid in get(/databases/$(database)/documents/squads/$(squadId)).data.memberUids;
+    }
+
+    function isLegacySquadMember(squadId) {
+      return isSignedIn() &&
+             legacyEmailDocId() != '' &&
+             exists(/databases/$(database)/documents/squads/$(squadId)) &&
+             legacyEmailDocId() in get(/databases/$(database)/documents/squads/$(squadId)).data.memberUids;
+    }
+
+    function isSquadCreator(squadId) {
+      return isSignedIn() &&
+             exists(/databases/$(database)/documents/squads/$(squadId)) &&
+             get(/databases/$(database)/documents/squads/$(squadId)).data.createdBy == request.auth.uid;
+    }
+
+    function isLegacySquadCreator(squadId) {
+      return isSignedIn() &&
+             legacyEmailDocId() != '' &&
+             exists(/databases/$(database)/documents/squads/$(squadId)) &&
+             get(/databases/$(database)/documents/squads/$(squadId)).data.createdBy == legacyEmailDocId();
+    }
+
     // ===============================================================
     // Domain Validators
     // ===============================================================
 
     function isValidUserPayload(data, userId) {
       let allowedKeys = [
-        'uid', 'authUid', 'email', 'name', 'studentId', 'passwordHash',
+        'uid', 'authUid', 'email', 'name', 'studentId',
         'authProvider', 'emailVerified', 'degreeLevel', 'degreeName',
         'degreeType', 'totalTargetCFU', 'enrolledYear', 'academicYear',
         'institution', 'status', 'currentSession', 'weeklyGoalHours',
@@ -202,15 +253,18 @@ service cloud.firestore {
         'studyLogs', 'assignments', 'quickNotes', 'checklist',
         'resourceLinks', 'activeSquadId', 'squadIds', 'xp',
         'currentStreak', 'minutesStudiedThisWeek', 'tasksCompletedThisWeek',
-        'lastActiveDate', 'createdAt', 'updatedAt', 'updatedBy'
+        'lastActiveDate', 'createdAt', 'updatedAt', 'updatedBy',
+        'migratedFromEmailId', 'migratedAt'
       ];
-      return data.keys().hasOnly(allowedKeys) &&
+      return userId is string &&
+             userId.size() > 0 &&
+             userId.size() <= 254 &&
+             data.keys().hasOnly(allowedKeys) &&
              (!('email' in data) || (data.email is string && data.email.size() > 3 && data.email.size() <= 254)) &&
              isValidOptionalString(data, 'uid', 254) &&
              isValidOptionalString(data, 'authUid', 254) &&
              isValidOptionalString(data, 'name', 120) &&
              isValidOptionalString(data, 'studentId', 64) &&
-             isValidOptionalString(data, 'passwordHash', 512) &&
              isValidOptionalString(data, 'authProvider', 32) &&
              isValidOptionalBool(data, 'emailVerified') &&
              isValidOptionalString(data, 'degreeLevel', 64) &&
@@ -242,131 +296,110 @@ service cloud.firestore {
              isValidOptionalTimestampField(data, 'createdAt') &&
              isValidOptionalTimestampField(data, 'updatedAt') &&
              isValidOptionalString(data, 'updatedBy', 128) &&
-             isValidDocId(userId);
+             isValidOptionalString(data, 'migratedFromEmailId', 254) &&
+             isValidOptionalTimestampField(data, 'migratedAt');
     }
 
-    function isUserDocOwner(userId) {
-      return isAuthenticated() && (
-        request.auth.uid == userId ||
-        (hasAuthEmail() && request.auth.token.email.lower() == userId.lower()) ||
-        (resource != null && 'email' in resource.data && isEmailOwner(resource.data.email)) ||
-        (resource != null && 'authUid' in resource.data && resource.data.authUid == request.auth.uid)
-      );
+    function isValidFriendLookupPayload(data, emailHash) {
+      return emailHash.matches('^[a-f0-9]{64}$') &&
+             data.keys().hasOnly(['uid', 'displayName', 'emailHash', 'updatedAt']) &&
+             data.keys().hasAll(['uid', 'displayName', 'emailHash']) &&
+             data.uid is string &&
+             data.uid.size() > 0 &&
+             data.uid.size() <= 254 &&
+             data.emailHash is string &&
+             data.emailHash == emailHash &&
+             data.displayName is string &&
+             data.displayName.size() <= 120 &&
+             isValidOptionalTimestampField(data, 'updatedAt');
     }
 
-    function canWriteUserDoc(userId) {
-      let data = request.resource.data;
-      let isAuthOwner = isAuthenticated() && (
-        isUserDocOwner(userId) ||
-        ('email' in data && isEmailOwner(data.email))
-      );
-      let isValidEmailDocMatch = !isAuthenticated() && (
-        ('email' in data &&
-         data.email is string &&
-         data.email.size() > 3 &&
-         data.email.size() <= 254 &&
-         data.email.lower() == userId.lower()) ||
-        (resource != null &&
-         'email' in resource.data &&
-         resource.data.email is string &&
-         resource.data.email.lower() == userId.lower())
-      ) && (
-        resource == null ||
-        !('authUid' in resource.data) ||
-        resource.data.authUid == null ||
-        resource.data.authUid == userId ||
-        ('authUid' in data && data.authUid == resource.data.authUid)
-      );
-      let respectsExistingAuthOwner = resource == null || (
-        (!('authUid' in resource.data) ||
-         resource.data.authUid == null ||
-         !isAuthenticated() ||
-         resource.data.authUid == request.auth.uid ||
-         ('email' in resource.data && isEmailOwner(resource.data.email))) &&
-        (!('createdAt' in resource.data) ||
-         !('createdAt' in data) ||
-         data.createdAt == resource.data.createdAt)
-      );
-
-      return isValidUserPayload(data, userId) &&
-             respectsExistingAuthOwner &&
-             (isAuthOwner || isValidEmailDocMatch);
-    }
-
-    function isValidEmailVerification(data, verificationId) {
+    function isValidFriendProfilePayload(data) {
       let allowedKeys = [
-        'email', 'code', 'codeHash', 'codeSalt', 'attempts', 'maxAttempts',
-        'expiresAt', 'verified', 'createdAt', 'verifiedAt'
+        'uid', 'name', 'displayName', 'institution', 'degreeName',
+        'degreeType', 'academicYear', 'status', 'weeklyGoalHours',
+        'minutesThisWeek', 'tasksThisWeek', 'currentStreak', 'xp',
+        'dailyMinutes', 'subjectMinutes', 'courses', 'updatedAt'
       ];
-      return verificationId.size() > 3 &&
-             verificationId.size() <= 254 &&
-             data.keys().hasOnly(allowedKeys) &&
-             data.email is string &&
-             data.email.size() > 3 &&
-             data.email.size() <= 254 &&
-             data.expiresAt is number &&
-             data.verified is bool &&
-             (!('code' in data) || data.code == null) &&
-             ('codeHash' in data && data.codeHash is string && data.codeHash.size() >= 32 && data.codeHash.size() <= 128) &&
-             isValidOptionalString(data, 'codeSalt', 64) &&
-             isValidOptionalNumber(data, 'attempts', 0, 100) &&
-             isValidOptionalNumber(data, 'maxAttempts', 1, 100) &&
-             isValidOptionalString(data, 'createdAt', 64) &&
-             isValidOptionalString(data, 'verifiedAt', 64);
+      return data.keys().hasOnly(allowedKeys) &&
+             data.uid is string &&
+             data.uid.size() > 0 &&
+             data.uid.size() <= 254 &&
+             isValidOptionalString(data, 'name', 120) &&
+             isValidOptionalString(data, 'displayName', 120) &&
+             isValidOptionalString(data, 'institution', 160) &&
+             isValidOptionalString(data, 'degreeName', 160) &&
+             isValidOptionalString(data, 'degreeType', 80) &&
+             isValidOptionalString(data, 'academicYear', 64) &&
+             isValidOptionalString(data, 'status', 64) &&
+             isValidOptionalNumber(data, 'weeklyGoalHours', 0, 168) &&
+             isValidOptionalNumber(data, 'minutesThisWeek', 0, 10080) &&
+             isValidOptionalNumber(data, 'tasksThisWeek', 0, 10000) &&
+             isValidOptionalNumber(data, 'currentStreak', 0, 10000) &&
+             isValidOptionalNumber(data, 'xp', 0, 100000000) &&
+             (!('dailyMinutes' in data) || data.dailyMinutes == null || (data.dailyMinutes is map && data.dailyMinutes.size() <= 14)) &&
+             (!('subjectMinutes' in data) || data.subjectMinutes == null || (data.subjectMinutes is map && data.subjectMinutes.size() <= 50)) &&
+             isValidOptionalList(data, 'courses', 200) &&
+             isValidOptionalTimestampField(data, 'updatedAt');
     }
 
-    function isValidMailDocument(data) {
-      let allowedKeys = ['to', 'message', 'createdAt'];
-      return data.keys().hasAll(['to', 'message']) &&
-             data.keys().hasOnly(allowedKeys) &&
-             data.to is list &&
-             data.to.size() == 1 &&
-             data.to[0] is string &&
-             data.to[0].size() > 3 &&
-             data.to[0].size() <= 254 &&
-             data.message is map &&
-             data.message.keys().hasOnly(['subject', 'text', 'html']) &&
-             (!('subject' in data.message) || (data.message.subject is string && data.message.subject.size() <= 256)) &&
-             (!('text' in data.message) || (data.message.text is string && data.message.text.size() <= 10000)) &&
-             (!('html' in data.message) || (data.message.html is string && data.message.html.size() <= 25000)) &&
-             isValidOptionalTimestampField(data, 'createdAt');
-    }
-
-    function isValidSquadCreate(data, squadId) {
+    function isValidFriendshipPayload(data) {
       let allowedKeys = [
-        'id', 'name', 'code', 'description', 'weeklyGoalHours', 'nextSession',
-        'createdAt', 'createdBy', 'creatorName', 'memberCount', 'memberUids'
+        'id', 'users', 'requesterUid', 'requesterName',
+        'recipientUid', 'recipientName', 'status', 'createdAt',
+        'updatedAt', 'requesterEmail', 'recipientEmail'
       ];
-      return squadId.size() > 0 &&
-             squadId.size() <= 128 &&
-             data.keys().hasOnly(allowedKeys) &&
-             data.name is string &&
-             data.name.size() > 0 &&
-             data.name.size() <= 100 &&
+      return data.keys().hasOnly(allowedKeys) &&
+             data.users is list &&
+             data.users.size() == 2 &&
+             data.users[0] is string &&
+             data.users[0].size() > 0 &&
+             data.users[0].size() <= 254 &&
+             data.users[1] is string &&
+             data.users[1].size() > 0 &&
+             data.users[1].size() <= 254 &&
+             data.requesterUid is string &&
+             data.requesterUid.size() > 0 &&
+             data.requesterUid.size() <= 254 &&
+             data.recipientUid is string &&
+             data.recipientUid.size() > 0 &&
+             data.recipientUid.size() <= 254 &&
+             data.requesterUid != data.recipientUid &&
+             data.requesterUid in data.users &&
+             data.recipientUid in data.users &&
+             data.status in ['pending', 'accepted'] &&
+             isValidOptionalString(data, 'id', 512) &&
+             isValidOptionalString(data, 'requesterName', 120) &&
+             isValidOptionalString(data, 'recipientName', 120) &&
+             isValidOptionalString(data, 'requesterEmail', 254) &&
+             isValidOptionalString(data, 'recipientEmail', 254) &&
+             isValidOptionalTimestampField(data, 'createdAt') &&
+             isValidOptionalTimestampField(data, 'updatedAt');
+    }
+
+    function isValidSquadInvitePayload(data, code) {
+      return code.matches('^[A-Z0-9-]{4,20}$') &&
+             data.keys().hasOnly(['code', 'squadId', 'createdBy', 'createdAt']) &&
+             data.keys().hasAll(['code', 'squadId', 'createdBy']) &&
              data.code is string &&
-             data.code.size() >= 4 &&
-             data.code.size() <= 16 &&
-             isValidOptionalString(data, 'id', 128) &&
-             isValidOptionalString(data, 'description', 500) &&
-             isValidOptionalNumber(data, 'weeklyGoalHours', 1, 1000) &&
-             (!('nextSession' in data) || data.nextSession == null || (data.nextSession is map && data.nextSession.size() <= 10)) &&
-             isValidOptionalString(data, 'createdBy', 254) &&
-             isValidOptionalString(data, 'creatorName', 120) &&
-             isValidOptionalNumber(data, 'memberCount', 0, 500) &&
-             isValidOptionalList(data, 'memberUids', 200) &&
+             data.code == code &&
+             data.squadId is string &&
+             data.squadId.size() > 0 &&
+             data.squadId.size() <= 128 &&
+             data.createdBy is string &&
+             data.createdBy.size() > 0 &&
+             data.createdBy.size() <= 254 &&
              isValidOptionalTimestampField(data, 'createdAt');
     }
 
-    function isValidSquadUpdate(data, squadId) {
+    function isValidSquadPayload(data) {
       let allowedKeys = [
         'id', 'name', 'code', 'description', 'weeklyGoalHours', 'nextSession',
         'createdAt', 'createdBy', 'creatorName', 'memberCount', 'memberUids', 'updatedAt'
       ];
-      return squadId.size() > 0 &&
-             squadId.size() <= 128 &&
-             data.keys().hasOnly(allowedKeys) &&
+      return data.keys().hasOnly(allowedKeys) &&
              (!('name' in data) || (data.name is string && data.name.size() > 0 && data.name.size() <= 100)) &&
-             (!('code' in data) || (data.code is string && data.code.size() >= 4 && data.code.size() <= 16)) &&
+             (!('code' in data) || (data.code is string && data.code.size() >= 4 && data.code.size() <= 20)) &&
              isValidOptionalString(data, 'id', 128) &&
              isValidOptionalString(data, 'description', 500) &&
              isValidOptionalNumber(data, 'weeklyGoalHours', 1, 1000) &&
@@ -376,9 +409,7 @@ service cloud.firestore {
              isValidOptionalNumber(data, 'memberCount', 0, 500) &&
              isValidOptionalList(data, 'memberUids', 200) &&
              isValidOptionalTimestampField(data, 'createdAt') &&
-             isValidOptionalTimestampField(data, 'updatedAt') &&
-             (resource == null || !('createdBy' in resource.data) || !('createdBy' in data) || data.createdBy == resource.data.createdBy) &&
-             (resource == null || !('createdAt' in resource.data) || !('createdAt' in data) || data.createdAt == resource.data.createdAt);
+             isValidOptionalTimestampField(data, 'updatedAt');
     }
 
     function isValidSquadMember(data, memberId) {
@@ -389,7 +420,8 @@ service cloud.firestore {
         'dailyMinutes', 'subjectMinutes', 'status', 'liveSubject',
         'liveStartedAt', 'nudgeCount', 'lastNudgedBy', 'lastNudgedAt'
       ];
-      return memberId.size() > 0 &&
+      return memberId is string &&
+             memberId.size() > 0 &&
              memberId.size() <= 254 &&
              data.keys().hasOnly(allowedKeys) &&
              isValidOptionalString(data, 'uid', 254) &&
@@ -413,15 +445,13 @@ service cloud.firestore {
              isValidOptionalTimestampField(data, 'lastNudgedAt');
     }
 
-    function isValidSquadSubdoc(data, docId) {
+    function isValidSquadSubdoc(data) {
       let allowedKeys = [
         'id', 'uid', 'displayName', 'status', 'subject', 'startedAt',
         'updatedAt', 'type', 'text', 'createdAt', 'durationMinutes',
         'completedAt', 'courseName', 'url', 'title'
       ];
-      return docId.size() > 0 &&
-             docId.size() <= 254 &&
-             data.keys().size() > 0 &&
+      return data.keys().size() > 0 &&
              data.keys().size() <= 25 &&
              data.keys().hasOnly(allowedKeys) &&
              isValidOptionalString(data, 'id', 128) &&
@@ -441,140 +471,242 @@ service cloud.firestore {
              isValidOptionalTimestampField(data, 'completedAt');
     }
 
-    function isValidFriendshipPayload(data, friendshipId) {
-      let allowedKeys = [
-        'id', 'users', 'requesterUid', 'requesterEmail', 'requesterName',
-        'recipientUid', 'recipientEmail', 'recipientName', 'status',
-        'createdAt', 'updatedAt'
-      ];
-      return friendshipId.size() > 0 &&
-             friendshipId.size() <= 512 &&
-             data.keys().hasOnly(allowedKeys) &&
-             data.users is list &&
-             data.users.size() == 2 &&
-             data.users[0] is string &&
-             data.users[1] is string &&
-             data.requesterUid is string &&
-             data.requesterUid.size() > 0 &&
-             data.requesterUid.size() <= 254 &&
-             data.recipientUid is string &&
-             data.recipientUid.size() > 0 &&
-             data.recipientUid.size() <= 254 &&
-             data.requesterUid != data.recipientUid &&
-             data.requesterUid in data.users &&
-             data.recipientUid in data.users &&
-             data.status in ['pending', 'accepted'] &&
-             isValidOptionalString(data, 'id', 512) &&
-             isValidOptionalString(data, 'requesterEmail', 254) &&
-             isValidOptionalString(data, 'requesterName', 120) &&
-             isValidOptionalString(data, 'recipientEmail', 254) &&
-             isValidOptionalString(data, 'recipientName', 120) &&
-             isValidOptionalTimestampField(data, 'createdAt') &&
-             isValidOptionalTimestampField(data, 'updatedAt');
-    }
-
     // ===============================================================
     // Collection Rules
     // ===============================================================
 
-    // Connectivity check endpoint used by src/lib/firebase.js
-    match /test/connection {
-      allow get: if true;
-      allow list, write: if false;
+    // User profile and academic telemetry (owner-only; legacy email ID permitted get/delete for one-time migration)
+    match /users/{userId} {
+      allow get, delete: if isUserDocOwner(userId) || isLegacyEmailOwner(userId);
+      allow list: if false;
+      allow create: if isUserDocOwner(userId) &&
+                      !('passwordHash' in request.resource.data) &&
+                      isValidUserPayload(request.resource.data, userId);
+      allow update: if isUserDocOwner(userId) &&
+                      !('passwordHash' in request.resource.data) &&
+                      isValidUserPayload(request.resource.data, userId) &&
+                      (!('createdAt' in resource.data) ||
+                       !('createdAt' in request.resource.data) ||
+                       request.resource.data.createdAt == resource.data.createdAt);
     }
 
-    // User profile and academic telemetry
-    match /users/{userId} {
-      // Never allow collection-wide listing/dumping of users
+    // Exact-email SHA-256 lookup index for friend requests (zero-enumeration)
+    match /friendLookups/{emailHash} {
+      allow get: if isSignedIn() && emailHash.matches('^[a-f0-9]{64}$');
       allow list: if false;
+      allow create: if isSignedIn() &&
+                      isValidFriendLookupPayload(request.resource.data, emailHash) &&
+                      request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() &&
+                      resource.data.uid == request.auth.uid &&
+                      isValidFriendLookupPayload(request.resource.data, emailHash) &&
+                      request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
 
-      // Single-document lookup by authenticated owner or valid non-empty document ID for hybrid PBKDF2 sign-in lookup
-      allow get: if isUserDocOwner(userId) || isValidDocId(userId);
-
-      // Require strict schema/size validation and ownership enforcement on create and update
-      allow create, update: if canWriteUserDoc(userId);
-
-      // Only authenticated document owner can delete their user profile
+    // Privacy-separated, grade-free friend telemetry projection
+    match /friendProfiles/{userId} {
+      allow get: if isUserDocOwner(userId) || isAcceptedFriendOf(userId);
+      allow list: if false;
+      allow create, update: if isUserDocOwner(userId) &&
+                              request.resource.data.uid == request.auth.uid &&
+                              !('grades' in request.resource.data) &&
+                              !('passwordHash' in request.resource.data) &&
+                              isValidFriendProfilePayload(request.resource.data);
       allow delete: if isUserDocOwner(userId);
     }
 
-    // Pre-registration Email OTP Verifications (hash-only OTP verification)
-    match /emailVerifications/{verificationId} {
-      // Prevent enumerating or deleting OTP verification documents
-      allow list, delete: if false;
-
-      // Single-document lookup by normalized email ID
-      allow get: if verificationId.size() > 3 && verificationId.size() <= 254;
-
-      // Validate OTP document structure and forbid plaintext OTP storage on create and update
-      allow create, update: if isValidEmailVerification(request.resource.data, verificationId);
+    // UID-keyed bidirectional friendships & friend requests
+    match /friendships/{friendshipId} {
+      allow get: if isSignedIn() && (
+                     (resource != null &&
+                      (request.auth.uid in resource.data.users ||
+                       (authEmail() != '' && authEmail() in resource.data.users))) ||
+                     (resource == null &&
+                      (friendshipId.matches('^' + request.auth.uid + '__.*$') ||
+                       friendshipId.matches('^.*__' + request.auth.uid + '$')))
+                   );
+      allow list: if isSignedIn() &&
+                    (request.auth.uid in resource.data.users ||
+                     (authEmail() != '' && authEmail() in resource.data.users));
+      allow create: if isSignedIn() &&
+                      friendshipId.size() > 0 &&
+                      friendshipId.size() <= 512 &&
+                      isValidFriendshipPayload(request.resource.data) &&
+                      request.resource.data.requesterUid == request.auth.uid &&
+                      request.auth.uid in request.resource.data.users &&
+                      request.resource.data.status == 'pending' &&
+                      (!('id' in request.resource.data) || request.resource.data.id == friendshipId) &&
+                      friendshipId == (request.resource.data.users[0] < request.resource.data.users[1]
+                        ? request.resource.data.users[0] + '__' + request.resource.data.users[1]
+                        : request.resource.data.users[1] + '__' + request.resource.data.users[0]);
+      allow update: if isSignedIn() &&
+                      isValidFriendshipPayload(request.resource.data) &&
+                      request.auth.uid == resource.data.recipientUid &&
+                      request.auth.uid in resource.data.users &&
+                      resource.data.status == 'pending' &&
+                      request.resource.data.status == 'accepted' &&
+                      request.resource.data.users == resource.data.users &&
+                      request.resource.data.requesterUid == resource.data.requesterUid &&
+                      request.resource.data.recipientUid == resource.data.recipientUid &&
+                      (!('createdAt' in resource.data) ||
+                       !('createdAt' in request.resource.data) ||
+                       request.resource.data.createdAt == resource.data.createdAt);
+      allow delete: if isSignedIn() &&
+                      (request.auth.uid in resource.data.users ||
+                       (authEmail() != '' && authEmail() in resource.data.users));
     }
 
-    // Outbound transactional email queue (write-only trigger collection)
-    match /mail/{mailId} {
-      allow read, update, delete: if false;
-      allow create: if isValidMailDocument(request.resource.data);
+    // Invite-code lookup documents for joining squads without listing /squads
+    match /squadInvites/{code} {
+      allow get: if isSignedIn() && code.matches('^[A-Z0-9-]{4,20}$');
+      allow list: if false;
+      allow create: if isSignedIn() &&
+                      isValidSquadInvitePayload(request.resource.data, code) &&
+                      request.resource.data.createdBy == request.auth.uid;
+      allow update: if false;
+      allow delete: if isSignedIn() &&
+                      (resource.data.createdBy == request.auth.uid ||
+                       isSquadCreator(resource.data.squadId));
     }
 
     // Squads Hub: Main squad document and subcollections
     match /squads/{squadId} {
-      allow get, list: if true;
-      allow create: if isValidSquadCreate(request.resource.data, squadId);
-      allow update: if isValidSquadUpdate(request.resource.data, squadId);
-      allow delete: if squadId.size() > 0 &&
-                    squadId.size() <= 128 &&
-                    resource != null &&
-                    (!isAuthenticated() ||
-                     !('createdBy' in resource.data) ||
-                     resource.data.createdBy == request.auth.uid ||
-                     (hasAuthEmail() && resource.data.createdBy == request.auth.token.email.lower()));
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() &&
+                    (request.auth.uid in resource.data.memberUids ||
+                     (legacyEmailDocId() != '' && legacyEmailDocId() in resource.data.memberUids));
+      allow create: if isSignedIn() &&
+                      squadId.size() > 0 &&
+                      squadId.size() <= 128 &&
+                      isValidSquadPayload(request.resource.data) &&
+                      request.resource.data.name is string &&
+                      request.resource.data.name.size() > 0 &&
+                      request.resource.data.code is string &&
+                      request.resource.data.code.size() >= 4 &&
+                      request.resource.data.createdBy == request.auth.uid &&
+                      request.resource.data.memberUids is list &&
+                      request.auth.uid in request.resource.data.memberUids;
+      allow update: if isSignedIn() &&
+                      squadId.size() > 0 &&
+                      squadId.size() <= 128 &&
+                      isValidSquadPayload(request.resource.data) &&
+                      (!('createdAt' in resource.data) ||
+                       !('createdAt' in request.resource.data) ||
+                       request.resource.data.createdAt == resource.data.createdAt) &&
+                      (
+                        // (a) Joining via invite: non-member adds only their own UID
+                        (!(request.auth.uid in resource.data.memberUids) &&
+                         request.auth.uid in request.resource.data.memberUids &&
+                         request.resource.data.createdBy == resource.data.createdBy &&
+                         request.resource.data.memberUids.hasAll(resource.data.memberUids) &&
+                         request.resource.data.memberUids.size() <= resource.data.memberUids.size() + 1 &&
+                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'memberCount', 'updatedAt'])) ||
+                        // (b) Existing member, creator, or legacy migration updates
+                        ((request.auth.uid in resource.data.memberUids ||
+                          (legacyEmailDocId() != '' && legacyEmailDocId() in resource.data.memberUids)) &&
+                         (
+                           (request.resource.data.createdBy == resource.data.createdBy &&
+                            ((resource.data.createdBy == request.auth.uid ||
+                              (legacyEmailDocId() != '' && resource.data.createdBy == legacyEmailDocId())) ||
+                             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberUids', 'memberCount', 'nextSession', 'updatedAt']))) ||
+                           (request.resource.data.createdBy != resource.data.createdBy &&
+                            (resource.data.createdBy == request.auth.uid ||
+                             (legacyEmailDocId() != '' && resource.data.createdBy == legacyEmailDocId())) &&
+                            (request.resource.data.createdBy in resource.data.memberUids ||
+                             request.resource.data.createdBy == request.auth.uid))
+                         ))
+                      );
+      allow delete: if isSignedIn() &&
+                      (resource.data.createdBy == request.auth.uid ||
+                       (legacyEmailDocId() != '' && resource.data.createdBy == legacyEmailDocId())) &&
+                      resource.data.memberUids.size() <= 1;
 
       // Squad members
       match /members/{memberId} {
-        allow get, list: if squadId.size() > 0 && squadId.size() <= 128;
-        allow create, update: if squadId.size() > 0 &&
-                              squadId.size() <= 128 &&
-                              isValidSquadMember(request.resource.data, memberId);
-        allow delete: if squadId.size() > 0 && squadId.size() <= 128;
+        allow get, list: if isSignedIn() &&
+                            (isSquadMember(squadId) || isLegacySquadMember(squadId));
+        allow create, update: if isSignedIn() &&
+                                (isSquadMember(squadId) || isLegacySquadMember(squadId)) &&
+                                (request.auth.uid == memberId ||
+                                 (legacyEmailDocId() != '' && legacyEmailDocId() == memberId)) &&
+                                isValidSquadMember(request.resource.data, memberId);
+        allow delete: if isSignedIn() &&
+                        (isSquadMember(squadId) || isLegacySquadMember(squadId)) &&
+                        (request.auth.uid == memberId ||
+                         (legacyEmailDocId() != '' && legacyEmailDocId() == memberId) ||
+                         isSquadCreator(squadId) ||
+                         isLegacySquadCreator(squadId));
       }
 
       // Live Lock-In presence
-      match /presence/{presenceId} {
-        allow get, list: if squadId.size() > 0 && squadId.size() <= 128;
-        allow create, update: if squadId.size() > 0 &&
-                              squadId.size() <= 128 &&
-                              isValidSquadSubdoc(request.resource.data, presenceId);
-        allow delete: if squadId.size() > 0 && squadId.size() <= 128;
+      match /presence/{memberId} {
+        allow get, list: if isSignedIn() &&
+                            (isSquadMember(squadId) || isLegacySquadMember(squadId));
+        allow create, update: if isSignedIn() &&
+                                memberId.size() > 0 &&
+                                memberId.size() <= 254 &&
+                                (isSquadMember(squadId) || isLegacySquadMember(squadId)) &&
+                                (request.auth.uid == memberId ||
+                                 (legacyEmailDocId() != '' && legacyEmailDocId() == memberId)) &&
+                                isValidSquadSubdoc(request.resource.data);
+        allow delete: if isSignedIn() &&
+                        (isSquadMember(squadId) || isLegacySquadMember(squadId)) &&
+                        (request.auth.uid == memberId ||
+                         (legacyEmailDocId() != '' && legacyEmailDocId() == memberId) ||
+                         isSquadCreator(squadId) ||
+                         isLegacySquadCreator(squadId));
       }
 
       // Squad activity feed
       match /activities/{activityId} {
-        allow get, list: if squadId.size() > 0 && squadId.size() <= 128;
-        allow create, update: if squadId.size() > 0 &&
-                              squadId.size() <= 128 &&
-                              isValidSquadSubdoc(request.resource.data, activityId);
-        allow delete: if squadId.size() > 0 && squadId.size() <= 128;
+        allow get, list: if isSignedIn() &&
+                            (isSquadMember(squadId) || isLegacySquadMember(squadId));
+        allow create, update: if isSignedIn() &&
+                                activityId.size() > 0 &&
+                                activityId.size() <= 254 &&
+                                (isSquadMember(squadId) || isLegacySquadMember(squadId)) &&
+                                isValidSquadSubdoc(request.resource.data);
+        allow delete: if isSignedIn() &&
+                        (isSquadMember(squadId) || isLegacySquadMember(squadId)) &&
+                        (resource.data.uid == request.auth.uid ||
+                         (legacyEmailDocId() != '' && resource.data.uid == legacyEmailDocId()) ||
+                         isSquadCreator(squadId) ||
+                         isLegacySquadCreator(squadId));
       }
 
       // Historical ghost racing sessions
       match /sessions/{sessionId} {
-        allow get, list: if squadId.size() > 0 && squadId.size() <= 128;
-        allow create, update: if squadId.size() > 0 &&
-                              squadId.size() <= 128 &&
-                              isValidSquadSubdoc(request.resource.data, sessionId);
-        allow delete: if false;
+        allow get, list: if isSignedIn() &&
+                            (isSquadMember(squadId) || isLegacySquadMember(squadId));
+        allow create, update: if isSignedIn() &&
+                                sessionId.size() > 0 &&
+                                sessionId.size() <= 254 &&
+                                (isSquadMember(squadId) || isLegacySquadMember(squadId)) &&
+                                (request.resource.data.uid == request.auth.uid ||
+                                 isSquadCreator(squadId) ||
+                                 isLegacySquadCreator(squadId)) &&
+                                isValidSquadSubdoc(request.resource.data);
+        allow delete: if isSignedIn() &&
+                        (isSquadMember(squadId) || isLegacySquadMember(squadId)) &&
+                        (resource.data.uid == request.auth.uid ||
+                         (legacyEmailDocId() != '' && resource.data.uid == legacyEmailDocId()) ||
+                         isSquadCreator(squadId) ||
+                         isLegacySquadCreator(squadId));
       }
     }
 
-    // Friends System (#44): Bidirectional friendship & friend request documents
-    match /friendships/{friendshipId} {
-      allow get, list: if true;
-      allow create: if isValidFriendshipPayload(request.resource.data, friendshipId);
-      allow update: if isValidFriendshipPayload(request.resource.data, friendshipId) &&
-                    resource.data.requesterUid == request.resource.data.requesterUid &&
-                    resource.data.recipientUid == request.resource.data.recipientUid &&
-                    resource.data.users == request.resource.data.users;
-      allow delete: if friendshipId.size() > 0 && friendshipId.size() <= 512;
+    // Legacy / deprecated collections (explicitly locked down)
+    match /emailVerifications/{docId} {
+      allow read, write: if false;
+    }
+
+    match /mail/{docId} {
+      allow read, write: if false;
+    }
+
+    match /test/{docId} {
+      allow read, write: if false;
     }
 
     // Default deny catch-all
