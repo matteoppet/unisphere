@@ -428,8 +428,8 @@ describe('Exams & Assignments Redesign (#exams-redesign)', () => {
       );
       assert.deepEqual(headers, ['Course', 'Type', 'Date', 'Grade', 'Actions']);
 
-      // Coherent modal across assignments.html, dashboard.html, and index.html
-      for (const pagePath of ['pages/assignments.html', 'pages/dashboard.html', 'index.html']) {
+      // Coherent modal across assignments.html and dashboard.html
+      for (const pagePath of ['pages/assignments.html', 'pages/dashboard.html']) {
         const pageHtml = fs.readFileSync(path.join(repoRoot, pagePath), 'utf8');
         assert.match(pageHtml, /id="modal-assignment"/);
         assert.doesNotMatch(pageHtml, /id="assignment-title"/);

@@ -102,3 +102,80 @@ describe('Intro Video Assets, Vite Config, CSP & Cache Headers', () => {
     assert.ok(serverTs.includes('public, max-age=86400'), 'server.ts must set max-age=86400 for /media/');
   });
 });
+
+describe('One-Page Introduction Markup, Theme & Assets (index.html)', () => {
+  it('loads only standalone intro assets without Firebase or app.js', () => {
+    const html = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
+    assert.ok(html.includes('/src/intro.css'), 'index.html must link /src/intro.css');
+    assert.ok(html.includes('/src/intro.js'), 'index.html must load /src/intro.js');
+    assert.equal(html.includes('/src/main.js'), false, 'index.html must not load /src/main.js');
+    assert.equal(html.includes('/src/app.js'), false, 'index.html must not load /src/app.js');
+    assert.equal(/firebase/i.test(html), false, 'index.html must not reference Firebase');
+  });
+
+  it('includes pre-paint theme script and signed-in redirect with ?intro=1 bypass', () => {
+    const html = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
+    assert.ok(html.includes('try{'), 'index.html pre-paint scripts must wrap localStorage in try/catch');
+    assert.ok(html.includes('unisphere_theme'), 'index.html must hydrate unisphere_theme pre-paint');
+    assert.ok(
+      html.includes('unisphere_workspace_session_email'),
+      'index.html must check unisphere_workspace_session_email'
+    );
+    assert.ok(
+      html.includes("window.location.replace('/pages/dashboard.html')"),
+      'index.html must redirect signed-in users to /pages/dashboard.html'
+    );
+    assert.ok(
+      html.includes("get('intro')!=='1'") || html.includes("get('intro') !== '1'"),
+      'index.html must support ?intro=1 bypass'
+    );
+  });
+
+  it('presents student-built, free, open-source, distraction-free hero, video stage, 3 pillars, FAQ, and skip-to-login links', () => {
+    const html = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
+    assert.ok(html.includes('id="btn-theme-toggle"'), 'index.html must include #btn-theme-toggle');
+    assert.match(html, /Built by students, for students/i);
+    assert.match(html, /Free/i);
+    assert.match(html, /Open Source/i);
+    assert.ok(html.includes('https://github.com/matteoppet/unisphere'));
+    assert.match(html, /distraction-free/i);
+    assert.ok(html.includes('Start Your New Life'));
+    assert.ok(html.includes('href="/pages/login.html#register"'));
+    assert.ok(html.includes('href="/pages/login.html#login"'));
+
+    assert.match(html, /<video[^>]*id="intro-video"/);
+    assert.match(html, /<video[^>]*controls/);
+    assert.match(html, /<video[^>]*playsinline/);
+    assert.match(html, /<video[^>]*preload="metadata"/);
+    assert.match(html, /<video[^>]*poster="\/media\/intro-poster\.jpg"/);
+    assert.ok(html.includes('<source src="/media/intro.mp4" type="video/mp4"'));
+    assert.ok(html.includes('id="intro-video-fallback"'));
+
+    assert.match(html, /Courses/i);
+    assert.match(html, /Session Logs/i);
+    assert.match(html, /Friends/i);
+    assert.match(html, /Squads/i);
+    assert.match(html, /solo/i);
+
+    const detailsCount = (html.match(/<details\b/g) || []).length;
+    assert.ok(detailsCount >= 4, `Expected at least 4 FAQ <details> items, found ${detailsCount}`);
+
+    assert.ok(html.includes('href="/pages/privacy.html"'));
+    assert.ok(html.includes('href="/pages/terms.html"'));
+  });
+
+  it('uses monochrome light/dark palette in src/intro.css without external fonts or gradients', () => {
+    const css = fs.readFileSync(path.join(repoRoot, 'src/intro.css'), 'utf8');
+    assert.match(css, /color-scheme:\s*light dark/);
+    assert.match(css, /html\[data-theme="dark"\]/);
+    assert.match(css, /@media\s*\(\s*prefers-color-scheme:\s*dark\s*\)/);
+    assert.ok(css.includes('.legal-article'), 'src/intro.css must define .legal-article');
+    assert.equal(css.includes('fonts.googleapis.com'), false, 'src/intro.css must not load Google Fonts');
+    assert.equal(/@import\b/i.test(css), false, 'src/intro.css must not use external @import');
+    assert.equal(
+      /(?:linear|radial)-gradient/i.test(css),
+      false,
+      'src/intro.css must not use gradients'
+    );
+  });
+});

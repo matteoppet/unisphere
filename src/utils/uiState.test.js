@@ -169,7 +169,7 @@ describe('Duplicate listener & modal guards (#dashboard-guards)', () => {
 
 describe('Dashboard semantic row action buttons & undo (#dashboard-row-actions)', () => {
   it('wires #dash-undo-banner in Dashboard HTML and uses <button> elements for Dashboard row actions', () => {
-    for (const htmlFile of ['index.html', 'pages/dashboard.html']) {
+    for (const htmlFile of ['pages/dashboard.html']) {
       const html = fs.readFileSync(path.resolve(htmlFile), 'utf8');
       assert.ok(html.includes('id="dash-undo-banner"'), `${htmlFile} must include #dash-undo-banner`);
     }

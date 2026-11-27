@@ -170,14 +170,12 @@ describe('groupStudyLogsByWeek (#34)', () => {
     assert.equal(groups[1].label, 'Other · 30m');
   });
 
-  it('wires scrollable containers and week-separator-row into index.html, dashboard.html, logs.html, index.css, and app.js', () => {
-    const indexHtml = fs.readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
+  it('wires scrollable containers and week-separator-row into dashboard.html, logs.html, index.css, and app.js', () => {
     const dashHtml = fs.readFileSync(new URL('../../pages/dashboard.html', import.meta.url), 'utf8');
     const logsHtml = fs.readFileSync(new URL('../../pages/logs.html', import.meta.url), 'utf8');
     const css = fs.readFileSync(new URL('../index.css', import.meta.url), 'utf8');
     const appJs = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 
-    assert.match(indexHtml, /class="table-wrap table-scroll table-scroll-sm"/);
     assert.match(dashHtml, /class="table-wrap table-scroll table-scroll-sm"/);
     assert.match(logsHtml, /class="table-wrap table-scroll"/);
     assert.match(css, /\.table-scroll\s*\{[\s\S]*?max-height:\s*calc\(100vh\s*-/);
@@ -246,9 +244,8 @@ describe('Session time input modes and duration calculation (#41)', () => {
     assert.equal(addMinutesToTimeString('invalid', 60), '14:00');
   });
 
-  it('verifies #modal-log markup in index.html, dashboard.html, and logs.html contains 3 input modes and duration preview', () => {
+  it('verifies #modal-log markup in dashboard.html and logs.html contains 3 input modes and duration preview', () => {
     const files = [
-      new URL('../../index.html', import.meta.url),
       new URL('../../pages/dashboard.html', import.meta.url),
       new URL('../../pages/logs.html', import.meta.url),
     ];
@@ -293,7 +290,6 @@ describe('Session time input modes and duration calculation (#41)', () => {
     assert.match(appJs, /log-duration-preview-positive/);
 
     for (const fileUrl of [
-      new URL('../../index.html', import.meta.url),
       new URL('../../pages/dashboard.html', import.meta.url),
       new URL('../../pages/logs.html', import.meta.url),
     ]) {
@@ -542,12 +538,11 @@ describe('Dashboard Session Logs Week Switcher', () => {
   });
 
   it('wires week-switcher markup, styles, and bindings across HTML, CSS, and app.js', () => {
-    const indexHtml = fs.readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
     const dashHtml = fs.readFileSync(new URL('../../pages/dashboard.html', import.meta.url), 'utf8');
     const css = fs.readFileSync(new URL('../index.css', import.meta.url), 'utf8');
     const appJs = fs.readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 
-    for (const html of [indexHtml, dashHtml]) {
+    for (const html of [dashHtml]) {
       assert.match(html, /class="week-switcher"/);
       assert.match(html, /id="btn-dash-week-prev"/);
       assert.match(html, /id="dash-week-select"/);

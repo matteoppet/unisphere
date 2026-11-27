@@ -152,7 +152,7 @@ describe('Dashboard Goals data model and sanitization', () => {
   });
 
   it('wires the Dashboard Goals card and Add/Edit/Delete Goal modal across HTML, CSS, and app.js', () => {
-    for (const htmlFile of ['index.html', 'pages/dashboard.html']) {
+    for (const htmlFile of ['pages/dashboard.html']) {
       const content = fs.readFileSync(path.resolve(htmlFile), 'utf8');
       assert.ok(content.includes('id="dash-goals-card"'), `${htmlFile} must include #dash-goals-card`);
       assert.ok(content.includes('id="btn-dash-add-goal"'), `${htmlFile} must include #btn-dash-add-goal`);
