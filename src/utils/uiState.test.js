@@ -282,6 +282,8 @@ describe('Theme color-scheme & dark mode palette (#theme-dark-mode)', () => {
       'pages/assignments.html',
       'pages/squads.html',
       'pages/settings.html',
+      'pages/privacy.html',
+      'pages/terms.html',
     ]) {
       const html = fs.readFileSync(path.resolve(htmlFile), 'utf8');
       assert.ok(html.includes('id="btn-theme-toggle"'), `${htmlFile} must include #btn-theme-toggle`);

@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UniSphere — Privacy &amp; Storage Policy</title>
+    <meta
+      name="description"
+      content="Privacy and storage policy for UniSphere under EU GDPR (2016/679), Italian Privacy Code (D.Lgs. 196/2003), and ePrivacy guidelines."
+    />
+    <script>try{var t=localStorage.getItem('unisphere_theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+    <link rel="stylesheet" href="/src/intro.css" />
+  </head>
+  <body>
+    <a href="#legal-main" class="skip-link">Skip to main content</a>
+
+    <header class="intro-header">
+      <a href="/?intro=1" class="intro-brand">UniSphere</a>
+      <nav class="intro-nav" aria-label="Legal page navigation">
+        <a href="/?intro=1" class="intro-nav-link">Overview</a>
+        <a href="/pages/terms.html" class="intro-nav-link">Terms &amp; Conditions</a>
+        <button
+          type="button"
+          id="btn-theme-toggle"
+          class="theme-toggle-btn"
+          aria-label="Switch to dark theme"
+        >
+          Dark Theme
+        </button>
+        <a href="/pages/login.html#login" class="btn-primary btn-primary-sm" data-legal-app-cta
+          >Log in</a
+        >
+      </nav>
+    </header>
+
+    <main id="legal-main" class="legal-article" tabindex="-1">
+      <h1>Privacy &amp; Storage Policy</h1>
+      <p class="legal-meta">
+        Last updated: 27 November 2026 · Applicable under Regulation (EU) 2016/679 (GDPR) and
+        Italian Legislative Decree 196/2003 (as amended by D.Lgs. 101/2018)
+      </p>
+
+      <div class="legal-box">
+        <strong>Data Controller:</strong> UniSphere Project Maintainer<br />
+        <strong>Contact Email:</strong>
+        <a href="mailto:privacy@unispherelife.me">privacy@unispherelife.me</a><br />
+        <strong>Source Code:</strong>
+        <a
+          href="https://github.com/matteoppet/unisphere"
+          target="_blank"
+          rel="noopener noreferrer"
+          >github.com/matteoppet/unisphere</a
+        >
+        (MIT Open Source)
+      </div>
+
+      <h2>1. Who We Are &amp; Plain Summary</h2>
+      <p>
+        UniSphere is a free, non-commercial, student-built open-source web application for tracking
+        university courses, study session logs, exams, and optional study groups. We process only
+        the information needed to run your workspace and the social features you choose to use. We
+        run zero advertising, zero behavioral profiling, zero sale of personal data, and zero AI
+        model training on your records.
+      </p>
+
+      <h2>2. Personal Data We Collect</h2>
+      <ul>
+        <li>
+          <strong>Account &amp; Profile Data:</strong> Email address, display name, salted PBKDF2
+          password hash (or Google Sign-In identifier), plus academic profile fields you enter such
+          as degree program, institution, target CFU, and optional student ID
+          (<em>matricola</em>).
+        </li>
+        <li>
+          <strong>Academic Workspace Data:</strong> Courses, exam dates and grades, study session
+          logs, goals/checklists, quick notes, and saved resource links.
+        </li>
+        <li>
+          <strong>Optional Social Data (Squads &amp; Friends):</strong> If you join or create a
+          Squad or add Friends, your display name, email address, live study status/subject, weekly
+          study totals, squad feed notes, and friendship link records are shared with those Squad
+          members or accepted friends.
+        </li>
+        <li>
+          <strong>Technical Security Data:</strong> IP address held transiently in server memory
+          (for up to 15 minutes) to rate-limit email verification code requests, plus standard HTTP
+          access/security logs processed by our hosting and DNS providers.
+        </li>
+      </ul>
+
+      <h2>3. Purposes &amp; Lawful Bases (Art. 6 GDPR)</h2>
+      <ul>
+        <li>
+          <strong>Contract Performance — Art. 6(1)(b) GDPR:</strong> Creating and authenticating
+          your account, sending requested 6-digit email verification codes, syncing your academic
+          workspace across devices, and operating Squads &amp; Friends when you choose to use them.
+        </li>
+        <li>
+          <strong>Legitimate Interest — Art. 6(1)(f) GDPR:</strong> Protecting authentication and
+          email endpoints from spam, brute-force attempts, and abuse through short-lived rate
+          limiting and transport security.
+        </li>
+      </ul>
+
+      <h2>4. Sub-Processors &amp; International Transfers (GDPR Chapter V)</h2>
+      <p>
+        UniSphere relies on the following infrastructure providers acting under Data Processing
+        Addenda and, where data crosses outside the European Economic Area, the EU–US Data Privacy Framework
+        and/or European Commission Standard Contractual Clauses:
+      </p>
+      <ul>
+        <li>
+          <strong>Google LLC (Firebase Authentication &amp; Cloud Firestore):</strong> Account
+          authentication, Google Sign-In, and cloud database sync.
+        </li>
+        <li>
+          <strong>Vercel Inc.:</strong> Static site hosting and serverless API execution.
+        </li>
+        <li>
+          <strong>Resend Inc.:</strong> Transactional delivery of 6-digit email verification codes.
+        </li>
+        <li>
+          <strong>Cloudflare Inc.:</strong> Authoritative DNS routing and edge security.
+        </li>
+      </ul>
+
+      <h2>5. Cookies &amp; Browser Storage (ePrivacy / Art. 122 D.Lgs. 196/2003 / Garante 2021)</h2>
+      <p>
+        UniSphere uses zero tracking cookies, zero third-party analytics, and zero external font or
+        video-embed trackers. To keep the app working smoothly and offline-resilient, we store only
+        strictly necessary technical entries in browser <code>localStorage</code> and
+        <code>sessionStorage</code>:
+      </p>
+      <ul>
+        <li>
+          <code>unisphere_workspace_session_email</code> and local workspace cache keys (to keep
+          your signed-in session active and prevent data loss offline);
+        </li>
+        <li>
+          <code>unisphere_theme</code> (to remember your light or dark theme preference without
+          flashing);
+        </li>
+        <li>
+          Temporary <code>sessionStorage</code> keys for in-progress email OTP verification.
+        </li>
+      </ul>
+      <p>
+        Because every entry above is strictly necessary to deliver the service you explicitly
+        request and there is zero tracking or profiling, prior cookie-banner consent is not
+        required under EU ePrivacy rules and the Italian Garante Cookie Guidelines (10 June 2021).
+      </p>
+
+      <h2>6. Data Retention</h2>
+      <p>
+        Account and academic workspace data remain stored while your account is active. In-memory
+        rate-limiting IP records are discarded automatically after 15 minutes, and verification code
+        hashes expire after 15 minutes.
+      </p>
+
+      <h2>7. Your Rights (Arts. 15–22 GDPR) &amp; Supervisory Authority</h2>
+      <p>
+        Under the GDPR, you have the right to access, rectify, restrict, object to processing, and
+        request portability or erasure of your personal data:
+      </p>
+      <ul>
+        <li>
+          <strong>Instant Portability (Art. 20):</strong> You can export your entire workspace as
+          structured <strong>JSON</strong> or <strong>CSV</strong> directly inside
+          <em>Settings</em> at any time.
+        </li>
+        <li>
+          <strong>Access, Rectification &amp; Erasure (Arts. 15, 16, 17):</strong> You can edit or
+          clear workspace entries in the app, and request full account deletion anytime by emailing
+          <a href="mailto:privacy@unispherelife.me">privacy@unispherelife.me</a>. (Self-serve
+          in-app account deletion is also scheduled in our next milestone.)
+        </li>
+        <li>
+          <strong>Right to Complain (Art. 77):</strong> You have the right to lodge a complaint with
+          the Italian Data Protection Authority —
+          <strong>Garante per la protezione dei dati personali</strong> (<a
+            href="https://www.garanteprivacy.it"
+            target="_blank"
+            rel="noopener noreferrer"
+            >garanteprivacy.it</a
+          >) — or with your local EU supervisory authority.
+        </li>
+      </ul>
+
+      <h2>8. Minimum Age (Art. 8 GDPR &amp; Art. 2-quinquies D.Lgs. 196/2003)</h2>
+      <p>
+        UniSphere is built for university students and requires users to be at least
+        <strong>16 years old</strong> across the European Union, or at least
+        <strong>14 years old in Italy</strong> pursuant to Art. 2-quinquies of Italian Legislative
+        Decree 196/2003. We do not knowingly collect data from children below those thresholds.
+      </p>
+    </main>
+
+    <footer class="intro-footer">
+      <span>UniSphere · MIT Open Source</span>
+      <div class="intro-footer-links">
+        <a href="/?intro=1">Overview</a>
+        <a href="/pages/terms.html">Terms &amp; Conditions</a>
+        <a
+          href="https://github.com/matteoppet/unisphere"
+          target="_blank"
+          rel="noopener noreferrer"
+          >GitHub</a
+        >
+        <a href="/pages/login.html#login" data-legal-app-cta>Log in</a>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/intro.js"></script>
+  </body>
+</html>

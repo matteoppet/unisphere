@@ -179,3 +179,65 @@ describe('One-Page Introduction Markup, Theme & Assets (index.html)', () => {
     );
   });
 });
+
+describe('Standalone Legal Pages (privacy.html & terms.html)', () => {
+  it('shares intro assets without Firebase/app.js and never auto-redirects signed-in users', () => {
+    for (const legalPage of ['pages/privacy.html', 'pages/terms.html']) {
+      const html = fs.readFileSync(path.join(repoRoot, legalPage), 'utf8');
+      assert.ok(html.includes('/src/intro.css'), `${legalPage} must link /src/intro.css`);
+      assert.ok(html.includes('/src/intro.js'), `${legalPage} must load /src/intro.js`);
+      assert.equal(html.includes('/src/main.js'), false, `${legalPage} must not load /src/main.js`);
+      assert.equal(html.includes('/src/app.js'), false, `${legalPage} must not load /src/app.js`);
+      assert.equal(
+        html.includes('window.location.replace'),
+        false,
+        `${legalPage} must never auto-redirect signed-in users`
+      );
+      assert.ok(html.includes('data-legal-app-cta'), `${legalPage} must expose data-legal-app-cta`);
+      assert.ok(html.includes('UniSphere Project Maintainer'), `${legalPage} must list Data Controller placeholder`);
+      assert.ok(html.includes('privacy@unispherelife.me'), `${legalPage} must list contact email placeholder`);
+      assert.ok(html.includes('27 November 2026'), `${legalPage} must show Last updated date`);
+    }
+  });
+
+  it('privacy.html covers GDPR, Italian Privacy Code, sub-processors, localStorage, Garante, portability, and age', () => {
+    const html = fs.readFileSync(path.join(repoRoot, 'pages/privacy.html'), 'utf8');
+    for (const term of [
+      '2016/679',
+      'Art. 6(1)(b)',
+      'Art. 6(1)(f)',
+      'Google',
+      'Firebase',
+      'Vercel',
+      'Resend',
+      'Cloudflare',
+      'Data Privacy Framework',
+      'localStorage',
+      'zero tracking',
+      'Garante per la protezione dei dati personali',
+      'garanteprivacy.it',
+      'JSON',
+      'CSV',
+      'Art. 2-quinquies',
+      '16',
+      '14',
+    ]) {
+      assert.ok(html.includes(term), `pages/privacy.html must cover "${term}"`);
+    }
+  });
+
+  it('terms.html covers MIT License, user data ownership, age, DSA reporting, and Italian Civil Code Art. 1229', () => {
+    const html = fs.readFileSync(path.join(repoRoot, 'pages/terms.html'), 'utf8');
+    for (const term of [
+      'MIT License',
+      '16',
+      '14',
+      'Digital Services Act',
+      'privacy@unispherelife.me',
+      'Art. 1229',
+      'dolo o colpa grave',
+    ]) {
+      assert.ok(html.includes(term), `pages/terms.html must cover "${term}"`);
+    }
+  });
+});
