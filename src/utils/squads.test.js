@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { hashEmailForLookup } from '../lib/authService.js';
 import {
   getWeeklyDailyMinutesMap,
   getWeeklySubjectMinutesMap,
@@ -727,63 +728,107 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       assert.equal(priorOnlySummary.subjects.length, 0);
     });
 
-    it('supports friend-request send, auto-accept on reverse pending, accept, and remove workflow in squadService.js', async () => {
+    it('supports UID-keyed friend-request lookup via friendLookups, auto-accept, accept, and remove in squadService.js', async () => {
+      assert.equal('FRIENDS_HUB_SQUAD_ID' in squadService, false);
+      assert.equal('friendshipToHubActivityDoc' in squadService, false);
+      assert.equal('hubActivityDocToFriendship' in squadService, false);
       assert.equal(typeof squadService.sendFriendRequest, 'function');
       assert.equal(typeof squadService.acceptFriendRequest, 'function');
       assert.equal(typeof squadService.declineOrRemoveFriendship, 'function');
       assert.equal(typeof squadService.fetchUserFriendships, 'function');
       assert.equal(typeof squadService.fetchFriendProfileTelemetry, 'function');
+      assert.equal(typeof squadService.syncFriendProfileAndLookup, 'function');
 
-      // Reject self-request and empty input
+      const matteoHash = await hashEmailForLookup('mat.petrini@stud.uniroma3.it');
+      const lorenzoHash = await hashEmailForLookup('lorenzo.bianchi@stud.uniroma3.it');
+      const lookups = new Map([
+        [matteoHash, { uid: 'UidMatteo1', displayName: 'Matteo Petrini', emailHash: matteoHash }],
+        [lorenzoHash, { uid: 'UidLorenzo2', displayName: 'Lorenzo Bianchi', emailHash: lorenzoHash }],
+      ]);
+      const friendshipsStore = new Map();
+      const mockOps = {
+        getFriendLookup: async (hash) => lookups.get(hash) || null,
+        getFriendship: async (id) => friendshipsStore.get(id) || null,
+        setFriendship: async (id, docData) => {
+          friendshipsStore.set(id, docData);
+        },
+        deleteFriendship: async (id) => {
+          friendshipsStore.delete(id);
+        },
+        queryFriendshipsForUid: async (uid) =>
+          Array.from(friendshipsStore.values()).filter((f) => Array.isArray(f.users) && f.users.includes(uid)),
+      };
+
+      // Reject self-request (by UID or own email) and empty input
       const selfRes = await squadService.sendFriendRequest({
-        fromUid: 'mat.petrini@stud.uniroma3.it',
+        fromUid: 'UidMatteo1',
         fromEmail: 'mat.petrini@stud.uniroma3.it',
         fromName: 'Matteo Petrini',
-        toEmailOrUid: 'mat.petrini@stud.uniroma3.it',
+        toEmailOrUid: 'UidMatteo1',
+        ops: mockOps,
       });
       assert.equal(selfRes.ok, false);
       assert.match(selfRes.error || '', /yourself/i);
 
       const emptyRes = await squadService.sendFriendRequest({
-        fromUid: 'mat.petrini@stud.uniroma3.it',
+        fromUid: 'UidMatteo1',
         fromEmail: 'mat.petrini@stud.uniroma3.it',
         fromName: 'Matteo Petrini',
         toEmailOrUid: '   ',
+        ops: mockOps,
       });
       assert.equal(emptyRes.ok, false);
 
-      // Send pending friend request from Matteo to Lorenzo
+      // Missing /friendLookups entry rejects cleanly without creating orphaned friendship
+      const missingRes = await squadService.sendFriendRequest({
+        fromUid: 'UidMatteo1',
+        fromEmail: 'mat.petrini@stud.uniroma3.it',
+        fromName: 'Matteo Petrini',
+        toEmailOrUid: 'unknown.student@stud.uniroma3.it',
+        ops: mockOps,
+      });
+      assert.equal(missingRes.ok, false);
+      assert.match(missingRes.error || '', /no unisphere account/i);
+
+      // Send pending friend request via email -> resolves UID via /friendLookups/{emailHash}
       const sendRes = await squadService.sendFriendRequest({
-        fromUid: 'mat.petrini@stud.uniroma3.it',
+        fromUid: 'UidMatteo1',
         fromEmail: 'mat.petrini@stud.uniroma3.it',
         fromName: 'Matteo Petrini',
         toEmailOrUid: 'lorenzo.bianchi@stud.uniroma3.it',
-        toName: 'Lorenzo Bianchi',
+        ops: mockOps,
       });
       assert.equal(sendRes.ok, true);
       assert.equal(sendRes.status, 'pending');
-      assert.equal(
-        sendRes.friendship.id,
-        'lorenzo.bianchi@stud.uniroma3.it__mat.petrini@stud.uniroma3.it'
-      );
+      assert.equal(sendRes.friendship.id, 'UidLorenzo2__UidMatteo1');
+      assert.deepEqual(sendRes.friendship.users, ['UidLorenzo2', 'UidMatteo1']);
+      assert.equal(sendRes.friendship.recipientName, 'Lorenzo Bianchi');
 
-      // Reverse request from Lorenzo to Matteo auto-accepts the pending request
+      // Reverse request from Lorenzo (direct UID + Friend flow) auto-accepts the pending request
       const reverseRes = await squadService.sendFriendRequest({
-        fromUid: 'lorenzo.bianchi@stud.uniroma3.it',
+        fromUid: 'UidLorenzo2',
         fromEmail: 'lorenzo.bianchi@stud.uniroma3.it',
         fromName: 'Lorenzo Bianchi',
-        toEmailOrUid: 'mat.petrini@stud.uniroma3.it',
+        toEmailOrUid: 'UidMatteo1',
+        toName: 'Matteo Petrini',
+        ops: mockOps,
       });
       assert.equal(reverseRes.ok, true);
       assert.equal(reverseRes.status, 'accepted');
       assert.equal(reverseRes.friendship.status, 'accepted');
 
+      const fetched = await squadService.fetchUserFriendships('UidMatteo1', 'Matteo Petrini', mockOps);
+      assert.equal(fetched.length, 1);
+      assert.equal(fetched[0].status, 'accepted');
+
       // Remove friendship cleanly
       const removed = await squadService.declineOrRemoveFriendship(
         sendRes.friendship.id,
-        'mat.petrini@stud.uniroma3.it'
+        'UidMatteo1',
+        mockOps
       );
       assert.equal(removed, true);
+      assert.equal(friendshipsStore.has(sendRes.friendship.id), false);
     });
 
     it('verifies firestore.rules defines match /friendships/{friendshipId} and isValidFriendshipPayload (#44)', () => {
@@ -843,94 +888,47 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       assert.match(appSrc, /buildFriendTelemetrySummary/);
     });
 
-    it('encodes friendships into isValidSquadSubdoc-compatible activity docs for live Firestore real-time notifications and matches incoming requests by email, prefix, or display name (#44)', async () => {
-      assert.equal(typeof squadService.friendshipToHubActivityDoc, 'function');
-      assert.equal(typeof squadService.hubActivityDocToFriendship, 'function');
-      assert.equal(squadService.FRIENDS_HUB_SQUAD_ID, 'unisphere_friends_hub');
-
-      const rawFriendship = {
-        id: 'lorenzo@stud.uniroma3.it__mat.petrini@stud.uniroma3.it',
-        users: ['lorenzo@stud.uniroma3.it', 'mat.petrini@stud.uniroma3.it'],
-        requesterUid: 'mat.petrini@stud.uniroma3.it',
-        requesterEmail: 'mat.petrini@stud.uniroma3.it',
-        requesterName: 'Matteo Petrini',
-        recipientUid: 'lorenzo@stud.uniroma3.it',
-        recipientEmail: 'lorenzo@stud.uniroma3.it',
-        recipientName: 'Lorenzo Bianchi',
-        status: 'pending',
-        createdAt: '2026-11-15T12:00:00.000Z',
-        updatedAt: '2026-11-15T12:05:00.000Z',
-      };
-
-      const hubDoc = squadService.friendshipToHubActivityDoc(rawFriendship);
-      const allowedSubdocKeys = new Set([
-        'uid',
-        'displayName',
-        'status',
-        'subject',
-        'startedAt',
-        'updatedAt',
-        'type',
-        'text',
-        'createdAt',
-        'durationMinutes',
-        'completedAt',
-      ]);
-      for (const k of Object.keys(hubDoc)) {
-        assert.equal(
-          allowedSubdocKeys.has(k),
-          true,
-          `Key "${k}" must be allowed by deployed isValidSquadSubdoc rule`
-        );
-      }
-      assert.equal(hubDoc.uid, 'mat.petrini@stud.uniroma3.it');
-      assert.equal(hubDoc.displayName, 'Matteo Petrini');
-      assert.equal(hubDoc.subject, 'lorenzo@stud.uniroma3.it');
-      assert.equal(hubDoc.text, 'Lorenzo Bianchi');
-      assert.equal(hubDoc.type, 'friend_request');
-      assert.equal(hubDoc.status, 'pending');
-
-      const roundTrip = squadService.hubActivityDocToFriendship(rawFriendship.id, hubDoc);
-      assert.equal(roundTrip.id, rawFriendship.id);
-      assert.equal(roundTrip.requesterUid, 'mat.petrini@stud.uniroma3.it');
-      assert.equal(roundTrip.requesterName, 'Matteo Petrini');
-      assert.equal(roundTrip.recipientUid, 'lorenzo@stud.uniroma3.it');
-      assert.equal(roundTrip.recipientName, 'Lorenzo Bianchi');
-      assert.equal(roundTrip.status, 'pending');
-
-      // Matching incoming request when sender typed recipient's display name or email prefix
-      const nameTargetedReq = await squadService.sendFriendRequest({
-        fromUid: 'mat.petrini@stud.uniroma3.it',
-        fromEmail: 'mat.petrini@stud.uniroma3.it',
-        fromName: 'Matteo Petrini',
-        toEmailOrUid: 'Giulia Verdi',
+    it('enforces rule-safe Firestore call ordering for joinSquadInCloud, leaveSquadCleanly, and deleteSquadCompletely', async () => {
+      const leaveOrder = [];
+      await squadService.leaveSquadCleanly('mat@uni.it', 'UidMatteo1', 'sq-1', null, {
+        removeSquadFromUserDoc: async () => leaveOrder.push('removeSquadFromUserDoc'),
+        deleteMemberDoc: async () => leaveOrder.push('deleteMemberDoc'),
+        deletePresenceDoc: async () => leaveOrder.push('deletePresenceDoc'),
+        removeMemberUidFromSquad: async () => leaveOrder.push('removeMemberUidFromSquad'),
       });
-      assert.equal(nameTargetedReq.ok, true);
+      assert.ok(leaveOrder.indexOf('deleteMemberDoc') !== -1);
+      assert.ok(leaveOrder.indexOf('deletePresenceDoc') !== -1);
+      assert.ok(leaveOrder.indexOf('removeMemberUidFromSquad') > leaveOrder.indexOf('deleteMemberDoc'));
+      assert.ok(leaveOrder.indexOf('removeMemberUidFromSquad') > leaveOrder.indexOf('deletePresenceDoc'));
 
-      const giuliaPartition = partitionFriendships(
-        [nameTargetedReq.friendship],
-        'giulia.verdi@stud.uniroma3.it',
-        'Giulia Verdi'
-      );
-      assert.equal(giuliaPartition.incomingRequests.length, 1);
-      assert.equal(giuliaPartition.incomingRequests[0].uid, 'mat.petrini@stud.uniroma3.it');
+      const joinOrder = [];
+      await squadService.joinSquadInCloud({
+        squadId: 'sq-1',
+        uid: 'UidMatteo1',
+        member: { uid: 'UidMatteo1', displayName: 'Matteo' },
+        ops: {
+          addMemberUidToSquad: async () => joinOrder.push('addMemberUidToSquad'),
+          saveMemberDoc: async () => joinOrder.push('saveMemberDoc'),
+        },
+      });
+      assert.deepEqual(joinOrder, ['addMemberUidToSquad', 'saveMemberDoc']);
 
-      // Accepting updates recipientUid to Giulia's real email UID
-      const acceptedByGiulia = await squadService.acceptFriendRequest(
-        nameTargetedReq.friendship.id,
-        'giulia.verdi@stud.uniroma3.it',
-        'Giulia Verdi'
-      );
-      assert.equal(acceptedByGiulia.status, 'accepted');
-      assert.equal(acceptedByGiulia.recipientUid, 'giulia.verdi@stud.uniroma3.it');
-
-      const matteoAfterAccept = partitionFriendships(
-        [acceptedByGiulia],
-        'mat.petrini@stud.uniroma3.it',
-        'Matteo Petrini'
-      );
-      assert.equal(matteoAfterAccept.acceptedFriends.length, 1);
-      assert.equal(matteoAfterAccept.acceptedFriends[0].uid, 'giulia.verdi@stud.uniroma3.it');
+      const deleteOrder = [];
+      await squadService.deleteSquadCompletely('sq-1', 'mat@uni.it', 'UidMatteo1', null, 'INV123', {
+        removeSquadFromUserDoc: async () => deleteOrder.push('removeSquadFromUserDoc'),
+        deleteSubcollectionDocs: async (sub) => deleteOrder.push(`deleteSub:${sub}`),
+        deleteSquadInvite: async (code) => deleteOrder.push(`deleteInvite:${code}`),
+        deleteSquadDoc: async () => deleteOrder.push('deleteSquadDoc'),
+      });
+      assert.deepEqual(deleteOrder, [
+        'removeSquadFromUserDoc',
+        'deleteSub:members',
+        'deleteSub:presence',
+        'deleteSub:activities',
+        'deleteSub:sessions',
+        'deleteInvite:INV123',
+        'deleteSquadDoc',
+      ]);
     });
 
     it('extends #friends-sidebar to full Y viewport minus 200px like the Squad View and listens for real-time & cross-tab notifications (#44)', () => {
