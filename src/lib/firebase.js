@@ -3,8 +3,6 @@ import { getAuth } from 'firebase/auth';
 import {
   initializeFirestore,
   getFirestore,
-  doc,
-  getDocFromServer,
 } from 'firebase/firestore';
 
 function decodeBase64(b64) {
@@ -97,19 +95,3 @@ if (isFirebaseConfigured) {
 
 export const auth = authInstance;
 export const db = dbInstance;
-
-// Validate connection to Firestore when configured in browser environments
-async function testConnection() {
-  if (typeof window === 'undefined' || !isFirebaseConfigured || !db) return;
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Firestore offline or unreachable, continuing with local fallback.');
-    }
-  }
-}
-
-if (typeof window !== 'undefined') {
-  testConnection().catch(() => {});
-}

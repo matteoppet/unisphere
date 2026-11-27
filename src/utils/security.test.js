@@ -2,11 +2,13 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import * as authService from '../lib/authService.js';
 import {
   hashPassword,
   verifyPassword,
   generateVerificationCode,
   computeSaltedOtpHash,
+  hashEmailForLookup,
   redactEmail,
   createRateLimiter,
   getSecurityHeaders,
@@ -14,7 +16,6 @@ import {
   sanitizeCsvCell,
   sanitizeUserProfile,
   sanitizeResourceLinksList,
-  formatGoogleAuthError,
   escapeHtml,
   sanitizeTextInput,
   sanitizeEmailInput,
@@ -136,7 +137,10 @@ describe('Security Headers, URL Sanitization, CSV Injection & Profile Stripping 
     assert.ok(headers['Strict-Transport-Security'].includes('max-age='));
     assert.ok(headers['Content-Security-Policy'].includes("default-src 'self'"));
     assert.ok(headers['Content-Security-Policy'].includes("media-src 'self'"));
-    assert.ok(headers['Content-Security-Policy'].includes('https://apis.google.com'));
+    assert.doesNotMatch(
+      headers['Content-Security-Policy'],
+      /accounts\.google\.com|apis\.google\.com/
+    );
   });
 
   it('rejects javascript:, data:, vbscript:, file:, and blob: URLs while allowing http: and https:', () => {
@@ -435,17 +439,28 @@ describe('Instant Multi-Device Cloud Sync & Mobile-to-PC Log Reconciliation', ()
   });
 });
 
-describe('Google Sign-In Error Classification', () => {
-  it('identifies popup-blocked and unauthorized-domain errors accurately', () => {
-    const popupBlocked = formatGoogleAuthError({ code: 'auth/popup-blocked' });
-    assert.equal(popupBlocked.shouldFallbackToRedirect, true);
+describe('Strict Auth Hardening, Email Lookup Hash & Probe Removal (Milestone 2)', () => {
+  const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
 
-    const unauthorized = formatGoogleAuthError({ code: 'auth/unauthorized-domain' });
-    assert.ok(unauthorized.message.includes('Authorized Domains'));
+  it('removes formatGoogleAuthError and exposes deterministic SHA-256 hashEmailForLookup', async () => {
+    assert.equal('formatGoogleAuthError' in authService, false);
+    const h1 = await hashEmailForLookup('Mat.Petrini@Stud.UniRoma3.it ');
+    const h2 = await hashEmailForLookup('mat.petrini@stud.uniroma3.it');
+    assert.match(h1, /^[a-f0-9]{64}$/);
+    assert.equal(h1, h2);
+    assert.equal(await hashEmailForLookup('   '), '');
+  });
 
-    const closed = formatGoogleAuthError({ code: 'auth/popup-closed-by-user' });
-    assert.equal(closed.shouldFallbackToRedirect, false);
-    assert.ok(closed.message.includes('closed'));
+  it('removes Google SSO origins from vercel.json and server.ts CSP and removes unauthenticated probes', () => {
+    const vercelCfg = fs.readFileSync(path.join(repoRoot, 'vercel.json'), 'utf8');
+    const serverTs = fs.readFileSync(path.join(repoRoot, 'server.ts'), 'utf8');
+    const firebaseSrc = fs.readFileSync(path.join(repoRoot, 'src/lib/firebase.js'), 'utf8');
+    const authSrc = fs.readFileSync(path.join(repoRoot, 'src/lib/authService.js'), 'utf8');
+
+    assert.doesNotMatch(vercelCfg, /accounts\.google\.com|apis\.google\.com/);
+    assert.doesNotMatch(serverTs, /accounts\.google\.com|apis\.google\.com/);
+    assert.doesNotMatch(firebaseSrc, /testConnection|doc\(db,\s*'test',\s*'connection'\)/);
+    assert.doesNotMatch(authSrc, /'emailVerifications'|collection\(dbInstance,\s*'mail'\)/);
   });
 });
 

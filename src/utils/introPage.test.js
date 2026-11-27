@@ -280,7 +280,13 @@ describe('Login & Registration Legal Wiring and Hash Targeting', () => {
     assert.ok(html.includes('href="/pages/terms.html"'));
     assert.ok(html.includes('href="/pages/privacy.html"'));
     assert.ok(html.includes('https://github.com/matteoppet/unisphere'));
-    assert.match(html, /Signing in with Google is governed by/i);
+    assert.equal(html.includes('btn-google-sso'), false, 'pages/login.html must remove #btn-google-sso');
+    assert.equal(
+      /Signing in with Google|Continue with Google/i.test(html),
+      false,
+      'pages/login.html must remove Google Sign-In UI and governance copy'
+    );
+    assert.match(html, /Forgot password\?/i);
   });
 
   it('wires resolveLoginFocusTarget and validateRegistrationTermsAccepted in src/app.js and styles auth legal UI in src/index.css', () => {

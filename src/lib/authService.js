@@ -1,4 +1,3 @@
-import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { clampExamGradeValue } from '../utils/grades.js';
 export { sanitizeGoalItem, normalizeGoalsList } from '../utils/checklist.js';
 
@@ -8,6 +7,12 @@ const SALT_BYTES = 16;
 
 export function getEmailDocId(email) {
   return String(email || '').trim().toLowerCase().replace(/\//g, '_');
+}
+
+export async function hashEmailForLookup(email) {
+  const clean = String(email || '').trim().toLowerCase();
+  if (!clean) return '';
+  return sha256Hex(clean);
 }
 
 export function redactEmail(email) {
@@ -359,18 +364,18 @@ export const otpVerifyRateLimiter = createRateLimiter({
 });
 
 /**
- * Standard HTTP security headers for UniSphere (compatible with Firebase Auth, Google SSO, and Firestore).
+ * Standard HTTP security headers for UniSphere (compatible with Firebase Auth and Firestore).
  */
 export function getSecurityHeaders() {
   const cspDirectives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' https://apis.google.com https://accounts.google.com https://www.gstatic.com",
+    "script-src 'self' 'unsafe-inline' https://www.gstatic.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: https: blob:",
     "media-src 'self'",
     "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.resend.com",
-    "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://apis.google.com",
+    "frame-src 'self' https://*.firebaseapp.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -793,58 +798,6 @@ export function sanitizeResourceLinksList(links) {
   return out;
 }
 
-/**
- * Classifies Firebase Google Sign-In errors to determine whether to fall back to signInWithRedirect
- * or display an actionable message.
- */
-export function formatGoogleAuthError(err) {
-  const code = String(err?.code || '');
-  const rawMessage = String(err?.message || '');
-
-  if (
-    code === 'auth/popup-blocked' ||
-    code === 'auth/operation-not-supported-in-this-environment' ||
-    (rawMessage.toLowerCase().includes('popup') && rawMessage.toLowerCase().includes('blocked'))
-  ) {
-    return {
-      code,
-      shouldFallbackToRedirect: true,
-      message: 'Popup was blocked by the browser. Redirecting to Google Sign-In...',
-    };
-  }
-
-  if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
-    return {
-      code,
-      shouldFallbackToRedirect: false,
-      message: 'Google Sign-In window was closed before completing sign-in.',
-    };
-  }
-
-  if (code === 'auth/unauthorized-domain') {
-    const host = typeof window !== 'undefined' ? window.location.hostname : 'this domain';
-    return {
-      code,
-      shouldFallbackToRedirect: false,
-      message: `Domain "${host}" is not authorized in Firebase Console -> Authentication -> Settings -> Authorized Domains.`,
-    };
-  }
-
-  if (code === 'auth/operation-not-allowed') {
-    return {
-      code,
-      shouldFallbackToRedirect: false,
-      message: 'Google Sign-In provider is not enabled in Firebase Authentication settings.',
-    };
-  }
-
-  return {
-    code,
-    shouldFallbackToRedirect: false,
-    message: rawMessage || 'Google Sign-In failed. Please try again or sign in with email.',
-  };
-}
-
 const localOtpStore = new Map();
 
 function saveLocalOtpRecord(docId, record) {
@@ -916,30 +869,6 @@ export async function dispatchVerificationCode(email, dbInstance) {
 
     saveLocalOtpRecord(docId, otpRecord);
 
-    // Store ONLY the salted hash in Firestore — NEVER store the plaintext OTP code!
-    if (dbInstance) {
-      try {
-        const verRef = doc(dbInstance, 'emailVerifications', docId);
-        await setDoc(verRef, otpRecord);
-      } catch (verErr) {
-        console.warn('Firestore emailVerifications write notice:', verErr);
-      }
-
-      try {
-        await addDoc(collection(dbInstance, 'mail'), {
-          to: [normalized],
-          message: {
-            subject: 'Your UniSphere Verification Code',
-            text: `Your UniSphere verification code is: ${code}\nThis code will expire in 15 minutes.`,
-            html: `<div style="font-family: sans-serif; padding: 20px;"><h2>UniSphere Verification Code</h2><p>Here is your 6-digit verification code to confirm your email (<strong>${escapeHtml(normalized)}</strong>):</p><div style="font-size: 28px; letter-spacing: 6px; font-weight: bold; padding: 12px; border: 1px solid #333; text-align: center; margin: 16px 0;">${escapeHtml(code)}</div><p>This code will expire in 15 minutes.</p></div>`,
-          },
-          createdAt: serverTimestamp(),
-        });
-      } catch (mailErr) {
-        console.warn('Firestore mail collection trigger skipped:', mailErr);
-      }
-    }
-
     let emailSent = false;
     let providerNotice;
 
@@ -1009,22 +938,7 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
       };
     }
 
-    let verRef = null;
-    let data = null;
-
-    if (dbInstance) {
-      try {
-        verRef = doc(dbInstance, 'emailVerifications', docId);
-        const snap = await getDoc(verRef);
-        if (snap.exists()) {
-          data = snap.data();
-        }
-      } catch {}
-    }
-
-    if (!data) {
-      data = loadLocalOtpRecord(docId);
-    }
+    const data = loadLocalOtpRecord(docId);
 
     if (!data) {
       return {
@@ -1064,9 +978,6 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
     if (!matchesSalted && !matchesLegacyHash) {
       const updatedRecord = { ...data, attempts: attempts + 1 };
       saveLocalOtpRecord(docId, updatedRecord);
-      if (verRef) {
-        await setDoc(verRef, { attempts: attempts + 1 }, { merge: true }).catch(() => {});
-      }
       return {
         success: false,
         error: 'Incorrect verification code. Please check your email and try again.',
@@ -1076,24 +987,6 @@ export async function verifyEmailCode(email, inputCode, dbInstance) {
     otpVerifyRateLimiter.reset(normalized);
     const verifiedAt = new Date().toISOString();
     saveLocalOtpRecord(docId, { ...data, verified: true, verifiedAt, code: null });
-
-    if (verRef) {
-      await setDoc(
-        verRef,
-        { verified: true, verifiedAt, code: null },
-        { merge: true }
-      ).catch(() => {});
-    }
-
-    if (dbInstance) {
-      try {
-        const userRef = doc(dbInstance, 'users', docId);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          await setDoc(userRef, { emailVerified: true }, { merge: true });
-        }
-      } catch {}
-    }
 
     return { success: true };
   } catch (err) {
