@@ -15,6 +15,8 @@ export default defineConfig(() => {
         input: {
           main: path.resolve(import.meta.dirname || '.', 'index.html'),
           login: path.resolve(import.meta.dirname || '.', 'pages/login.html'),
+          privacy: path.resolve(import.meta.dirname || '.', 'pages/privacy.html'),
+          terms: path.resolve(import.meta.dirname || '.', 'pages/terms.html'),
           dashboard: path.resolve(import.meta.dirname || '.', 'pages/dashboard.html'),
           courses: path.resolve(import.meta.dirname || '.', 'pages/courses.html'),
           logs: path.resolve(import.meta.dirname || '.', 'pages/logs.html'),

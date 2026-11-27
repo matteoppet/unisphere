@@ -135,6 +135,7 @@ describe('Security Headers, URL Sanitization, CSV Injection & Profile Stripping 
     assert.equal(headers['Referrer-Policy'], 'strict-origin-when-cross-origin');
     assert.ok(headers['Strict-Transport-Security'].includes('max-age='));
     assert.ok(headers['Content-Security-Policy'].includes("default-src 'self'"));
+    assert.ok(headers['Content-Security-Policy'].includes("media-src 'self'"));
     assert.ok(headers['Content-Security-Policy'].includes('https://apis.google.com'));
   });
 

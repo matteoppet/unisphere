@@ -148,6 +148,7 @@ async function startServer() {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: https: blob:",
+      "media-src 'self'",
       "connect-src 'self' ws: wss: https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.resend.com",
       "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://apis.google.com",
       "object-src 'none'",
@@ -324,6 +325,8 @@ async function startServer() {
             res.setHeader('Expires', '0');
           } else if (filePath.includes('/assets/')) {
             res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else if (filePath.replace(/\\/g, '/').includes('/media/')) {
+            res.setHeader('Cache-Control', 'public, max-age=86400');
           }
         },
       })

@@ -368,6 +368,7 @@ export function getSecurityHeaders() {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: https: blob:",
+    "media-src 'self'",
     "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.resend.com",
     "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://apis.google.com",
     "object-src 'none'",
