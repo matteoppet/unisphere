@@ -133,6 +133,7 @@ import {
 } from './utils/uiState.js';
 import {
   resolveLoginFocusTarget,
+  resolveActiveAuthMode,
   validateRegistrationTermsAccepted,
 } from './utils/introRouting.js';
 
@@ -1309,25 +1310,64 @@ export function initApp() {
     }
 
     const focusTarget = resolveLoginFocusTarget(window.location.hash);
+    const activeMode = resolveActiveAuthMode({
+      hash: window.location.hash,
+      noticeScope: authNotice?.scope || '',
+    });
     const loginCard = document.getElementById('auth-card-login');
     const regCard = document.getElementById('auth-card-register');
+    const loginTab = document.getElementById('tab-auth-login');
+    const regTab = document.getElementById('tab-auth-register');
+    const authTitleEl = document.getElementById('auth-page-title');
+    const authSubtitleEl = document.getElementById('auth-page-subtitle');
+
     if (loginCard) {
-      loginCard.classList.toggle('auth-card-targeted', focusTarget === 'login');
+      loginCard.hidden = activeMode !== 'login';
+      loginCard.classList.toggle('auth-card-targeted', activeMode === 'login');
     }
     if (regCard) {
-      regCard.classList.toggle('auth-card-targeted', focusTarget === 'register');
+      regCard.hidden = activeMode !== 'register';
+      regCard.classList.toggle('auth-card-targeted', activeMode === 'register');
+    }
+    if (loginTab) {
+      const isLogin = activeMode === 'login';
+      loginTab.classList.toggle('active', isLogin);
+      loginTab.setAttribute('aria-selected', isLogin ? 'true' : 'false');
+      loginTab.setAttribute('tabindex', isLogin ? '0' : '-1');
+    }
+    if (regTab) {
+      const isReg = activeMode === 'register';
+      regTab.classList.toggle('active', isReg);
+      regTab.setAttribute('aria-selected', isReg ? 'true' : 'false');
+      regTab.setAttribute('tabindex', isReg ? '0' : '-1');
+    }
+    if (authTitleEl) {
+      authTitleEl.textContent =
+        activeMode === 'register' ? 'Start your new life' : 'Sign in to UniSphere';
+    }
+    if (authSubtitleEl) {
+      authSubtitleEl.textContent =
+        activeMode === 'register'
+          ? 'Built by students, for students · Free & open source.'
+          : 'Welcome back. Pick up right where you left off.';
     }
 
     if (!authNotice) {
-      if (focusTarget === 'register') {
-        if (regCard && window.innerWidth <= 720 && typeof regCard.scrollIntoView === 'function') {
-          regCard.scrollIntoView({ behavior: 'auto', block: 'start' });
-        }
+      if (focusTarget === 'register' || activeMode === 'register') {
         document.getElementById('auth-reg-name')?.focus({ preventScroll: true });
       } else if (focusTarget === 'login') {
         document.getElementById('auth-login-email')?.focus({ preventScroll: true });
       }
     }
+  }
+
+  function switchAuthMode(mode) {
+    const nextMode = mode === 'register' ? 'register' : 'login';
+    authNotice = null;
+    if (window.location.hash !== `#${nextMode}`) {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${nextMode}`);
+    }
+    populateLoginPage();
   }
 
   function renderUndoBanner() {
@@ -4732,10 +4772,17 @@ export function initApp() {
     const target =
       rawTarget && typeof rawTarget.closest === 'function'
         ? rawTarget.closest(
-            '[data-nav], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-theme-toggle, #btn-sync-retry, #btn-undo-action, #btn-dismiss-undo, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
+            '[data-nav], [data-auth-mode], [data-auth-switch], [data-close-modal], [data-open-course], [data-open-course-info], [data-delete-course], [data-open-goal], [data-toggle-goal], [data-delete-log], [data-delete-resource], [data-open-assignment], [data-toggle-assignment], [data-delete-assignment], [data-toggle-assignment-row], [data-select-squad], [data-leave-squad], [data-open-friend-calendar], [data-stop-live], [data-open-squad-note], [data-delete-squad-note], [data-admin-remove-member], [data-select-friend], [data-send-friend-request], [data-accept-friend-request], [data-decline-friend-request], [data-dismiss-friend-notice], #btn-google-sso, #btn-header-logout, #btn-theme-toggle, #btn-sync-retry, #btn-undo-action, #btn-dismiss-undo, #btn-course-info-edit, #btn-open-create-join-squad, #btn-empty-create-join-squad, #btn-open-admin-panel, #btn-leave-active-squad, #btn-copy-squad-code-top, #btn-copy-squad-code-card, #btn-go-live-toggle, #btn-add-squad-note, #btn-edit-next-session, #btn-toggle-session-attending, #btn-back-to-squad-view, #btn-remove-friend'
           ) || rawTarget
         : rawTarget;
     if (!target || typeof target.getAttribute !== 'function') return;
+
+    const authModeAttr = target.getAttribute('data-auth-mode') || target.getAttribute('data-auth-switch');
+    if (authModeAttr) {
+      e.preventDefault();
+      switchAuthMode(authModeAttr);
+      return;
+    }
 
     if (target.id === 'btn-undo-action') {
       e.preventDefault();
@@ -5961,6 +6008,12 @@ export function initApp() {
     dashCourseStatusFilter = nextDashQuery.courseStatus;
     dashResourceNotesTab = nextDashQuery.panel;
     void loadAndRenderPage(getRouteFromLocation(), false);
+  });
+
+  window.addEventListener('hashchange', () => {
+    if (document.getElementById('app-main')?.getAttribute('data-page') === 'login') {
+      populateLoginPage();
+    }
   });
 
   let resizeRafId = null;

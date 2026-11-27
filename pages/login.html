@@ -35,113 +35,163 @@
       <hr class="section-divider" />
 
       <main id="app-main" data-page="login" tabindex="-1">
-        <h1>Login</h1>
-        <div id="auth-notice-container" role="alert" aria-live="assertive"></div>
+        <div class="auth-shell">
+          <div class="auth-header">
+            <h1 id="auth-page-title" class="auth-title">Sign in to UniSphere</h1>
+            <p id="auth-page-subtitle" class="auth-subtitle">
+              Built by students, for students · Free &amp; open source.
+            </p>
+          </div>
 
-        <div class="grid-2 login-grid" style="margin-top: 0;">
-          <!-- 1. Sign In Card -->
-          <section class="card" id="auth-card-login">
-            <div class="card-header">
-              <h2>Sign In</h2>
-            </div>
-            <form id="form-auth-login">
-              <div class="form-row">
-                <label for="auth-login-email">Email *</label>
-                <input type="email" id="auth-login-email" autocomplete="email" required placeholder="student@university.edu" />
-              </div>
-              <div class="form-row">
-                <label for="auth-login-password">Password *</label>
-                <input type="password" id="auth-login-password" autocomplete="current-password" required placeholder="Password" />
-              </div>
-              <div id="auth-login-error" class="field-error" role="alert" hidden></div>
-              <div class="card-toolbar">
-                <button type="submit">Log-In</button>
-                <button type="button" id="btn-google-sso">Sign In with Google</button>
-                <button type="button" id="btn-forgot-password" class="btn-inline-action">Forgot password?</button>
-              </div>
-              <p class="auth-legal-note">
-                Signing in with Google is governed by our
-                <a href="/pages/terms.html">Terms &amp; Conditions</a> and
-                <a href="/pages/privacy.html">Privacy Policy</a>.
-              </p>
-            </form>
-          </section>
+          <div class="auth-mode-tabs" role="tablist" aria-label="Authentication mode">
+            <button
+              type="button"
+              id="tab-auth-login"
+              class="auth-mode-tab active"
+              role="tab"
+              aria-selected="true"
+              aria-controls="auth-card-login"
+              tabindex="0"
+              data-auth-mode="login"
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              id="tab-auth-register"
+              class="auth-mode-tab"
+              role="tab"
+              aria-selected="false"
+              aria-controls="auth-card-register"
+              tabindex="-1"
+              data-auth-mode="register"
+            >
+              Create Account
+            </button>
+          </div>
 
-          <!-- 2. Register Card -->
-          <section class="card" id="auth-card-register">
-            <div class="card-header">
-              <h2>Register New Account</h2>
-            </div>
-            <form id="form-auth-register">
-              <div class="form-grid-2">
-                <div class="form-row">
-                  <label for="auth-reg-name">Full Name *</label>
-                  <input type="text" id="auth-reg-name" autocomplete="name" required placeholder="Mario Rossi" />
-                </div>
-                <div class="form-row">
-                  <label for="auth-reg-email">Email *</label>
-                  <input type="email" id="auth-reg-email" autocomplete="email" required placeholder="student@university.edu" />
-                </div>
-              </div>
+          <div id="auth-notice-container" role="alert" aria-live="assertive"></div>
 
-              <div class="form-grid-2">
+          <div class="auth-panels">
+            <!-- 1. Sign In Card -->
+            <section
+              class="card auth-card auth-card-targeted"
+              id="auth-card-login"
+              role="tabpanel"
+              aria-labelledby="tab-auth-login"
+            >
+              <form id="form-auth-login">
                 <div class="form-row">
-                  <label for="auth-reg-degree">Degree Name *</label>
-                  <input type="text" id="auth-reg-degree" autocomplete="off" required placeholder="e.g. Ingegneria Informatica" />
+                  <label for="auth-login-email">Email *</label>
+                  <input type="email" id="auth-login-email" autocomplete="email" required placeholder="student@university.edu" />
                 </div>
                 <div class="form-row">
-                  <label for="auth-reg-institution">Institution *</label>
-                  <input type="text" id="auth-reg-institution" autocomplete="organization" required placeholder="e.g. Università Roma Tre" />
+                  <label for="auth-login-password">Password *</label>
+                  <input type="password" id="auth-login-password" autocomplete="current-password" required placeholder="Password" />
                 </div>
-              </div>
-
-              <div class="form-grid-2">
-                <div class="form-row">
-                  <label for="auth-reg-cfu">Target CFU *</label>
-                  <input type="number" id="auth-reg-cfu" autocomplete="off" min="30" max="360" required value="180" />
+                <div id="auth-login-error" class="field-error" role="alert" hidden></div>
+                <div class="auth-actions-stack">
+                  <button type="submit" class="auth-btn-primary">Sign In</button>
+                  <button type="button" id="btn-google-sso" class="auth-btn-secondary">Continue with Google</button>
                 </div>
-                <div class="form-row">
-                  <label for="auth-reg-password">Password (min 6 chars) *</label>
-                  <input type="password" id="auth-reg-password" autocomplete="new-password" minlength="6" required placeholder="Password" />
+                <div class="auth-utility-row">
+                  <button type="button" id="btn-forgot-password" class="auth-link-btn">Forgot password?</button>
                 </div>
-              </div>
-
-              <div class="form-row">
-                <label for="auth-reg-code">6-Digit Verification Code (optional)</label>
-                <div class="card-toolbar">
-                  <input type="text" id="auth-reg-code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="123456" style="max-width: 140px;" />
-                  <button type="button" id="btn-send-otp">Send Email Code</button>
-                </div>
-                <span class="field-hint">Optional: verify your university email now, or leave blank to register immediately.</span>
-              </div>
-
-              <div class="form-row auth-legal-row">
-                <label class="checkbox-inline" for="auth-reg-terms">
-                  <input type="checkbox" id="auth-reg-terms" required />
-                  <span>
-                    I agree to the <a href="/pages/terms.html">Terms &amp; Conditions</a> and
-                    confirm I am at least 16 years old (or 14+ in Italy). *
-                  </span>
-                </label>
                 <p class="auth-legal-note">
-                  By creating an account, you acknowledge our
-                  <a href="/pages/privacy.html">Privacy &amp; Storage Policy</a> (strictly necessary
-                  storage only, zero ads or tracking).
+                  Signing in with Google is governed by our
+                  <a href="/pages/terms.html">Terms &amp; Conditions</a> and
+                  <a href="/pages/privacy.html">Privacy Policy</a>.
                 </p>
-              </div>
+                <p class="auth-switch-prompt">
+                  New to UniSphere?
+                  <button type="button" class="auth-link-btn" data-auth-switch="register">Create an account</button>
+                </p>
+              </form>
+            </section>
 
-              <div id="auth-reg-error" class="field-error" role="alert" hidden></div>
-              <button type="submit">Register</button>
-            </form>
-          </section>
+            <!-- 2. Register Card -->
+            <section
+              class="card auth-card"
+              id="auth-card-register"
+              role="tabpanel"
+              aria-labelledby="tab-auth-register"
+              hidden
+            >
+              <form id="form-auth-register">
+                <div class="form-grid-2">
+                  <div class="form-row">
+                    <label for="auth-reg-name">Full Name *</label>
+                    <input type="text" id="auth-reg-name" autocomplete="name" required placeholder="Mario Rossi" />
+                  </div>
+                  <div class="form-row">
+                    <label for="auth-reg-email">Email *</label>
+                    <input type="email" id="auth-reg-email" autocomplete="email" required placeholder="student@university.edu" />
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-row">
+                    <label for="auth-reg-degree">Degree Name *</label>
+                    <input type="text" id="auth-reg-degree" autocomplete="off" required placeholder="e.g. Ingegneria Informatica" />
+                  </div>
+                  <div class="form-row">
+                    <label for="auth-reg-institution">Institution *</label>
+                    <input type="text" id="auth-reg-institution" autocomplete="organization" required placeholder="e.g. Università Roma Tre" />
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-row">
+                    <label for="auth-reg-cfu">Target CFU *</label>
+                    <input type="number" id="auth-reg-cfu" autocomplete="off" min="30" max="360" required value="180" />
+                  </div>
+                  <div class="form-row">
+                    <label for="auth-reg-password">Password (min 6 chars) *</label>
+                    <input type="password" id="auth-reg-password" autocomplete="new-password" minlength="6" required placeholder="Password" />
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label for="auth-reg-code">6-Digit Verification Code (optional)</label>
+                  <div class="card-toolbar">
+                    <input type="text" id="auth-reg-code" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="123456" style="max-width: 140px;" />
+                    <button type="button" id="btn-send-otp">Send Email Code</button>
+                  </div>
+                  <span class="field-hint">Optional: verify your university email now, or leave blank to register immediately.</span>
+                </div>
+
+                <div class="form-row auth-legal-row">
+                  <label class="checkbox-inline" for="auth-reg-terms">
+                    <input type="checkbox" id="auth-reg-terms" required />
+                    <span>
+                      I agree to the <a href="/pages/terms.html">Terms &amp; Conditions</a> and
+                      confirm I am at least 16 years old (or 14+ in Italy). *
+                    </span>
+                  </label>
+                  <p class="auth-legal-note">
+                    By creating an account, you acknowledge our
+                    <a href="/pages/privacy.html">Privacy &amp; Storage Policy</a> (strictly necessary
+                    storage only, zero ads or tracking).
+                  </p>
+                </div>
+
+                <div id="auth-reg-error" class="field-error" role="alert" hidden></div>
+                <button type="submit" class="auth-btn-primary">Create Account</button>
+                <p class="auth-switch-prompt">
+                  Already have an account?
+                  <button type="button" class="auth-link-btn" data-auth-switch="login">Sign in</button>
+                </p>
+              </form>
+            </section>
+          </div>
+
+          <footer class="auth-footer">
+            <a href="/?intro=1">Overview</a>
+            <a href="/pages/privacy.html">Privacy Policy</a>
+            <a href="/pages/terms.html">Terms &amp; Conditions</a>
+            <a href="https://github.com/matteoppet/unisphere" target="_blank" rel="noopener noreferrer">GitHub</a>
+          </footer>
         </div>
-
-        <footer class="auth-footer">
-          <a href="/?intro=1">Overview</a>
-          <a href="/pages/privacy.html">Privacy Policy</a>
-          <a href="/pages/terms.html">Terms &amp; Conditions</a>
-          <a href="https://github.com/matteoppet/unisphere" target="_blank" rel="noopener noreferrer">GitHub</a>
-        </footer>
       </main>
     </div>
 

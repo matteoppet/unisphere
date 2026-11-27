@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   shouldRedirectFromIntro,
   resolveLoginFocusTarget,
+  resolveActiveAuthMode,
   resolveLegalHeaderCta,
   validateRegistrationTermsAccepted,
 } from './introRouting.js';
@@ -66,6 +67,15 @@ describe('Intro & Login Routing Helpers (Milestone 1)', () => {
       error:
         'You must agree to the Terms & Conditions and confirm the minimum age requirement to register.',
     });
+  });
+
+  it('resolveActiveAuthMode prioritizes validation notice scope over hash and defaults to login', () => {
+    assert.equal(resolveActiveAuthMode({ hash: '', noticeScope: '' }), 'login');
+    assert.equal(resolveActiveAuthMode({ hash: '#login', noticeScope: '' }), 'login');
+    assert.equal(resolveActiveAuthMode({ hash: '#register', noticeScope: '' }), 'register');
+    assert.equal(resolveActiveAuthMode({ hash: '#REGISTER', noticeScope: '' }), 'register');
+    assert.equal(resolveActiveAuthMode({ hash: '#login', noticeScope: 'register' }), 'register');
+    assert.equal(resolveActiveAuthMode({ hash: '#register', noticeScope: 'login' }), 'login');
   });
 });
 
@@ -293,6 +303,44 @@ describe('Login & Registration Legal Wiring and Hash Targeting', () => {
     const css = fs.readFileSync(path.join(repoRoot, 'src/index.css'), 'utf8');
     const darkSection = css.slice(css.indexOf('html[data-theme="dark"]'));
     for (const selector of ['.auth-card-targeted', '.auth-legal-note', '.auth-footer']) {
+      assert.ok(css.includes(selector), `src/index.css must style ${selector}`);
+      assert.ok(darkSection.includes(selector), `src/index.css dark theme must style ${selector}`);
+    }
+  });
+
+  it('centers and separates Sign In and Register tabs to match the Overview aesthetic', () => {
+    const html = fs.readFileSync(path.join(repoRoot, 'pages/login.html'), 'utf8');
+    assert.ok(html.includes('class="auth-shell"'), 'pages/login.html must wrap login in .auth-shell');
+    assert.ok(html.includes('role="tablist"'), 'pages/login.html must include auth mode tablist');
+    assert.match(
+      html,
+      /<button[^>]*id="tab-auth-login"[^>]*role="tab"[^>]*aria-controls="auth-card-login"/
+    );
+    assert.match(
+      html,
+      /<button[^>]*id="tab-auth-register"[^>]*role="tab"[^>]*aria-controls="auth-card-register"/
+    );
+    assert.match(html, /<section[^>]*id="auth-card-register"[^>]*\bhidden\b/);
+    assert.ok(html.includes('data-auth-switch="register"'));
+    assert.ok(html.includes('data-auth-switch="login"'));
+
+    const appJs = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+    assert.ok(appJs.includes('resolveActiveAuthMode'), 'src/app.js must use resolveActiveAuthMode');
+    assert.ok(appJs.includes('loginCard.hidden ='), 'src/app.js must toggle loginCard.hidden');
+    assert.ok(appJs.includes('regCard.hidden ='), 'src/app.js must toggle regCard.hidden');
+    assert.ok(appJs.includes('data-auth-switch'), 'src/app.js must handle [data-auth-switch]');
+    assert.ok(appJs.includes('data-auth-mode'), 'src/app.js must handle [data-auth-mode]');
+
+    const css = fs.readFileSync(path.join(repoRoot, 'src/index.css'), 'utf8');
+    const darkSection = css.slice(css.indexOf('html[data-theme="dark"]'));
+    assert.match(css, /\.auth-shell\s*\{[^}]*margin:\s*[^;]*auto/s, '.auth-shell must be centered');
+    for (const selector of [
+      '.auth-mode-tabs',
+      '.auth-mode-tab',
+      '.auth-card',
+      '.auth-btn-primary',
+      '.auth-btn-secondary',
+    ]) {
       assert.ok(css.includes(selector), `src/index.css must style ${selector}`);
       assert.ok(darkSection.includes(selector), `src/index.css dark theme must style ${selector}`);
     }

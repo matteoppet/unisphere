@@ -30,6 +30,17 @@ export function resolveLoginFocusTarget(hash = '') {
 }
 
 /**
+ * Resolves the active authentication mode ('login' | 'register') on `/pages/login.html`,
+ * keeping validation error scope visible over URL hash and defaulting to 'login'.
+ */
+export function resolveActiveAuthMode({ hash = '', noticeScope = '' } = {}) {
+  if (noticeScope === 'register' || noticeScope === 'login') {
+    return noticeScope;
+  }
+  return resolveLoginFocusTarget(hash) === 'register' ? 'register' : 'login';
+}
+
+/**
  * Computes the header CTA link/label shown on public legal pages
  * (`pages/privacy.html` and `pages/terms.html`) based on local session state.
  */
