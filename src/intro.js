@@ -44,7 +44,11 @@ function bindThemeToggle() {
   const toggleBtn = document.getElementById('btn-theme-toggle');
   if (toggleBtn) {
     toggleBtn.addEventListener('click', () => {
-      const current = resolveEffectiveTheme(getStoredTheme(), getSystemPrefersDark());
+      const domTheme = document.documentElement.getAttribute('data-theme');
+      const current =
+        domTheme === 'dark' || domTheme === 'light'
+          ? domTheme
+          : resolveEffectiveTheme(getStoredTheme(), getSystemPrefersDark());
       const next = getNextTheme(current);
       try {
         localStorage.setItem(THEME_STORAGE_KEY, next);
@@ -86,11 +90,19 @@ function bindVideoFallback() {
   video.querySelectorAll('source').forEach((sourceEl) => {
     sourceEl.addEventListener('error', showFallback);
   });
+
+  if (
+    video.error ||
+    (typeof HTMLMediaElement !== 'undefined' &&
+      video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE)
+  ) {
+    showFallback();
+  }
 }
 
 function hydrateLegalHeaderCta() {
-  const ctaEl = document.querySelector('[data-legal-app-cta]');
-  if (!ctaEl) return;
+  const ctaEls = document.querySelectorAll('[data-legal-app-cta]');
+  if (!ctaEls || ctaEls.length === 0) return;
 
   let sessionEmail = '';
   try {
@@ -98,8 +110,10 @@ function hydrateLegalHeaderCta() {
   } catch {}
 
   const cta = resolveLegalHeaderCta(sessionEmail);
-  ctaEl.textContent = cta.label;
-  ctaEl.setAttribute('href', cta.href);
+  ctaEls.forEach((ctaEl) => {
+    ctaEl.textContent = cta.label;
+    ctaEl.setAttribute('href', cta.href);
+  });
 }
 
 export function initIntroPage() {

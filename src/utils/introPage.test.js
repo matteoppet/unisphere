@@ -298,3 +298,112 @@ describe('Login & Registration Legal Wiring and Hash Targeting', () => {
     }
   });
 });
+
+describe('Whole-Branch Review Fix Regressions (src/intro.js, src/intro.css, index.html)', () => {
+  it('hydrates ALL [data-legal-app-cta] elements, toggles theme when localStorage throws, and triggers video fallback on immediate media error', async () => {
+    const headerCta = { textContent: 'Log in', attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+    const footerCta = { textContent: 'Log in', attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } };
+
+    let themeClickHandler = null;
+    const toggleBtn = {
+      textContent: '',
+      attrs: {},
+      setAttribute(k, v) { this.attrs[k] = v; },
+      addEventListener(type, fn) { if (type === 'click') themeClickHandler = fn; },
+    };
+
+    const videoEl = {
+      hidden: false,
+      error: { code: 4 },
+      networkState: 3,
+      addEventListener() {},
+      querySelectorAll() { return []; },
+    };
+    const fallbackEl = { hidden: true };
+
+    const docAttrs = { 'data-theme': 'light' };
+    const prevGlobals = {
+      document: globalThis.document,
+      window: globalThis.window,
+      localStorage: globalThis.localStorage,
+      HTMLMediaElement: globalThis.HTMLMediaElement,
+    };
+
+    try {
+      globalThis.HTMLMediaElement = { NETWORK_NO_SOURCE: 3 };
+      globalThis.localStorage = {
+        getItem(key) {
+          if (key === 'unisphere_workspace_session_email') return 'student@uni.it';
+          throw new Error('SecurityError: storage blocked');
+        },
+        setItem() {
+          throw new Error('SecurityError: storage blocked');
+        },
+      };
+      globalThis.window = {
+        matchMedia: () => ({ matches: false, addEventListener() {} }),
+        addEventListener() {},
+      };
+      globalThis.document = {
+        documentElement: {
+          getAttribute(k) { return docAttrs[k] ?? null; },
+          setAttribute(k, v) { docAttrs[k] = v; },
+        },
+        getElementById(id) {
+          if (id === 'btn-theme-toggle') return toggleBtn;
+          if (id === 'intro-video') return videoEl;
+          if (id === 'intro-video-fallback') return fallbackEl;
+          return null;
+        },
+        querySelector(sel) {
+          if (sel === '[data-legal-app-cta]') return headerCta;
+          return null;
+        },
+        querySelectorAll(sel) {
+          if (sel === '[data-legal-app-cta]') return [headerCta, footerCta];
+          return [];
+        },
+      };
+
+      const { initIntroPage } = await import('../intro.js');
+      initIntroPage();
+
+      // 1. Both header and footer CTAs must update for signed-in users
+      assert.equal(headerCta.textContent, 'Open App');
+      assert.equal(headerCta.attrs.href, '/pages/dashboard.html');
+      assert.equal(footerCta.textContent, 'Open App');
+      assert.equal(footerCta.attrs.href, '/pages/dashboard.html');
+
+      // 2. Theme toggle must flip light -> dark -> light even when localStorage throws
+      assert.ok(typeof themeClickHandler === 'function', 'theme toggle click handler must be bound');
+      themeClickHandler();
+      assert.equal(docAttrs['data-theme'], 'dark');
+      themeClickHandler();
+      assert.equal(docAttrs['data-theme'], 'light');
+
+      // 3. Immediate video error / NETWORK_NO_SOURCE must reveal fallback
+      assert.equal(videoEl.hidden, true);
+      assert.equal(fallbackEl.hidden, false);
+    } finally {
+      globalThis.document = prevGlobals.document;
+      globalThis.window = prevGlobals.window;
+      globalThis.localStorage = prevGlobals.localStorage;
+      globalThis.HTMLMediaElement = prevGlobals.HTMLMediaElement;
+    }
+  });
+
+  it('keeps [data-legal-app-cta] visible on mobile in src/intro.css and marks #intro-video-fallback with polite live region in index.html', () => {
+    const css = fs.readFileSync(path.join(repoRoot, 'src/intro.css'), 'utf8');
+    assert.ok(
+      css.includes('.intro-nav .btn-primary-sm:not([data-legal-app-cta])'),
+      'src/intro.css mobile rule must not hide [data-legal-app-cta] on legal pages'
+    );
+
+    const html = fs.readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
+    assert.match(
+      html,
+      /<div[^>]*id="intro-video-fallback"[^>]*role="status"[^>]*aria-live="polite"/,
+      'index.html #intro-video-fallback must announce status politely'
+    );
+  });
+});

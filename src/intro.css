@@ -796,7 +796,7 @@ a {
     gap: 10px;
   }
 
-  .intro-nav .btn-primary-sm {
+  .intro-nav .btn-primary-sm:not([data-legal-app-cta]) {
     display: none;
   }
 
