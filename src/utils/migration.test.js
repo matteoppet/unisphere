@@ -84,6 +84,74 @@ describe('One-Time Legacy Email-to-UID Migration Service (Milestone 2)', () => {
     assert.deepEqual(store.get('users/UidMatteo99'), existingNew);
   });
 
+  it('propagates transient getUserDoc(uid) read errors and strips unknown legacy fields + recreates /squadInvites/{code}', async () => {
+    await assert.rejects(
+      () =>
+        migrateLegacyUserDoc({
+          uid: 'UidMatteo99',
+          email: 'mat@uni.it',
+          ops: {
+            getUserDoc: async () => {
+              throw new Error('unavailable');
+            },
+            setUserDoc: async () => {},
+            deleteUserDoc: async () => {},
+          },
+        }),
+      /unavailable/
+    );
+
+    const written = [];
+    await migrateLegacyUserDoc({
+      uid: 'UidMatteo99',
+      email: 'mat@uni.it',
+      ops: {
+        getUserDoc: async (id) =>
+          id === 'mat@uni.it'
+            ? {
+                name: 'Matteo',
+                displayName: 'ShouldBeStripped',
+                photoURL: 'https://stale.example/a.png',
+                passwordHash: 'secret',
+              }
+            : null,
+        setUserDoc: async (_id, data) => written.push(data),
+        deleteUserDoc: async () => {},
+      },
+    });
+    assert.equal('displayName' in written[0], false);
+    assert.equal('photoURL' in written[0], false);
+    assert.equal('passwordHash' in written[0], false);
+
+    const createdInvites = [];
+    await migrateLegacySquadsForUser({
+      uid: 'UidMatteo99',
+      email: 'mat@uni.it',
+      ops: {
+        querySquadsByMember: async () => [
+          {
+            id: 'sq-inv',
+            code: 'ABC123',
+            createdBy: 'mat@uni.it',
+            memberUids: ['mat@uni.it'],
+          },
+        ],
+        updateSquadDoc: async () => {},
+        getSquadMember: async () => null,
+        setSquadMember: async () => {},
+        deleteSquadMember: async () => {},
+        getSquadPresence: async () => null,
+        setSquadPresence: async () => {},
+        deleteSquadPresence: async () => {},
+        ensureSquadInvite: async (code, squadId, createdBy) =>
+          createdInvites.push({ code, squadId, createdBy }),
+      },
+    });
+    assert.deepEqual(createdInvites, [
+      { code: 'ABC123', squadId: 'sq-inv', createdBy: 'UidMatteo99' },
+    ]);
+  });
+
   it('migrates legacy email-keyed Squads, transferring createdBy + memberUids BEFORE subdocs and cleanup', async () => {
     const callOrder = [];
     const squadDoc = {

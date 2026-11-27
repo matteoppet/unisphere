@@ -150,43 +150,43 @@
             </section>
           </div>
         </div>
-
-        <dialog id="modal-delete-account" class="modal-dialog" aria-labelledby="modal-delete-account-title">
-          <div class="modal-card">
-            <div class="card-header">
-              <h3 id="modal-delete-account-title">Permanently Delete Account</h3>
-            </div>
-            <p class="field-hint" style="margin-top: 0;">
-              This permanently erases your profile, courses, study logs, exams, notes, friend links, shared Squad entries, and Firebase Authentication login. This action cannot be undone.
-            </p>
-            <form id="form-delete-account">
-              <div class="form-row">
-                <label for="input-delete-password">Current Password *</label>
-                <input
-                  type="password"
-                  id="input-delete-password"
-                  autocomplete="current-password"
-                  required
-                  placeholder="Enter your password to confirm"
-                />
-              </div>
-              <div class="form-row">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="chk-delete-confirm" required />
-                  <span>I understand this permanently deletes my account and cannot be undone.</span>
-                </label>
-              </div>
-              <div id="delete-account-status" class="notice-box" role="status" aria-live="polite" hidden></div>
-              <div class="dialog-actions">
-                <button type="button" id="btn-cancel-delete-account" data-close-modal="modal-delete-account">Cancel</button>
-                <button type="submit" id="btn-confirm-delete-account" class="btn-danger btn-danger-solid">
-                  Permanently Delete Account
-                </button>
-              </div>
-            </form>
-          </div>
-        </dialog>
       </main>
+
+      <dialog id="modal-delete-account" class="modal-dialog" aria-labelledby="modal-delete-account-title">
+        <div class="modal-card">
+          <div class="card-header">
+            <h3 id="modal-delete-account-title">Permanently Delete Account</h3>
+          </div>
+          <p class="field-hint" style="margin-top: 0;">
+            This permanently erases your profile, courses, study logs, exams, notes, friend links, shared Squad entries, and Firebase Authentication login. This action cannot be undone.
+          </p>
+          <form id="form-delete-account">
+            <div class="form-row">
+              <label for="input-delete-password">Current Password *</label>
+              <input
+                type="password"
+                id="input-delete-password"
+                autocomplete="current-password"
+                required
+                placeholder="Enter your password to confirm"
+              />
+            </div>
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="chk-delete-confirm" required />
+                <span>I understand this permanently deletes my account and cannot be undone.</span>
+              </label>
+            </div>
+            <div id="delete-account-status" class="notice-box" role="status" aria-live="polite" hidden></div>
+            <div class="dialog-actions">
+              <button type="button" id="btn-cancel-delete-account" data-close-modal="modal-delete-account">Cancel</button>
+              <button type="submit" id="btn-confirm-delete-account" class="btn-danger btn-danger-solid">
+                Permanently Delete Account
+              </button>
+            </div>
+          </form>
+        </div>
+      </dialog>
     </div>
 
     <script type="module" src="/src/main.js"></script>

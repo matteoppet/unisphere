@@ -5,6 +5,7 @@ import {
 } from 'firebase/auth';
 import {
   doc,
+  getDoc,
   getDocs,
   updateDoc,
   deleteDoc,
@@ -55,20 +56,29 @@ export function cleanNextSessionForUser(nextSession, excludedUid = '', excludedD
   let changed = false;
 
   const prevUids = Array.isArray(nextSession.attendeeUids) ? nextSession.attendeeUids : [];
-  const nextUids = prevUids.filter((id) => {
+  const removedIndices = new Set();
+  const nextUids = prevUids.filter((id, idx) => {
     const keep = normalizeUserId(id) !== cleanExcluded;
-    if (!keep) changed = true;
+    if (!keep) {
+      changed = true;
+      removedIndices.add(idx);
+    }
     return keep;
   });
 
   const prevNames = Array.isArray(nextSession.attendees) ? nextSession.attendees : [];
-  const nextNames = cleanNameLower
-    ? prevNames.filter((name) => {
-        const keep = String(name || '').trim().toLowerCase() !== cleanNameLower;
-        if (!keep) changed = true;
-        return keep;
-      })
-    : [...prevNames];
+  const sameLength = prevNames.length === prevUids.length && prevUids.length > 0;
+  const nextNames = prevNames.filter((name, idx) => {
+    if (sameLength && removedIndices.has(idx)) {
+      changed = true;
+      return false;
+    }
+    if (cleanNameLower && String(name || '').trim().toLowerCase() === cleanNameLower) {
+      changed = true;
+      return false;
+    }
+    return true;
+  });
 
   if (!changed) {
     return { nextSession, changed: false };
@@ -105,7 +115,20 @@ function classifyAuthReauthError(err) {
     : 'Re-authentication failed. Please verify your password and try again.';
 }
 
-function createDefaultDeletionOps(dbInstance) {
+export function createDefaultDeletionOps(
+  dbInstance,
+  firestoreApi = {
+    doc,
+    getDoc,
+    getDocs,
+    updateDoc,
+    deleteDoc,
+    collection,
+    query,
+    where,
+    arrayRemove,
+  }
+) {
   return {
     async reauthenticate(authUser, password) {
       const credential = EmailAuthProvider.credential(String(authUser.email || '').trim(), password);
@@ -113,79 +136,103 @@ function createDefaultDeletionOps(dbInstance) {
     },
     async queryUserSquads(uid) {
       if (!dbInstance || !uid) return [];
-      const snap = await getDocs(
-        query(collection(dbInstance, 'squads'), where('memberUids', 'array-contains', uid))
+      const snap = await firestoreApi.getDocs(
+        firestoreApi.query(
+          firestoreApi.collection(dbInstance, 'squads'),
+          firestoreApi.where('memberUids', 'array-contains', uid)
+        )
       );
       return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     },
     async getSquadMembers(squadId) {
       if (!dbInstance || !squadId) return [];
-      const snap = await getDocs(collection(dbInstance, 'squads', squadId, 'members'));
+      const snap = await firestoreApi.getDocs(
+        firestoreApi.collection(dbInstance, 'squads', squadId, 'members')
+      );
       return snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
     },
     async deleteAuthorSquadDocs(squadId, subcollection, uid) {
       if (!dbInstance || !squadId || !uid) return;
-      const snap = await getDocs(
-        query(collection(dbInstance, 'squads', squadId, subcollection), where('uid', '==', uid))
+      const snap = await firestoreApi.getDocs(
+        firestoreApi.query(
+          firestoreApi.collection(dbInstance, 'squads', squadId, subcollection),
+          firestoreApi.where('uid', '==', uid)
+        )
       );
       for (const d of snap.docs) {
-        await deleteDoc(d.ref);
+        await firestoreApi.deleteDoc(d.ref);
       }
     },
     async deleteSquadMemberDoc(squadId, uid) {
       if (!dbInstance || !squadId || !uid) return;
-      await deleteDoc(doc(dbInstance, 'squads', squadId, 'members', uid)).catch(() => {});
+      await firestoreApi.deleteDoc(firestoreApi.doc(dbInstance, 'squads', squadId, 'members', uid));
     },
     async deleteSquadPresenceDoc(squadId, uid) {
       if (!dbInstance || !squadId || !uid) return;
-      await deleteDoc(doc(dbInstance, 'squads', squadId, 'presence', uid)).catch(() => {});
+      await firestoreApi.deleteDoc(
+        firestoreApi.doc(dbInstance, 'squads', squadId, 'presence', uid)
+      );
     },
     async updateSquadDoc(squadId, patch) {
       if (!dbInstance || !squadId || !patch) return;
       const firestorePatch = { ...patch };
       if (Array.isArray(patch.removeMemberUids) && patch.removeMemberUids.length > 0) {
         delete firestorePatch.removeMemberUids;
-        firestorePatch.memberUids = arrayRemove(...patch.removeMemberUids);
+        firestorePatch.memberUids = firestoreApi.arrayRemove(...patch.removeMemberUids);
       }
-      await updateDoc(doc(dbInstance, 'squads', squadId), firestorePatch);
+      await firestoreApi.updateDoc(
+        firestoreApi.doc(dbInstance, 'squads', squadId),
+        firestorePatch
+      );
     },
     async deleteAllSubcollectionDocs(squadId, subcollection) {
       if (!dbInstance || !squadId) return;
-      const snap = await getDocs(collection(dbInstance, 'squads', squadId, subcollection));
+      const snap = await firestoreApi.getDocs(
+        firestoreApi.collection(dbInstance, 'squads', squadId, subcollection)
+      );
       for (const d of snap.docs) {
-        await deleteDoc(d.ref);
+        await firestoreApi.deleteDoc(d.ref);
       }
     },
     async deleteSquadInvite(code) {
       if (!dbInstance || !code) return;
-      await deleteDoc(doc(dbInstance, 'squadInvites', String(code).trim().toUpperCase())).catch(
-        () => {}
-      );
+      const ref = firestoreApi.doc(dbInstance, 'squadInvites', String(code).trim().toUpperCase());
+      const snap = await firestoreApi.getDoc(ref);
+      if (snap.exists()) {
+        await firestoreApi.deleteDoc(ref);
+      }
     },
     async deleteSquadDoc(squadId) {
       if (!dbInstance || !squadId) return;
-      await deleteDoc(doc(dbInstance, 'squads', squadId));
+      await firestoreApi.deleteDoc(firestoreApi.doc(dbInstance, 'squads', squadId));
     },
     async deleteFriendshipsForUser(uid) {
       if (!dbInstance || !uid) return;
-      const snap = await getDocs(
-        query(collection(dbInstance, 'friendships'), where('users', 'array-contains', uid))
+      const snap = await firestoreApi.getDocs(
+        firestoreApi.query(
+          firestoreApi.collection(dbInstance, 'friendships'),
+          firestoreApi.where('users', 'array-contains', uid)
+        )
       );
       for (const d of snap.docs) {
-        await deleteDoc(d.ref);
+        await firestoreApi.deleteDoc(d.ref);
       }
     },
     async deleteFriendLookup(emailHash) {
       if (!dbInstance || !emailHash) return;
-      await deleteDoc(doc(dbInstance, 'friendLookups', emailHash)).catch(() => {});
+      const ref = firestoreApi.doc(dbInstance, 'friendLookups', emailHash);
+      const snap = await firestoreApi.getDoc(ref);
+      if (snap.exists()) {
+        await firestoreApi.deleteDoc(ref);
+      }
     },
     async deleteFriendProfile(uid) {
       if (!dbInstance || !uid) return;
-      await deleteDoc(doc(dbInstance, 'friendProfiles', uid)).catch(() => {});
+      await firestoreApi.deleteDoc(firestoreApi.doc(dbInstance, 'friendProfiles', uid));
     },
     async deleteUserDoc(docId) {
       if (!dbInstance || !docId) return;
-      await deleteDoc(doc(dbInstance, 'users', docId)).catch(() => {});
+      await firestoreApi.deleteDoc(firestoreApi.doc(dbInstance, 'users', docId));
     },
     async deleteAuthUser(authUser) {
       await deleteUser(authUser);
@@ -251,14 +298,40 @@ export async function deleteCurrentUserAccount({
   let transferredSquads = 0;
   let deletedSquads = 0;
 
+  const legacyEmailId = getEmailDocId(email);
+  const authorIdsToDelete = Array.from(new Set([uid, legacyEmailId].filter(Boolean)));
+
   try {
     // Phase 3: Squads cleanup & random ownership transfer
     const userSquads = (await effectiveOps.queryUserSquads?.(uid)) || [];
     for (const sq of userSquads) {
       if (!sq?.id) continue;
       const members = (await effectiveOps.getSquadMembers?.(sq.id)) || [];
+      const memberUidSet = Array.isArray(sq.memberUids)
+        ? new Set(sq.memberUids.map((id) => normalizeUserId(id)).filter(Boolean))
+        : null;
+      const reconciledCandidates = [];
+      const seenCandidateUids = new Set();
+      for (const m of members) {
+        const mUid = normalizeUserId(m?.uid || '');
+        if (!mUid || mUid === uid || seenCandidateUids.has(mUid)) continue;
+        if (memberUidSet && memberUidSet.size > 0 && !memberUidSet.has(mUid)) continue;
+        seenCandidateUids.add(mUid);
+        reconciledCandidates.push(m);
+      }
+      if (memberUidSet) {
+        for (const mUid of memberUidSet) {
+          if (mUid && mUid !== uid && !seenCandidateUids.has(mUid)) {
+            seenCandidateUids.add(mUid);
+            reconciledCandidates.push({ uid: mUid, displayName: 'Squad Member' });
+          }
+        }
+      }
+
       const isCreator = normalizeUserId(sq.createdBy || '') === uid;
-      const nextCreator = isCreator ? selectRandomNextCreator(members, uid, randomFn) : null;
+      const nextCreator = isCreator
+        ? selectRandomNextCreator(reconciledCandidates, uid, randomFn)
+        : null;
 
       if (isCreator && !nextCreator) {
         // Solo creator empty squad: delete all subcollection docs + invite BEFORE squad doc
@@ -274,20 +347,28 @@ export async function deleteCurrentUserAccount({
       }
 
       // Non-empty squad (transferring creator or regular member leaving)
-      await effectiveOps.deleteAuthorSquadDocs?.(sq.id, 'activities', uid);
-      await effectiveOps.deleteAuthorSquadDocs?.(sq.id, 'sessions', uid);
+      const selfMemberDoc = members.find((m) => normalizeUserId(m?.uid || '') === uid);
+      const resolvedMemberName =
+        String(selfMemberDoc?.displayName || selfMemberDoc?.name || displayName || '').trim();
+
+      for (const authorId of authorIdsToDelete) {
+        await effectiveOps.deleteAuthorSquadDocs?.(sq.id, 'activities', authorId);
+        await effectiveOps.deleteAuthorSquadDocs?.(sq.id, 'sessions', authorId);
+      }
       await effectiveOps.deleteSquadMemberDoc?.(sq.id, uid);
       await effectiveOps.deleteSquadPresenceDoc?.(sq.id, uid);
 
       const nowIso = new Date().toISOString();
       const remainingCount = Math.max(
         0,
-        (Array.isArray(sq.memberUids) ? sq.memberUids.filter((id) => normalizeUserId(id) !== uid).length : members.length - 1)
+        memberUidSet
+          ? Array.from(memberUidSet).filter((id) => id !== uid).length
+          : reconciledCandidates.length
       );
       const { nextSession, changed: sessionChanged } = cleanNextSessionForUser(
         sq.nextSession,
         uid,
-        displayName
+        resolvedMemberName
       );
 
       const patch = {
@@ -308,6 +389,12 @@ export async function deleteCurrentUserAccount({
 
     // Phase 4: Delete personal & social graph documents
     await effectiveOps.deleteFriendshipsForUser?.(uid);
+    if (email && email !== uid) {
+      await effectiveOps.deleteFriendshipsForUser?.(email);
+    }
+    if (legacyEmailId && legacyEmailId !== uid && legacyEmailId !== email) {
+      await effectiveOps.deleteFriendshipsForUser?.(legacyEmailId);
+    }
     const emailHash = await hashEmailForLookup(email);
     if (emailHash) {
       await effectiveOps.deleteFriendLookup?.(emailHash);
@@ -315,7 +402,6 @@ export async function deleteCurrentUserAccount({
     await effectiveOps.deleteFriendProfile?.(uid);
     await effectiveOps.deleteUserDoc?.(uid);
 
-    const legacyEmailId = getEmailDocId(email);
     if (legacyEmailId && legacyEmailId !== uid) {
       await effectiveOps.deleteUserDoc?.(legacyEmailId);
     }

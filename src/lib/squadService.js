@@ -147,10 +147,8 @@ export async function fetchUserSquads(currentUid, email) {
     }
 
     // Verify the user has not been removed by an admin from any candidate squad
-    const safeActId = String(userDocId)
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, '_')
+    const safeActId = normalizeUserId(userDocId)
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
       .slice(0, 120);
     for (const sq of Array.from(foundSquadsMap.values())) {
       const isCreator =
@@ -400,10 +398,8 @@ export async function saveSquadMemberToCloud(squadId, member) {
   try {
     const { email: _omitEmail, ...rawSanitizedMember } = member || {};
     const sanitizedMember = { ...rawSanitizedMember, uid: cleanUid };
-    const safeActId = String(cleanUid)
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, '_')
+    const safeActId = cleanUid
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
       .slice(0, 120);
 
     if (sanitizedMember.joinedAt) {
@@ -486,7 +482,7 @@ export async function removeMemberFromSquad(squadId, memberUid, memberName = '',
   const cleanUid = normalizeUserId(memberUid);
   const cleanName = sanitizeTextInput(memberName || '', 100);
   const nowIso = new Date().toISOString();
-  const markerId = `removed_${cleanUid.toLowerCase().replace(/[^a-z0-9_-]/g, '_')}`;
+  const markerId = `removed_${cleanUid.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 
   try {
     await deleteDoc(doc(cloudDb, 'squads', squadId, 'members', cleanUid)).catch(() => {});
@@ -528,6 +524,7 @@ export async function deleteSquadCompletely(
 ) {
   if (!squadId) return;
   recordLeftSquadId(squadId);
+  const creatorUid = getUserDocId(email, currentUid);
   await removeSquadFromUserDoc(email, currentUid, squadId, nextActiveSquadId, ops);
 
   if (ops) {
@@ -538,6 +535,9 @@ export async function deleteSquadCompletely(
     }
     if (code && typeof ops.deleteSquadInvite === 'function') {
       await ops.deleteSquadInvite(code);
+    }
+    if (creatorUid && typeof ops.shrinkSquadToSoloCreator === 'function') {
+      await ops.shrinkSquadToSoloCreator(squadId, creatorUid);
     }
     if (typeof ops.deleteSquadDoc === 'function') {
       await ops.deleteSquadDoc(squadId);
@@ -563,6 +563,13 @@ export async function deleteSquadCompletely(
     }
     if (inviteCode) {
       await deleteSquadInvite(inviteCode);
+    }
+    if (creatorUid) {
+      await updateDoc(doc(cloudDb, 'squads', squadId), {
+        memberUids: [creatorUid],
+        memberCount: 1,
+        updatedAt: new Date().toISOString(),
+      }).catch(() => {});
     }
     await deleteDoc(doc(cloudDb, 'squads', squadId));
   } catch (err) {

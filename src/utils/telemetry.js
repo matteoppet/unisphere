@@ -766,10 +766,10 @@ export function deduplicateSquadMembers(rawMembers = [], identity = {}) {
     return { members: [], staleLegacyUids: [] };
   }
 
-  const normMyUid = String(identity.myUid || '').trim().toLowerCase();
+  const normMyUid = normalizeUserId(identity.myUid || '');
   const normMyName = String(identity.myDisplayName || '').trim().toLowerCase();
-  const normAuthUid = String(identity.authUid || '').trim();
-  const normStudentId = String(identity.studentId || '').trim().toLowerCase();
+  const normAuthUid = normalizeUserId(identity.authUid || '');
+  const normStudentId = normalizeUserId(identity.studentId || '');
   const normMyEmail = String(identity.email || '').trim().toLowerCase();
 
   const staleSet = new Set();
@@ -779,7 +779,7 @@ export function deduplicateSquadMembers(rawMembers = [], identity = {}) {
   for (const m of rawMembers) {
     if (!m || !m.uid) continue;
     const rawUid = String(m.uid).trim();
-    const normUid = rawUid.toLowerCase();
+    const normUid = normalizeUserId(rawUid);
     const normEmail = String(m.email || '').trim().toLowerCase();
     const normName = String(m.displayName || '').trim().toLowerCase();
 
@@ -802,7 +802,7 @@ export function deduplicateSquadMembers(rawMembers = [], identity = {}) {
 
     const dedupeKey =
       normEmail ||
-      (normName && normName !== 'student' ? `name:${normName}` : `uid:${normUid}`);
+      (normName && normName !== 'student' && !normUid ? `name:${normName}` : `uid:${normUid}`);
 
     const existing = othersByKey.get(dedupeKey);
     if (!existing) {
@@ -1169,8 +1169,8 @@ export function partitionFriendships(friendships = [], myUid = '', myDisplayName
     seenFriendUids.add(friendUid);
 
     const friendEmail = isRequester
-      ? String(item.recipientEmail || friendUid).trim()
-      : String(item.requesterEmail || friendUid).trim();
+      ? String(item.recipientEmail || '').trim()
+      : String(item.requesterEmail || '').trim();
     const rawDisplayName = isRequester ? item.recipientName : item.requesterName;
     const displayName =
       String(rawDisplayName || '').trim() || formatReadableFallbackName(friendEmail || friendUid);
@@ -1179,7 +1179,7 @@ export function partitionFriendships(friendships = [], myUid = '', myDisplayName
     const normalizedEntry = {
       friendshipId,
       uid: friendUid,
-      email: friendEmail || friendUid,
+      email: friendEmail,
       displayName,
       status: status === 'accepted' ? 'accepted' : 'pending',
       direction: isRequester ? 'outgoing' : 'incoming',

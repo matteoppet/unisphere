@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   selectRandomNextCreator,
   cleanNextSessionForUser,
+  createDefaultDeletionOps,
   deleteCurrentUserAccount,
 } from '../lib/accountDeletionService.js';
 
@@ -234,13 +235,20 @@ describe('GDPR Art. 17 Self-Serve Account Deletion Service (Milestone 2)', () =>
 
     assert.match(settingsHtml, /id="settings-danger-zone"/);
     assert.match(settingsHtml, /id="btn-open-delete-account"/);
-    assert.match(settingsHtml, /<dialog[^>]*id="modal-delete-account"/);
+    assert.match(settingsHtml, /<\/main>[\s\S]*<dialog[^>]*id="modal-delete-account"/);
     assert.match(settingsHtml, /id="form-delete-account"/);
     assert.match(settingsHtml, /id="input-delete-password"/);
     assert.match(settingsHtml, /id="chk-delete-confirm"/);
     assert.match(settingsHtml, /id="delete-account-status"/);
     assert.match(settingsHtml, /id="btn-confirm-delete-account"/);
     assert.match(settingsHtml, /id="btn-cancel-delete-account"/);
+
+    // Ensure zombie localStorage sessions are cleared when Firebase reports user === null
+    assert.match(
+      appSrc,
+      /else if \(!user\)[\s\S]*clearLocalWorkspaceStorage\(\)/,
+      'onAuthStateChanged must clear stale localStorage session when user === null'
+    );
 
     assert.match(cssSrc, /\.danger-zone-card/);
     assert.match(cssSrc, /html\[data-theme="dark"\][\s\S]*\.danger-zone-card/);
@@ -275,5 +283,83 @@ describe('GDPR Art. 17 Self-Serve Account Deletion Service (Milestone 2)', () =>
     ]) {
       assert.ok(appSrc.includes(required), `src/app.js must wire ${required}`);
     }
+  });
+
+  it('createDefaultDeletionOps propagates deleteDoc errors (never swallowing PII deletion failures) and skips deleteDoc when friendLookup/squadInvite does not exist', async () => {
+    const deletedPaths = [];
+    const mockFirestoreApi = {
+      doc: (_db, ...segs) => ({ path: segs.join('/') }),
+      getDoc: async (ref) => ({
+        exists: () => ref.path === 'squadInvites/EXISTS',
+      }),
+      deleteDoc: async (ref) => {
+        if (ref.path === 'users/UidFail') {
+          throw new Error('permission-denied');
+        }
+        deletedPaths.push(ref.path);
+      },
+    };
+    const defaultOps = createDefaultDeletionOps({ __mock: true }, mockFirestoreApi);
+
+    await assert.rejects(() => defaultOps.deleteUserDoc('UidFail'), /permission-denied/);
+    await defaultOps.deleteFriendLookup('hash-missing');
+    await defaultOps.deleteSquadInvite('MISSING');
+    await defaultOps.deleteSquadInvite('EXISTS');
+    assert.deepEqual(deletedPaths, ['squadInvites/EXISTS']);
+  });
+
+  it('cleans legacy email subdocs/friendships, resolves stale displayName from squad member doc, and reconciles memberUids against members subdocs', async () => {
+    const events = [];
+    const res = await deleteCurrentUserAccount({
+      authUser: { uid: 'UidDel1', email: 'Alice@Uni.IT', displayName: '' },
+      password: 'ok',
+      randomFn: () => 0.0,
+      cleanupActiveListeners: () => {},
+      clearBrowserStorage: () => {},
+      ops: {
+        reauthenticate: async () => {},
+        queryUserSquads: async () => [
+          {
+            id: 'sq-skew',
+            createdBy: 'UidDel1',
+            memberUids: ['UidDel1', 'UidBob2'],
+            nextSession: {
+              title: 'Sync',
+              attendees: ['Alice Updated', 'Bob'],
+              attendeeUids: ['UidDel1', 'UidBob2'],
+            },
+          },
+        ],
+        getSquadMembers: async () => [
+          { uid: 'UidDel1', displayName: 'Alice Updated' },
+          { uid: 'UidOrphanNotInMemberUids', displayName: 'Orphan' },
+          { uid: 'UidBob2', displayName: 'Bob' },
+        ],
+        deleteAuthorSquadDocs: async (squadId, sub, targetId) => {
+          events.push(`deleteAuthor:${squadId}:${sub}:${targetId}`);
+        },
+        deleteSquadMemberDoc: async () => {},
+        deleteSquadPresenceDoc: async () => {},
+        updateSquadDoc: async (_squadId, patch) => {
+          events.push({ step: 'updateSquad', patch });
+        },
+        deleteFriendshipsForUser: async (id) => {
+          events.push(`deleteFriendships:${id}`);
+        },
+        deleteFriendLookup: async () => {},
+        deleteFriendProfile: async () => {},
+        deleteUserDoc: async () => {},
+        deleteAuthUser: async () => {},
+      },
+    });
+
+    assert.equal(res.ok, true);
+    assert.ok(events.includes('deleteAuthor:sq-skew:activities:alice@uni.it'));
+    assert.ok(events.includes('deleteAuthor:sq-skew:sessions:alice@uni.it'));
+    assert.ok(events.includes('deleteFriendships:alice@uni.it'));
+    const upd = events.find((e) => typeof e === 'object' && e.step === 'updateSquad');
+    assert.equal(upd.patch.createdBy, 'UidBob2');
+    assert.deepEqual(upd.patch.nextSession.attendees, ['Bob']);
+    assert.deepEqual(upd.patch.nextSession.attendeeUids, ['UidBob2']);
   });
 });

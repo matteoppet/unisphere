@@ -15,6 +15,16 @@ import { getEmailDocId } from './authService.js';
 import { normalizeUserId, buildFriendProfilePayload } from '../utils/telemetry.js';
 import { syncFriendProfileAndLookup } from './squadService.js';
 
+const ALLOWED_LEGACY_USER_KEYS = new Set([
+  'uid', 'authUid', 'email', 'name', 'studentId', 'authProvider', 'emailVerified',
+  'degreeLevel', 'degreeName', 'degreeType', 'totalTargetCFU', 'enrolledYear', 'academicYear',
+  'institution', 'status', 'currentSession', 'weeklyGoalHours', 'avatarUrl', 'logoUrl',
+  'thesisPointsExpected', 'courses', 'studyLogs', 'assignments', 'quickNotes', 'checklist',
+  'resourceLinks', 'activeSquadId', 'squadIds', 'xp', 'currentStreak',
+  'minutesStudiedThisWeek', 'tasksCompletedThisWeek', 'lastActiveDate',
+  'createdAt', 'updatedAt', 'updatedBy', 'migratedFromEmailId', 'migratedAt',
+]);
+
 function createDefaultMigrationOps(dbInstance) {
   return {
     async getUserDoc(docId) {
@@ -86,6 +96,20 @@ function createDefaultMigrationOps(dbInstance) {
       if (!dbInstance || !squadId || !memberId) return;
       await deleteDoc(doc(dbInstance, 'squads', squadId, 'presence', memberId));
     },
+    async ensureSquadInvite(code, squadId, createdBy) {
+      if (!dbInstance || !code || !squadId || !createdBy) return;
+      const cleanCode = String(code).trim().toUpperCase();
+      await setDoc(
+        doc(dbInstance, 'squadInvites', cleanCode),
+        {
+          code: cleanCode,
+          squadId,
+          createdBy,
+          createdAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    },
     async syncFriendProfileAndLookup({ uid, email, friendProfile }) {
       await syncFriendProfileAndLookup({ uid, email, friendProfile });
     },
@@ -93,7 +117,7 @@ function createDefaultMigrationOps(dbInstance) {
 }
 
 /**
- * Idempotently migrates `/users/{emailSlug}` to `/users/{uid}`, stripping `passwordHash`.
+ * Idempotently migrates `/users/{emailSlug}` to `/users/{uid}`, filtering to rule-allowlisted keys.
  */
 export async function migrateLegacyUserDoc({ uid, email, ops } = {}) {
   const cleanUid = normalizeUserId(uid || '');
@@ -103,7 +127,8 @@ export async function migrateLegacyUserDoc({ uid, email, ops } = {}) {
     return { migrated: false, deletedLegacy: false, userData: null };
   }
 
-  const existingUidDoc = await ops.getUserDoc(cleanUid).catch(() => null);
+  // Propagate read errors so transient offline/network failures never trigger false overwrites
+  const existingUidDoc = await ops.getUserDoc(cleanUid);
   if (existingUidDoc) {
     return { migrated: false, deletedLegacy: false, userData: existingUidDoc };
   }
@@ -113,10 +138,16 @@ export async function migrateLegacyUserDoc({ uid, email, ops } = {}) {
     return { migrated: false, deletedLegacy: false, userData: null };
   }
 
-  const { passwordHash: _omitPasswordHash, ...rest } = legacyDoc;
+  const filteredRest = {};
+  for (const [k, v] of Object.entries(legacyDoc)) {
+    if (ALLOWED_LEGACY_USER_KEYS.has(k) && v !== undefined) {
+      filteredRest[k] = v;
+    }
+  }
   const migratedData = {
-    ...rest,
+    ...filteredRest,
     uid: cleanUid,
+    authUid: cleanUid,
     email: normalizedEmail,
     migratedFromEmailId: legacyId,
     migratedAt: new Date().toISOString(),
@@ -202,6 +233,9 @@ export async function migrateLegacySquadsForUser({ uid, email, ops } = {}) {
     }
 
     await ops.updateSquadDoc(sq.id, postPatch);
+    if (sq.createdBy === legacyId && sq.code && typeof ops.ensureSquadInvite === 'function') {
+      await ops.ensureSquadInvite(sq.code, sq.id, cleanUid).catch(() => {});
+    }
     migratedSquadIds.push(sq.id);
   }
 

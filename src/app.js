@@ -2058,7 +2058,7 @@ export function initApp() {
       const actTs = Date.parse(String(act.updatedAt || act.createdAt || '')) || Date.now();
       if (act.type === 'member_removed' && act.status === 'removed') {
         if (act.uid) {
-          const k = String(act.uid).trim().toLowerCase();
+          const k = normalizeUserId(act.uid);
           removedUidsInCloud.set(k, Math.max(removedUidsInCloud.get(k) || 0, actTs));
         }
         if (act.displayName && act.displayName !== 'Removed Member') {
@@ -2066,7 +2066,7 @@ export function initApp() {
           removedNamesInCloud.set(k, Math.max(removedNamesInCloud.get(k) || 0, actTs));
         }
       } else if (act.type === 'member_rejoined' && act.uid) {
-        const k = String(act.uid).trim().toLowerCase();
+        const k = normalizeUserId(act.uid);
         rejoinedUidsInCloud.set(k, Math.max(rejoinedUidsInCloud.get(k) || 0, actTs));
       }
     }
@@ -2092,7 +2092,7 @@ export function initApp() {
           isStreakActive: myStreak > 0,
         });
       } else {
-        const normMemberUid = String(m.uid).trim().toLowerCase();
+        const normMemberUid = normalizeUserId(m.uid);
         const normMemberName = String(m.displayName || '').trim().toLowerCase();
         const joinedAtMs = Date.parse(String(m.joinedAt || '')) || 0;
         const rejoinedAtMs = rejoinedUidsInCloud.get(normMemberUid) || 0;
@@ -2726,7 +2726,7 @@ export function initApp() {
     const friendObj = acceptedFriends.find((f) => f.uid === selectedFriendUid) || {
       uid: selectedFriendUid,
       displayName: 'Friend',
-      email: selectedFriendUid,
+      email: '',
     };
     const squadMemberFallback =
       allMembers.find((m) => normalizeUserId(m.uid || '') === selectedFriendUid) || {};
@@ -3104,7 +3104,11 @@ export function initApp() {
     }
   }
 
-  async function handleSendFriendRequest(targetInput, targetDisplayName = '') {
+  async function handleSendFriendRequest(
+    targetInput,
+    targetDisplayName = '',
+    { fromSearchInput = false } = {}
+  ) {
     const myEmail = sessionEmail || profile.email || auth?.currentUser?.email || '';
     const myUid = getActiveAuthUid();
     const myName = sanitizeTextInput(profile.name || 'Student', 100);
@@ -3135,6 +3139,13 @@ export function initApp() {
       if (matchedMember && matchedMember.uid) {
         cleanTarget = matchedMember.uid;
         resolvedDisplayName = resolvedDisplayName || matchedMember.displayName || '';
+      } else if (fromSearchInput) {
+        friendActionNotice = {
+          type: 'error',
+          text: 'Enter a valid friend email address or an exact squadmate name.',
+        };
+        populateSquadsPage();
+        return;
       }
     }
 
@@ -4504,7 +4515,7 @@ export function initApp() {
           e.preventDefault();
           const inputEl = document.getElementById('friend-search-input');
           const rawVal = inputEl?.value || friendSearchQuery;
-          void handleSendFriendRequest(rawVal);
+          void handleSendFriendRequest(rawVal, '', { fromSearchInput: true });
         });
       }
     }
@@ -5124,7 +5135,7 @@ export function initApp() {
       if (!activeSquad || !isCurrentUserSquadCreator(activeSquad)) return;
       const removeMemberName =
         sanitizeTextInput(target.getAttribute('data-admin-remove-name') || '', 100) || '';
-      const normRemoveUid = String(removeMemberUid).trim().toLowerCase();
+      const normRemoveUid = normalizeUserId(removeMemberUid);
       const normRemoveName = removeMemberName.toLowerCase();
       removedSquadMemberKeys.add(`${activeSquad.id}:${normRemoveUid}`);
       const nowIso = new Date().toISOString();
@@ -5139,23 +5150,23 @@ export function initApp() {
           updatedAt: nowIso,
         },
         ...squadActivities.filter(
-          (a) => !(a?.type === 'member_removed' && String(a?.uid || '').trim().toLowerCase() === normRemoveUid)
+          (a) => !(a?.type === 'member_removed' && normalizeUserId(a?.uid || '') === normRemoveUid)
         ),
       ];
       squadMembers = squadMembers.filter((m) => {
-        const mUid = String(m?.uid || '').trim().toLowerCase();
+        const mUid = normalizeUserId(m?.uid || '');
         const mName = String(m?.displayName || '').trim().toLowerCase();
         return mUid !== normRemoveUid && (!normRemoveName || mName !== normRemoveName);
       });
       squadPresence = squadPresence.filter(
-        (p) => String(p?.uid || '').trim().toLowerCase() !== normRemoveUid
+        (p) => normalizeUserId(p?.uid || '') !== normRemoveUid
       );
       squads = squads.map((s) =>
         s.id === activeSquad.id
           ? {
               ...s,
               memberUids: Array.isArray(s.memberUids)
-                ? s.memberUids.filter((u) => String(u).trim().toLowerCase() !== normRemoveUid)
+                ? s.memberUids.filter((u) => normalizeUserId(u) !== normRemoveUid)
                 : [],
             }
           : s
@@ -5904,6 +5915,19 @@ export function initApp() {
       } else if (!user) {
         cleanupAllRealtimeListeners();
         sessionUid = '';
+        if (db && isAuthenticated) {
+          clearLocalWorkspaceStorage();
+          sessionEmail = null;
+          isAuthenticated = false;
+          squads = [];
+          friendships = [];
+          authNotice = {
+            type: 'error',
+            scope: 'login',
+            text: 'Your session expired or was signed out. Please sign in with your password (or select Forgot password? if you previously used Google Sign-In).',
+          };
+          void loadAndRenderPage('login', true);
+        }
       }
     });
   }

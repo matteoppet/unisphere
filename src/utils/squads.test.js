@@ -246,6 +246,18 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       assert.equal(matteoEntries[0].minutesThisWeek, 670);
       assert.deepEqual(staleLegacyUids.sort(), ['582910', 'legacy-firebase-uid-123']);
     });
+
+    it('keeps distinct mixed-case Firebase Auth UIDs separate in deduplicateSquadMembers', () => {
+      const result = deduplicateSquadMembers(
+        [
+          { uid: 'UidAlpha99', displayName: 'Alice', minutesThisWeek: 120 },
+          { uid: 'uidalpha99', displayName: 'Other User', minutesThisWeek: 90 },
+        ],
+        { myUid: 'UidAlpha99', myDisplayName: 'Alice' }
+      );
+      assert.equal(result.members.length, 2);
+      assert.deepEqual(result.staleLegacyUids, []);
+    });
   });
 
   describe('Leave Squad Persistence Fix (#42) & Squad Service Operations', () => {
@@ -536,6 +548,7 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
       const part = partitionFriendships(mixedDocs, 'UidAlpha99', 'Alice');
       assert.equal(part.acceptedFriends.length, 1);
       assert.equal(part.acceptedFriends[0].uid, 'uidBeta12');
+      assert.equal(part.acceptedFriends[0].email, '');
 
       // buildFriendProfilePayload omits grades, cfu, secrets, raw studyLogs & assignments while feeding buildFriendTelemetrySummary
       const payload = buildFriendProfilePayload(
@@ -922,6 +935,8 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
         removeSquadFromUserDoc: async () => deleteOrder.push('removeSquadFromUserDoc'),
         deleteSubcollectionDocs: async (sub) => deleteOrder.push(`deleteSub:${sub}`),
         deleteSquadInvite: async (code) => deleteOrder.push(`deleteInvite:${code}`),
+        shrinkSquadToSoloCreator: async (squadId, uid) =>
+          deleteOrder.push(`shrinkSquad:${squadId}:${uid}`),
         deleteSquadDoc: async () => deleteOrder.push('deleteSquadDoc'),
       });
       assert.deepEqual(deleteOrder, [
@@ -931,8 +946,14 @@ describe('Squads Redesign, Live Library, Admin (#36), Leave (#42) & Friend Calen
         'deleteSub:activities',
         'deleteSub:sessions',
         'deleteInvite:INV123',
+        'shrinkSquad:sq-1:UidMatteo1',
         'deleteSquadDoc',
       ]);
+
+      // Non-email search bar input must not silently send a raw-UID friend request
+      const repoRoot = path.resolve(import.meta.dirname || '.', '../..');
+      const appSrc = fs.readFileSync(path.join(repoRoot, 'src/app.js'), 'utf8');
+      assert.match(appSrc, /fromSearchInput/);
     });
 
     it('extends #friends-sidebar to full Y viewport minus 200px like the Squad View and listens for real-time & cross-tab notifications (#44)', () => {
