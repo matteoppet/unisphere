@@ -298,10 +298,11 @@ describe('Login & Registration Legal Wiring and Hash Targeting', () => {
     assert.ok(html.includes('https://github.com/matteoppet/unisphere'));
     assert.equal(html.includes('btn-google-sso'), false, 'pages/login.html must remove #btn-google-sso');
     assert.equal(
-      /Signing in with Google|Continue with Google/i.test(html),
+      /Signing in with Google|Continue with Google|Previously used Google Sign-In/i.test(html),
       false,
       'pages/login.html must remove Google Sign-In UI and governance copy'
     );
+    assert.ok(html.includes('Read our'), 'pages/login.html must show concise legal link note');
     assert.match(html, /Forgot password\?/i);
   });
 
