@@ -155,24 +155,49 @@ a {
 .intro-nav-login {
   color: var(--ink);
   font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 14px;
+  line-height: 1.2;
+  font-size: 0.86rem;
+}
+
+.intro-nav-login:hover {
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
+
+.intro-nav-utility,
+.intro-nav-auth {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.intro-nav-divider {
+  width: 1px;
+  height: 22px;
+  background-color: var(--border);
 }
 
 .theme-toggle-btn {
   appearance: none;
-  background-color: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--border);
+  background-color: transparent;
+  color: var(--ink-muted);
+  border: 1px solid transparent;
   border-radius: 6px;
-  padding: 6px 11px;
+  padding: 6px 10px;
   font-family: var(--font-sans);
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease;
 }
 
 .theme-toggle-btn:hover {
-  border-color: var(--border-strong);
+  color: var(--ink);
+  border-color: var(--border);
 }
 
 .btn-primary {
@@ -794,6 +819,15 @@ a {
 
   .intro-nav {
     gap: 10px;
+  }
+
+  .intro-nav-divider {
+    display: none;
+  }
+
+  .intro-nav-utility,
+  .intro-nav-auth {
+    gap: 8px;
   }
 
   .intro-nav .btn-primary-sm:not([data-legal-app-cta]) {

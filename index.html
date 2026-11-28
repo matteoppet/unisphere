@@ -18,23 +18,28 @@
     <header class="intro-header">
       <a href="/?intro=1" class="intro-brand">UniSphere</a>
       <nav class="intro-nav" aria-label="Public navigation">
-        <a
-          href="https://github.com/matteoppet/unisphere"
-          class="intro-nav-link"
-          target="_blank"
-          rel="noopener noreferrer"
-          >Open Source</a
-        >
-        <button
-          type="button"
-          id="btn-theme-toggle"
-          class="theme-toggle-btn"
-          aria-label="Switch to dark theme"
-        >
-          Dark Theme
-        </button>
-        <a href="/pages/login.html#login" class="intro-nav-link intro-nav-login">Log in</a>
-        <a href="/pages/login.html#register" class="btn-primary btn-primary-sm">Start Your New Life</a>
+        <div class="intro-nav-utility">
+          <a
+            href="https://github.com/matteoppet/unisphere"
+            class="intro-nav-link"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Open Source</a
+          >
+          <button
+            type="button"
+            id="btn-theme-toggle"
+            class="theme-toggle-btn"
+            aria-label="Switch to dark theme"
+          >
+            Dark Theme
+          </button>
+        </div>
+        <span class="intro-nav-divider" aria-hidden="true"></span>
+        <div class="intro-nav-auth">
+          <a href="/pages/login.html#login" class="intro-nav-link intro-nav-login">Log in</a>
+          <a href="/pages/login.html#register" class="btn-primary btn-primary-sm">Start Your New Life</a>
+        </div>
       </nav>
     </header>
 
