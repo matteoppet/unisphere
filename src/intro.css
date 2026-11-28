@@ -856,3 +856,8 @@ a {
     gap: 4px;
   }
 }
+
+.intro-hero-subtitle strong {
+  color: var(--ink);
+  font-weight: 700;
+}

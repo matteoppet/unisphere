@@ -149,7 +149,7 @@ describe('One-Page Introduction Markup, Theme & Assets (index.html)', () => {
     assert.match(html, /Open Source/i);
     assert.ok(html.includes('https://github.com/matteoppet/unisphere'));
     assert.match(html, /distraction-free/i);
-    assert.ok(html.includes('Get started free'));
+    assert.ok(html.includes('Get Started'));
     assert.ok(html.includes('href="/pages/login.html#register"'));
     assert.ok(html.includes('href="/pages/login.html#login"'));
 
