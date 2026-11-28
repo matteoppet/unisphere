@@ -1397,7 +1397,7 @@ export function initApp() {
     }
     if (authTitleEl) {
       authTitleEl.textContent =
-        activeMode === 'register' ? 'Start your new life' : 'Sign in to UniSphere';
+        activeMode === 'register' ? 'Create your UniSphere account' : 'Sign in to UniSphere';
     }
     if (authSubtitleEl) {
       authSubtitleEl.textContent =
